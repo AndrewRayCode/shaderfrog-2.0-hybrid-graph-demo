@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "watch-test": "jest --watch"
   },
   "dependencies": {
     "@shaderfrog/glsl-parser": "^0.0.40",
@@ -17,9 +18,15 @@
     "three": "^0.132.2"
   },
   "devDependencies": {
+    "@babel/core": "^7.15.5",
+    "@babel/preset-env": "^7.15.6",
+    "@babel/preset-typescript": "^7.15.0",
+    "@types/jest": "^27.0.2",
     "@types/react": "17.0.19",
+    "babel-jest": "^27.2.2",
     "eslint": "7.32.0",
     "eslint-config-next": "11.1.0",
+    "jest": "^27.2.2",
     "prettier": "^2.3.2",
     "typescript": "4.4.2"
   }

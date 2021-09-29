@@ -7,18 +7,20 @@ import {
   Engine,
   ShaderType,
   ProgramAst,
-  compileGraph,
+  compile,
   outputNode,
   Graph,
   Node,
   NodeParsers,
 } from './nodestuff';
 
-const phongNode = (id: string, options: Object): Node => {
+export const phongNode = (id: string, options: Object): Node => {
   return {
     id: id,
     type: ShaderType.phong,
     options,
+    vertexSource: '',
+    fragmentSource: '',
   };
 };
 
@@ -27,6 +29,7 @@ const parsePhong = (context: Object, node: Node): ProgramAst => {
   const material = new three.MeshPhongMaterial({
     color: 0x222222,
     map: new three.Texture(),
+    normalMap: new three.Texture(),
   });
   mesh.material = material;
   renderer.compile(scene, camera);
@@ -118,11 +121,23 @@ const ThreeScene = ({ engine, parsers }: Prorps) => {
       requestRef.current = requestAnimationFrame(animate);
     };
 
-    const { vertex, fragment } = compileGraph(
+    // Start on the output node
+    const output = graph.nodes.find((node) => node.type === 'output');
+
+    if (!output) {
+      throw new Error('No output in graph');
+    }
+    const inputEdges = graph.edges.filter((edge) => edge.to === output.id);
+    if (inputEdges.length !== 1) {
+      throw new Error('No input to output in');
+    }
+    const { vertex, fragment } = compile(
       threngine,
       { renderer, scene, camera, mesh },
       parsers,
-      graph
+      graph,
+      output,
+      inputEdges[0]
     );
 
     // renderer.compile(scene, camera);

@@ -95,3 +95,116 @@ const Home: NextPage = () => {
 };
 
 export default Home;
+/* 
+[
+  chunk:
+  uniform sampler2D woahNelly;
+  uniform vec4 engineVariable;
+  uniform vec3 shaderOnlyVariable;
+  in vec2 vUv;
+
+  // A nice to have
+  vec2 something() {
+    return vUv.y;
+  }
+
+  void main(vec2 otro) {
+    return engineVariable + shaderOnlyVariable * vUv.x + something() + texture2D(woahNelly, vUv * 2.0);
+  }
+]
+
+[
+  chunk:
+  uniform sampler2D image;
+  uniform sampler2D normalMap;
+  in vec2 vUv;
+
+  void main() {
+    vec2 otro = vUv * 2.0;
+    vec4 res = texture2D(image, otro);
+    vec4 normalRes = texture2D(normalMap, otro);
+    return res;
+
+    // Backfilled
+    vec4 res_2_result = main_2(otro);
+    // Non-backfilled
+    vec4 res_2_result = main_2();
+  }
+]
+
+// inputted into function = inserted at top of the fn? 
+[shader1]                    ┌________
+          > [add] - texture o output ]
+[shader2]                    └‾‾‾‾‾‾‾‾
+
+
+[shader0] - [shader1]                    ┌________
+                      > [add] - texture o output ]
+            [shader2]                    └‾‾‾‾‾‾‾‾
+
+
+// backfill only occurs if previous shader has the vUv attr to backfill?
+vec4 res_2_result = shader1(otro) + shader2();
+
+we take the chunk of the last shader
+we see it needs texture2d() filled in and backfilled
+we walk back to the plus - we merge in the plus result with our own
+to get the plus result we look at the plus input a
+  - shader1 parsed produces shader1() with list of engine variables it uses
+  - we see that we're in a backfilling context for this engine variable so it
+    modifies the filler it produces to shader1(vec2 engineVar)
+  - now we get back to the plus - and we got shader1(vec2 engineVar) for input a,
+    well in this case we're building an expression to input so we can create
+    shader1(otro)
+  - In the expression case, we can store the backfilling engine variables in the
+    context as we compose, and what we intend to backfill them as (aka { vUv: 'otro' })
+    and produce the filler expression shader1(otro)
+
+In the case where the backfilled shader itself has an input shader that needs
+backfilling
+
+shader1(otro)
+vec4 shader1(vec2 otro) {
+  vec2 myVuV = otro * 1.0;
+  shader0(myVuV * 2.0)
+}
+
+We backfill otro into vUv of shader1.
+We note that shader1 has an input into its own image.
+We set the context of {vUv: 'myVuV * 2.0'} which we might not need to use
+
+texture2D(myImage, vUv) // uses vUv ouright
+texture2D(myImage, vUv * 2.0) // uses engine var vUv in expression
+texture2D(myImage, vec2(2.0)) // doesnt use engine var at all. if we want to
+                                backfill this, it's a special case knowledge
+                                that texture2D(image, uv) === vUv in filling
+                                shaders. It's not that texture2D(image, uv) "uv"
+                                becomes the thing we look for in the previous
+                                shader. It's that we have to know that texture2D(image, ...) =
+                                start backfilling context vUv (and then ideally
+                                the "out" from the vertex shader is the var to
+                                backfill)
+
+[shader1]                   ┌________
+          > [add] - texture o output ]
+[shader2]                   └‾‾‾‾‾‾‾‾
+
+output: { inputs: { texture2D, strategy: 'replaceVuVImage', backfillers: backfill('vUv') } }
+
+// First we need to get the final filler expression for this hole
+const { ast, fillerExpression } = compose(graph.inputs(vUv), strategy)
+
+Then we get to add
+a + b
+inputs: { a: { strategy: () => replace(aAstNode, exprAst) } }
+const { ast, fillerExpression } = compose(graph.inputs(a), strategy)
+// and fill it in for our node
+ast = fill(ast, fillerExpression, inputs[0])
+
+const { ast, fillerExpression } = compose(inputs, )
+
+// Back up at output, then we need to fill the hole
+ast = fill(ast, fillerExpression, inputs[0])
+// which results in vec4 shader1() + shader2() 
+
+*/

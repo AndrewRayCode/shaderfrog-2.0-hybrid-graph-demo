@@ -1,25 +1,14 @@
 import { generate, parser } from '@shaderfrog/glsl-parser';
-import { visit } from '@shaderfrog/glsl-parser/core/ast.js';
-import preprocess from '@shaderfrog/glsl-parser/preprocessor';
+import { visit, AstNode } from '@shaderfrog/glsl-parser/dist/core/ast';
+import {
+  ParserProgram,
+  Scope,
+} from '@shaderfrog/glsl-parser/dist/parser/parser';
+import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor/preprocessor';
 import { FunctionComponent } from 'react';
 import util from 'util';
 
-export interface Scope {
-  name: string;
-  parent?: Scope;
-  bindings: { [name: string]: { references: Array<object> } };
-  types: { [key: string]: object };
-  functions: { references: Array<object> };
-}
-
-export type ShaderAst = Array<{ [key: string]: object | string }>;
-
-export interface Ast {
-  scopes: Array<Scope>;
-  program: ShaderAst;
-}
-
-export const from2To3 = (ast: Ast) => {
+export const from2To3 = (ast: ParserProgram) => {
   const glOut = 'fragmentColor';
   ast.program.unshift({
     type: 'preprocessor',
@@ -79,15 +68,15 @@ export const from2To3 = (ast: Ast) => {
 
 // index is a hack because after the descoping, frogOut gets renamed - even
 // though it shouldn't because it's not in the global scope, that might be a bug
-export const convertMainToReturn = (ast: Ast): void => {
+export const convertMainToReturn = (ast: ParserProgram): void => {
   const mainReturnVar = `frogOut`;
 
-  let outName: string;
+  let outName: string | undefined;
   ast.program.find((line, index) => {
     if (
       line.type === 'declaration_statement' &&
       line.declaration?.specified_type?.qualifiers?.find(
-        (n) => n.token === 'out'
+        (n: AstNode) => n.token === 'out'
       ) &&
       line.declaration.specified_type.specifier.specifier.token === 'vec4'
     ) {
@@ -190,7 +179,7 @@ export interface ProgramSource {
 }
 
 export interface ProgramAst {
-  fragment: Ast;
+  fragment: AstNode;
   vertex: string;
 }
 
@@ -201,6 +190,7 @@ export interface Node {
   inputs: Array<Object>;
   vertexSource: string;
   fragmentSource: string;
+  expressionOnly?: boolean;
 }
 
 export const shaderNode = (
@@ -224,9 +214,10 @@ export const outputNode = (id: string, options: Object): Node => ({
   inputs: [],
   fragmentSource: `
 out vec4 color;
-  void main() {
-    color = vec4(1.0);
-}`,
+void main() {
+  color = vec4(1.0);
+}
+`,
   vertexSource: '',
 });
 
@@ -237,6 +228,7 @@ export const addNode = (id: string, options: Object): Node => ({
   inputs: [],
   fragmentSource: `a + b`,
   vertexSource: '',
+  expressionOnly: true,
 });
 
 export interface Edge {
@@ -259,25 +251,25 @@ export enum ShaderType {
 }
 
 export interface ShaderSections {
-  version: Object;
-  preprocessor: Array<Object>;
-  inStatements: Array<Object>;
+  version: AstNode[];
+  preprocessor: Object[];
+  inStatements: Object[];
   existingIns: Set<string>;
-  program: Array<string>;
+  program: AstNode[];
 }
 
-export const makeExpression = (expr: string): object => {
+export const makeExpression = (expr: string): AstNode => {
   const ast = parser.parse(
     `void main() {
-        main_1();
+        a = ${expr};
       }`,
     { quiet: true }
   );
-  console.log(util.inspect(ast, false, null, true));
-  return ast.program[0].body.statements[0].expression;
+  // console.log(util.inspect(ast, false, null, true));
+  return ast.program[0].body.statements[0].expression.right;
 };
 
-export const findShaderSections = (ast: Ast): ShaderSections => {
+export const findShaderSections = (ast: ParserProgram): ShaderSections => {
   const [preprocessor, version, program, inStatements, existingIns] =
     ast.program.reduce(
       (split, node) => {
@@ -291,12 +283,12 @@ export const findShaderSections = (ast: Ast): ShaderSections => {
         } else if (
           node.type === 'declaration_statement' &&
           node.declaration?.specified_type?.qualifiers?.find(
-            (n) => n.token === 'in'
+            (n: AstNode) => n.token === 'in'
           )
         ) {
           node.declaration.declarations
-            .map((decl) => decl.identifier.identifier)
-            .forEach((i) => {
+            .map((decl: AstNode) => decl.identifier.identifier)
+            .forEach((i: string) => {
               split[4].add(i);
             });
           split[3].push(node);
@@ -305,7 +297,13 @@ export const findShaderSections = (ast: Ast): ShaderSections => {
         }
         return split;
       },
-      [[], [], [], [], new Set<string>()]
+      [[], [], [], [], new Set<string>()] as [
+        AstNode[],
+        AstNode[],
+        AstNode[],
+        AstNode[],
+        Set<string>
+      ]
     );
   return {
     preprocessor,
@@ -316,8 +314,8 @@ export const findShaderSections = (ast: Ast): ShaderSections => {
   };
 };
 
-export const union = (...iterables) => {
-  const set = new Set();
+export const union = <T extends unknown>(...iterables: Set<T>[]) => {
+  const set = new Set<T>();
 
   for (const iterable of iterables) {
     for (const item of iterable) {
@@ -333,28 +331,30 @@ export const mergeShaderSections = (
   s2: ShaderSections
 ): ShaderSections => {
   return {
-    version: {
-      ...s1.version,
-      ...s2.version,
-    },
+    version: [...s1.version, ...s2.version],
     preprocessor: [...s1.preprocessor, ...s2.preprocessor],
     program: [...s1.program, ...s2.program],
     inStatements: [...s1.inStatements, ...s2.inStatements],
-    existingIns: union(s1.existingIns, s2.existingIns),
+    existingIns: union<string>(s1.existingIns, s2.existingIns),
   };
 };
 
-export const shaderSectionsToAst = (sections: ShaderSections): Ast => ({
+export const shaderSectionsToAst = (
+  sections: ShaderSections
+): ParserProgram => ({
+  type: 'program',
   scopes: [],
-  program: {
-    type: 'program',
-    program: [
-      ...Object.entries(sections.version),
-      ...sections.preprocessor,
-      ...sections.inStatements,
-      ...sections.program,
-    ],
-  },
+  program: [
+    {
+      type: 'program',
+      program: [
+        ...sections.version,
+        ...sections.preprocessor,
+        ...sections.inStatements,
+        ...sections.program,
+      ],
+    },
+  ],
 });
 
 export const outDeclaration = (name: string): Object => ({
@@ -397,8 +397,9 @@ export const outDeclaration = (name: string): Object => ({
 
 export type NodeReducer = (
   accumulator: any,
-  right: Node,
-  edge: object | null,
+  currentNode: Node,
+  inputEdge: object | null,
+  inputNode: object | null,
   graph: Graph
 ) => any;
 
@@ -412,7 +413,7 @@ const reduceNodes = <FnType extends NodeReducer>(
 
   const inputEdges = graph.edges.filter((edge) => edge.to === node.id);
   if (!inputEdges.length) {
-    result = reduce(initial, node, null, graph);
+    result = reduce(initial, node, null, null, graph);
   } else {
     inputEdges.forEach((edge) => {
       const fromNode = graph.nodes.find((node) => edge.from === node.id);
@@ -423,6 +424,7 @@ const reduceNodes = <FnType extends NodeReducer>(
         reduceNodes(graph, initial, fromNode, reduce),
         node,
         edge,
+        fromNode,
         graph
       );
       // result = reduce(result, fromNode, edge, graph);
@@ -438,11 +440,11 @@ export const reduceGraph = (
   reduceFn: NodeReducer
 ) => {
   // Start on the output node
-  const output = graph.nodes.find((node) => node.type === 'output');
-  if (!output) {
+  const outputNode = graph.nodes.find((node) => node.type === 'output');
+  if (!outputNode) {
     throw new Error('No output in graph');
   }
-  return reduceNodes(graph, initial, output, reduceFn);
+  return reduceNodes(graph, initial, outputNode, reduceFn);
 };
 /*
     if (!output) {

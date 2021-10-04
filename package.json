@@ -10,8 +10,9 @@
     "watch-test": "jest --watch"
   },
   "dependencies": {
-    "@shaderfrog/glsl-parser": "^0.0.40",
+    "@shaderfrog/glsl-parser": "^0.1.10",
     "@types/three": "^0.131.0",
+    "is-what": "^4.0.0",
     "next": "11.1.0",
     "react": "17.0.2",
     "react-dom": "17.0.2",

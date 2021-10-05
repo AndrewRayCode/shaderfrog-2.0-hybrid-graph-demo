@@ -1,24 +1,17 @@
 import { generate, parser } from '@shaderfrog/glsl-parser';
-import { visit } from '@shaderfrog/glsl-parser/core/ast.js';
-import preprocess from '@shaderfrog/glsl-parser/preprocessor';
+import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor';
 import { useEffect, useRef, useState } from 'react';
 import * as three from 'three';
-import {
-  Engine,
-  ShaderType,
-  ProgramAst,
-  compile,
-  outputNode,
-  Graph,
-  Node,
-  NodeParsers,
-} from './nodestuff';
+import { ShaderType, ProgramAst, outputNode, Graph, Node } from './nodestuff';
+import { Engine, NodeParsers } from './graph';
 
-export const phongNode = (id: string, options: Object): Node => {
+export const phongNode = (id: string, name: string, options: Object): Node => {
   return {
-    id: id,
+    id,
+    name,
     type: ShaderType.phong,
     options,
+    inputs: [],
     vertexSource: '',
     fragmentSource: '',
   };
@@ -66,7 +59,7 @@ const width = 600;
 const height = 600;
 
 const graph: Graph = {
-  nodes: [outputNode('1', {}), phongNode('2', {})],
+  nodes: [outputNode('1', {}), phongNode('2', 'Phong', {})],
   edges: [{ from: '2', to: '1', output: 'main', input: 'color' }],
 };
 

@@ -5,8 +5,10 @@ import {
   Scope,
 } from '@shaderfrog/glsl-parser/dist/parser/parser';
 import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor/preprocessor';
-import { FunctionComponent } from 'react';
 import util from 'util';
+
+// This file is not well organized, I have no idea what goes in here for
+// nodestuf vs graph
 
 export const from2To3 = (ast: ParserProgram) => {
   const glOut = 'fragmentColor';
@@ -118,16 +120,10 @@ export const convertMainToReturn = (ast: ParserProgram): void => {
   });
 };
 
-export interface Engine {
-  preserve: Set<string>;
-  Component: FunctionComponent<{ engine: Engine; parsers: NodeParsers }>;
-  nodes: NodeParsers;
-}
-
 export const renameBindings = (
   scope: Scope,
   preserve: Set<string>,
-  i: number
+  suffix: string
 ) => {
   Object.entries(scope.bindings).forEach(([name, binding]) => {
     binding.references.forEach((ref) => {
@@ -137,15 +133,15 @@ export const renameBindings = (
       if (ref.type === 'declaration') {
         // both are "in" vars expected in vertex shader
         if (!preserve.has(ref.identifier.identifier)) {
-          ref.identifier.identifier = `${ref.identifier.identifier}_${i}`;
+          ref.identifier.identifier = `${ref.identifier.identifier}_${suffix}`;
         }
       } else if (ref.type === 'identifier') {
         // TODO: does this block get called anymore??
         if (!preserve.has(ref.identifier)) {
-          ref.identifier = `${ref.identifier}_${i}`;
+          ref.identifier = `${ref.identifier}_${suffix}`;
         }
       } else if (ref.type === 'parameter_declaration') {
-        ref.declaration.identifier.identifier = `${ref.declaration.identifier.identifier}_${i}`;
+        ref.declaration.identifier.identifier = `${ref.declaration.identifier.identifier}_${suffix}`;
       } else {
         console.log(ref);
         throw new Error(`Binding for type ${ref.type} not recognized`);
@@ -154,16 +150,25 @@ export const renameBindings = (
   });
 };
 
-export const renameFunctions = (scope: Scope, i: number) => {
+export const renameFunctions = (
+  scope: Scope,
+  suffix: string,
+  map: { [name: string]: string }
+) => {
   Object.entries(scope.functions).forEach(([name, binding]) => {
     binding.references.forEach((ref) => {
       if (ref.type === 'function_header') {
-        ref.name.identifier = `${ref.name.identifier}_${i}`;
+        ref.name.identifier =
+          map[ref.name.identifier] || `${ref.name.identifier}_${suffix}`;
       } else if (ref.type === 'function_call') {
         if (ref.identifier.type === 'postfix') {
-          ref.identifier.expr.identifier.specifier.identifier = `${ref.identifier.expr.identifier.specifier.identifier}_${i}`;
+          ref.identifier.expr.identifier.specifier.identifier =
+            map[ref.identifier.expr.identifier.specifier.identifier] ||
+            `${ref.identifier.expr.identifier.specifier.identifier}_${suffix}`;
         } else {
-          ref.identifier.specifier.identifier = `${ref.identifier.specifier.identifier}_${i}`;
+          ref.identifier.specifier.identifier =
+            map[ref.identifier.specifier.identifier] ||
+            `${ref.identifier.specifier.identifier}_${suffix}`;
         }
       } else {
         console.log(ref);
@@ -185,6 +190,7 @@ export interface ProgramAst {
 
 export interface Node {
   id: string;
+  name: string;
   type: ShaderType;
   options: Object;
   inputs: Array<Object>;
@@ -195,11 +201,13 @@ export interface Node {
 
 export const shaderNode = (
   id: string,
+  name: string,
   options: Object,
   fragment: string,
   vertex: string
 ): Node => ({
   id,
+  name,
   type: ShaderType.shader,
   options,
   inputs: [],
@@ -209,6 +217,7 @@ export const shaderNode = (
 
 export const outputNode = (id: string, options: Object): Node => ({
   id,
+  name: 'output',
   type: ShaderType.output,
   options,
   inputs: [],
@@ -223,6 +232,7 @@ void main() {
 
 export const addNode = (id: string, options: Object): Node => ({
   id,
+  name: 'add',
   type: ShaderType.add,
   options,
   inputs: [],
@@ -231,12 +241,12 @@ export const addNode = (id: string, options: Object): Node => ({
   expressionOnly: true,
 });
 
-export interface Edge {
-  from?: string;
+export type Edge = {
+  from: string;
   to: string;
-  output?: string;
-  input?: string;
-}
+  output: string;
+  input: string;
+};
 
 export interface Graph {
   nodes: Array<Node>;
@@ -251,6 +261,7 @@ export enum ShaderType {
 }
 
 export interface ShaderSections {
+  precision: AstNode[];
   version: AstNode[];
   preprocessor: Object[];
   inStatements: Object[];
@@ -270,48 +281,52 @@ export const makeExpression = (expr: string): AstNode => {
 };
 
 export const findShaderSections = (ast: ParserProgram): ShaderSections => {
-  const [preprocessor, version, program, inStatements, existingIns] =
-    ast.program.reduce(
-      (split, node) => {
-        if (
-          node.type === 'declaration_statement' &&
-          node.declaration.type === 'precision'
-        ) {
-          split[0].push(node);
-        } else if (node.type === 'preprocessor') {
-          split[1].push(node);
-        } else if (
-          node.type === 'declaration_statement' &&
-          node.declaration?.specified_type?.qualifiers?.find(
-            (n: AstNode) => n.token === 'in'
-          )
-        ) {
-          node.declaration.declarations
-            .map((decl: AstNode) => decl.identifier.identifier)
-            .forEach((i: string) => {
-              split[4].add(i);
-            });
-          split[3].push(node);
-        } else {
-          split[2].push(node);
-        }
-        return split;
-      },
-      [[], [], [], [], new Set<string>()] as [
-        AstNode[],
-        AstNode[],
-        AstNode[],
-        AstNode[],
-        Set<string>
-      ]
-    );
-  return {
-    preprocessor,
-    version,
-    program,
-    inStatements,
-    existingIns,
+  // console.log(util.inspect(ast, false, null, true));
+
+  const initialValue: ShaderSections = {
+    precision: [],
+    preprocessor: [],
+    version: [],
+    inStatements: [],
+    existingIns: new Set<string>(),
+    program: [],
   };
+
+  return ast.program.reduce((sections, node) => {
+    if (
+      node.type === 'declaration_statement' &&
+      node.declaration.type === 'precision'
+    ) {
+      return {
+        ...sections,
+        precision: sections.precision.concat(node),
+      };
+    } else if (node.type === 'preprocessor') {
+      return {
+        ...sections,
+        preprocessor: sections.preprocessor.concat(node),
+      };
+    } else if (
+      node.type === 'declaration_statement' &&
+      node.declaration?.specified_type?.qualifiers?.find(
+        (n: AstNode) => n.token === 'in'
+      )
+    ) {
+      return {
+        ...sections,
+        existingIns: sections.existingIns.add(
+          node.declaration.declarations.map(
+            (decl: AstNode) => decl.identifier.identifier
+          )
+        ),
+      };
+    } else {
+      return {
+        ...sections,
+        program: sections.program.concat(node),
+      };
+    }
+  }, initialValue);
 };
 
 export const union = <T extends unknown>(...iterables: Set<T>[]) => {
@@ -331,11 +346,12 @@ export const mergeShaderSections = (
   s2: ShaderSections
 ): ShaderSections => {
   return {
+    precision: [...s1.precision, ...s2.precision],
     version: [...s1.version, ...s2.version],
     preprocessor: [...s1.preprocessor, ...s2.preprocessor],
-    program: [...s1.program, ...s2.program],
     inStatements: [...s1.inStatements, ...s2.inStatements],
     existingIns: union<string>(s1.existingIns, s2.existingIns),
+    program: [...s1.program, ...s2.program],
   };
 };
 
@@ -388,13 +404,6 @@ export const outDeclaration = (name: string): Object => ({
   semi: { type: 'literal', literal: ';', whitespace: '\n    ' },
 });
 
-// const compose = (graph: Graph, node: Node): ShaderSections => {
-//   // TODO: Make into selector fn for graph
-//   const inputEdges = graph.edges.filter(
-//     (edge) => edge.to === node.id && edge.input === 'color'
-//   );
-// };
-
 export type NodeReducer = (
   accumulator: any,
   currentNode: Node,
@@ -445,104 +454,4 @@ export const reduceGraph = (
     throw new Error('No output in graph');
   }
   return reduceNodes(graph, initial, outputNode, reduceFn);
-};
-/*
-    if (!output) {
-      throw new Error('No output in graph');
-    }
-    const inputEdges = graph.edges.filter((edge) => edge.to === output.id);
-    if (inputEdges.length !== 1) {
-      throw new Error('No input to output in');
-    }
-
-  const inputEdges = graph.edges.filter((edge) => edge.to === node.id);
-  let result = accumulator;
-
-  inputEdges.forEach((edge) => {
-    const fromNode = graph.nodes.find((node) => edge.from === node.id);
-    if (!fromNode) {
-      throw new Error(`No node with id ${edge.from} in graph`);
-    }
-
-    result = reduce(accumulator, fromNode);
-  });
-
-  return result;
-};
-*/
-
-/*
-export const compile = (
-  engine: Engine,
-  context: Object,
-  parsers: NodeParsers,
-  graph: Graph,
-  node: Node,
-  edge: Edge
-): [ShaderSections, ShaderAst] => {
-  const inputEdges = graph.edges.filter((edge) => edge.to === node.id);
-
-  let intermediary: ShaderSections = {
-    preprocessor: [],
-    version: [],
-    program: [],
-    inStatements: [],
-    existingIns: new Set<string>(),
-  };
-  ``;
-
-  let vertexResult: string = '';
-  inputEdges.forEach((edge) => {
-    const fromNode = graph.nodes.find((node) => edge.from === node.id);
-    if (!fromNode) {
-      throw new Error(`No node with id ${edge.from} in graph`);
-    }
-    const [x, y] = compile(engine, context, parsers, graph, fromNode, edge);
-  });
-
-  const parser = parsers[fromNode.type];
-  if (!parser) {
-    throw new Error(`No parser for type ${fromNode.type}`);
-  }
-  const { fragment, vertex } = parser.parse(context, fromNode);
-
-  vertexResult = vertex;
-  convertMainToReturn(fragment);
-  renameBindings(fragment.scopes[0], engine.preserve, 0);
-  renameFunctions(fragment.scopes[0], 0);
-  const { preprocessor, version, program, inStatements, existingIns } =
-    findShaderSections(fragment);
-  intermediary.preprocessor = intermediary.preprocessor.concat(preprocessor);
-  intermediary.version = version;
-  intermediary.inStatements = intermediary.inStatements.concat(inStatements);
-  intermediary.existingIns = new Set([
-    ...intermediary.existingIns,
-    ...existingIns,
-  ]);
-  intermediary.program = intermediary.program.concat(program);
-  // });
-
-  const glOut = 'fragmentColor';
-
-  const fragment =
-    generate([
-      intermediary.version,
-      ...intermediary.preprocessor,
-      ...intermediary.inStatements,
-      // The outvar
-      outDeclaration(glOut),
-      ...intermediary.program,
-    ]) + `void main() {${glOut} = main_0();}`;
-
-  return {
-    vertex: vertexResult,
-    fragment,
-  };
-};
-*/
-
-export type NodeParsers = {
-  [key in ShaderType]?: {
-    parse: (node: Node) => ProgramAst;
-  };
 };

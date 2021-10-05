@@ -1,5 +1,5 @@
 import { generate, parser } from '@shaderfrog/glsl-parser';
-import { visit, AstNode } from '@shaderfrog/glsl-parser/dist/core/ast';
+import { visit, AstNode } from '@shaderfrog/glsl-parser/dist/ast';
 import {
   ParserProgram,
   Scope,

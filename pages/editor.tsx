@@ -1,59 +1,9 @@
-import { generate, parser } from '@shaderfrog/glsl-parser';
-import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor';
 import { useEffect, useRef, useState } from 'react';
 import * as three from 'three';
-import { ShaderType, ProgramAst, outputNode, Graph, Node } from './nodestuff';
+import { ShaderType, outputNode, Graph, Node } from './nodestuff';
 import { Engine, NodeParsers } from './graph';
 
-export const phongNode = (id: string, name: string, options: Object): Node => {
-  return {
-    id,
-    name,
-    type: ShaderType.phong,
-    options,
-    inputs: [],
-    vertexSource: '',
-    fragmentSource: '',
-  };
-};
-
-export const parsePhong = (context: Object, node: Node): ProgramAst => {
-  const { scene, camera, renderer, mesh } = context;
-  const material = new three.MeshPhongMaterial({
-    color: 0x222222,
-    map: new three.Texture(),
-    normalMap: new three.Texture(),
-  });
-  mesh.material = material;
-  renderer.compile(scene, camera);
-
-  const gl = renderer.getContext();
-  // As of this PR materials can have multiple programs https://github.com/mrdoob/three.js/pull/20135/files
-  // And the programs are stored as a map. This gets the first entry
-  const fragmentProgram = renderer.properties
-    .get(mesh.material)
-    .programs.values()
-    .next().value.fragmentShader;
-  const vertexProgram = renderer.properties
-    .get(mesh.material)
-    .programs.values()
-    .next().value.vertexShader;
-
-  const fragmentSource = gl.getShaderSource(fragmentProgram);
-  const fragmentPreprocessed = preprocess(fragmentSource, {
-    preserve: {
-      version: () => true,
-    },
-  });
-  const fragment = parser.parse(fragmentPreprocessed);
-
-  const vertexSource = gl.getShaderSource(vertexProgram);
-
-  return {
-    fragment,
-    vertex: vertexSource,
-  };
-};
+import { phongNode, parsePhong } from './threngine';
 
 const width = 600;
 const height = 600;
@@ -113,7 +63,8 @@ const ThreeScene = ({ engine, parsers }: Prorps) => {
       // }
       requestRef.current = requestAnimationFrame(animate);
     };
-
+    /*
+// the before code
     // Start on the output node
     const output = graph.nodes.find((node) => node.type === 'output');
 
@@ -132,6 +83,7 @@ const ThreeScene = ({ engine, parsers }: Prorps) => {
       output,
       inputEdges[0]
     );
+    */
 
     // renderer.compile(scene, camera);
 
@@ -162,6 +114,7 @@ const ThreeScene = ({ engine, parsers }: Prorps) => {
     //   })
     // );
 
+    /* // the before code
     const newMat = new three.RawShaderMaterial({
       name: 'ShaderFrog Phong Material',
       lights: true,
@@ -198,6 +151,7 @@ const ThreeScene = ({ engine, parsers }: Prorps) => {
     // @ts-ignore
     mesh.material = newMat;
     setText(fragment || 'oh god no');
+    */
 
     const { current } = domRef;
     animate(0);
@@ -233,36 +187,4 @@ const ThreeScene = ({ engine, parsers }: Prorps) => {
   );
 };
 
-export const threngine: Engine = {
-  preserve: new Set<string>([
-    'viewMatrix',
-    'cameraPosition',
-    'isOrthographic',
-    'vUv',
-    'vViewPosition',
-    'vNormal',
-    'diffuse',
-    'emissive',
-    'specular',
-    'shininess',
-    'opacity',
-    'map',
-    'receiveShadow',
-    'ambientLightColor',
-    'lightProbe',
-    'pointLights',
-    'time',
-    'speed',
-    'resolution',
-    'color',
-    'image',
-    'brightness',
-  ]),
-  nodes: {
-    [ShaderType.phong]: {
-      create: phongNode,
-      parse: parsePhong,
-    },
-  },
-  Component: ThreeScene,
-};
+export default ThreeScene;

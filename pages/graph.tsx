@@ -277,8 +277,8 @@ export const compileNode = (
   }
 };
 
-export const compileGraph = (engine: Engine, graph: Graph) => {
-  const graphContext: GraphContext = graph.nodes.reduce((context, node) => {
+export const computeGraphContext = (graph: Graph) =>
+  graph.nodes.reduce((context, node) => {
     const nodeContext: any = {};
 
     const inputEdges = graph.edges.filter((edge) => edge.to === node.id);
@@ -298,6 +298,9 @@ export const compileGraph = (engine: Engine, graph: Graph) => {
       [node.id]: nodeContext,
     };
   }, {});
+
+export const compileGraph = (engine: Engine, graph: Graph) => {
+  const graphContext = computeGraphContext(graph);
 
   const outputNode = graph.nodes.find((node) => node.type === 'output');
   if (!outputNode) {

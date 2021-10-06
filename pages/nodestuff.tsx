@@ -1,11 +1,9 @@
-import { generate, parser } from '@shaderfrog/glsl-parser';
+import { parser } from '@shaderfrog/glsl-parser';
 import { visit, AstNode } from '@shaderfrog/glsl-parser/dist/ast';
 import {
   ParserProgram,
   Scope,
 } from '@shaderfrog/glsl-parser/dist/parser/parser';
-import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor/preprocessor';
-import util from 'util';
 
 // This file is not well organized, I have no idea what goes in here for
 // nodestuf vs graph
@@ -68,9 +66,7 @@ export const from2To3 = (ast: ParserProgram) => {
   });
 };
 
-// index is a hack because after the descoping, frogOut gets renamed - even
-// though it shouldn't because it's not in the global scope, that might be a bug
-export const convertMainToReturn = (ast: ParserProgram): void => {
+export const convert300MainToReturn = (ast: ParserProgram): void => {
   const mainReturnVar = `frogOut`;
 
   let outName: string | undefined;
@@ -265,7 +261,6 @@ export interface ShaderSections {
   version: AstNode[];
   preprocessor: Object[];
   inStatements: Object[];
-  existingIns: Set<string>;
   program: AstNode[];
 }
 
@@ -288,12 +283,16 @@ export const findShaderSections = (ast: ParserProgram): ShaderSections => {
     preprocessor: [],
     version: [],
     inStatements: [],
-    existingIns: new Set<string>(),
     program: [],
   };
 
   return ast.program.reduce((sections, node) => {
-    if (
+    if (node.type === 'preprocessor' && node.line.startsWith('#version')) {
+      return {
+        ...sections,
+        version: sections.version.concat(node),
+      };
+    } else if (
       node.type === 'declaration_statement' &&
       node.declaration.type === 'precision'
     ) {
@@ -314,11 +313,7 @@ export const findShaderSections = (ast: ParserProgram): ShaderSections => {
     ) {
       return {
         ...sections,
-        existingIns: sections.existingIns.add(
-          node.declaration.declarations.map(
-            (decl: AstNode) => decl.identifier.identifier
-          )
-        ),
+        inStatements: sections.inStatements.concat(node),
       };
     } else {
       return {
@@ -346,11 +341,10 @@ export const mergeShaderSections = (
   s2: ShaderSections
 ): ShaderSections => {
   return {
-    precision: [...s1.precision, ...s2.precision],
     version: [...s1.version, ...s2.version],
+    precision: [...s1.precision, ...s2.precision],
     preprocessor: [...s1.preprocessor, ...s2.preprocessor],
     inStatements: [...s1.inStatements, ...s2.inStatements],
-    existingIns: union<string>(s1.existingIns, s2.existingIns),
     program: [...s1.program, ...s2.program],
   };
 };
@@ -365,6 +359,7 @@ export const shaderSectionsToAst = (
       type: 'program',
       program: [
         ...sections.version,
+        ...sections.precision,
         ...sections.preprocessor,
         ...sections.inStatements,
         ...sections.program,

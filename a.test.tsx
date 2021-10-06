@@ -69,7 +69,11 @@ void main() {
 };
 
 test('horrible jesus help me', () => {
-  const result = compileGraph(graph);
+  const result = compileGraph(
+    {},
+    { preserve: new Set<string>(), parsers: {} },
+    graph
+  );
   const built = generate(shaderSectionsToAst(result[0]).program);
   expect(built).toBe('hi');
 });

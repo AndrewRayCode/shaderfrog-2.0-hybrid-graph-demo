@@ -1,12 +1,18 @@
+import { generate } from '@shaderfrog/glsl-parser';
 import { useEffect, useRef, useState } from 'react';
 import * as three from 'three';
-import { ShaderType, outputNode, Graph, Node } from './nodestuff';
-import { Engine, NodeParsers } from './graph';
+import { outputNode, Graph, shaderSectionsToAst } from './nodestuff';
+import { compileGraph, Engine, NodeParsers } from './graph';
 
-import { phongNode, parsePhong } from './threngine';
+import { phongNode, threngine } from './threngine';
 
 const width = 600;
 const height = 600;
+
+type EngineContext = {
+  renderer: any;
+  nodes: { [nodeId: string]: {} };
+};
 
 const graph: Graph = {
   nodes: [outputNode('1', {}), phongNode('2', 'Phong', {})],
@@ -63,58 +69,29 @@ const ThreeScene = ({ engine, parsers }: Prorps) => {
       // }
       requestRef.current = requestAnimationFrame(animate);
     };
-    /*
-// the before code
-    // Start on the output node
-    const output = graph.nodes.find((node) => node.type === 'output');
 
-    if (!output) {
-      throw new Error('No output in graph');
-    }
-    const inputEdges = graph.edges.filter((edge) => edge.to === output.id);
-    if (inputEdges.length !== 1) {
-      throw new Error('No input to output in');
-    }
-    const { vertex, fragment } = compile(
-      threngine,
-      { renderer, scene, camera, mesh },
-      parsers,
-      graph,
-      output,
-      inputEdges[0]
-    );
-    */
+    const engineContext: EngineContext = {
+      renderer,
+      nodes: {},
+    };
 
-    // renderer.compile(scene, camera);
+    renderer.compile(scene, camera);
+    engineContext.nodes['2'] = {
+      fragment: renderer.properties.get(mesh.material).programs.values().next()
+        .value.fragmentShader,
+      vertex: renderer.properties.get(mesh.material).programs.values().next()
+        .value.vertexShader,
+      // console.log('vertexProgram', vertexProgram);
+    };
+    console.log('engineContext', engineContext);
+    const result = compileGraph(engineContext, threngine, graph);
 
-    // const gl = renderer.getContext();
-    // // As of this PR materials can have multiple programs https://github.com/mrdoob/three.js/pull/20135/files
-    // // And the programs are stored as a map. This gets the first entry
-    // const fragmentProgram = renderer.properties
-    //   .get(mesh.material)
-    //   .programs.values()
-    //   .next().value.fragmentShader;
-    // const vertexProgram = renderer.properties
-    //   .get(mesh.material)
-    //   .programs.values()
-    //   .next().value.vertexShader;
-    // console.log('vertexProgram', vertexProgram);
+    const fragmentResult = generate(shaderSectionsToAst(result).program);
+    setText(fragmentResult);
+
     console.log('oh hai birfday boi boi boiiiii');
 
-    // console.log(mesh.material);
-    // const fragmentSource = gl.getShaderSource(fragmentProgram);
-    // const vertexSource = gl.getShaderSource(vertexProgram);
-    // console.log('fragmentSource', fragmentSource);
-
-    // console.log(
-    //   preprocess(fragmentSource, {
-    //     preserve: {
-    //       version: () => true,
-    //     },
-    //   })
-    // );
-
-    /* // the before code
+    // the before code
     const newMat = new three.RawShaderMaterial({
       name: 'ShaderFrog Phong Material',
       lights: true,
@@ -129,8 +106,10 @@ const ThreeScene = ({ engine, parsers }: Prorps) => {
         speed: { value: 0.1 },
         // opacity: { value: 1 },
       },
-      vertexShader: vertex,
-      fragmentShader: fragment,
+      vertexShader: renderer
+        .getContext()
+        .getShaderSource(engineContext.nodes['2'].vertex),
+      fragmentShader: fragmentResult,
 
       // @ts-ignore`
       // onBeforeCompile: (shader) => {
@@ -148,10 +127,9 @@ const ThreeScene = ({ engine, parsers }: Prorps) => {
       //   shader.vertexShader = vertexSource;
       // },
     });
+
     // @ts-ignore
     mesh.material = newMat;
-    setText(fragment || 'oh god no');
-    */
 
     const { current } = domRef;
     animate(0);
@@ -173,7 +151,7 @@ const ThreeScene = ({ engine, parsers }: Prorps) => {
         style={{
           position: 'absolute',
           top: 0,
-          left: 0,
+          left: width,
           height: '100%',
           width: '400px',
         }}

@@ -15,7 +15,7 @@ import {
   findShaderSections,
   mergeShaderSections,
   shaderSectionsToAst,
-  convertMainToReturn,
+  convert300MainToReturn,
   renameBindings,
   renameFunctions,
   makeExpression,
@@ -28,8 +28,9 @@ const inspect = (thing: any): void =>
 
 export interface Engine {
   preserve: Set<string>;
-  Component: FunctionComponent<{ engine: Engine; parsers: NodeParsers }>;
-  nodes: NodeParsers;
+  // Component: FunctionComponent<{ engine: Engine; parsers: NodeParsers }>;
+  // nodes: NodeParsers;
+  parsers: Parsers;
 }
 
 export type NodeFiller = (node: Node, ast: AstNode) => AstNode | void;
@@ -37,14 +38,20 @@ export const emptyFiller: NodeFiller = () => {};
 
 export type NodeParsers = {
   [key in ShaderType]?: {
-    parse: (node: Node) => ProgramAst;
+    parse: <T>(engineContext: T, node: Node) => ProgramAst;
   };
 };
 
 export type Parsers = {
   [key in ShaderType]?: {
-    produceAst: (node: Node, inputEdges: Edge[]) => AstNode | ParserProgram;
-    findInputs: (
+    produceAst: <T>(
+      engineContext: T,
+      engine: Engine,
+      node: Node,
+      inputEdges: Edge[]
+    ) => AstNode | ParserProgram;
+    findInputs: <T>(
+      engineContext: T,
       node: Node,
       ast: AstNode,
       nodeContext: NodeContext
@@ -58,7 +65,12 @@ export const nodeName = (node: Node): string =>
 
 export const parsers: Parsers = {
   output: {
-    produceAst: (node: Node, inputEdges: Edge[]): AstNode => {
+    produceAst: (
+      engineContext,
+      engine,
+      node: Node,
+      inputEdges: Edge[]
+    ): AstNode => {
       const fragmentPreprocessed = preprocess(node.fragmentSource, {
         preserve: {
           version: () => true,
@@ -67,8 +79,8 @@ export const parsers: Parsers = {
       const fragmentAst = parser.parse(fragmentPreprocessed);
       return fragmentAst;
     },
-    findInputs: (node: Node, ast: AstNode) => {
-      const assignNode = findVec4(ast);
+    findInputs: (engineContext, node: Node, ast: AstNode) => {
+      const assignNode = findVec4Constructo4(ast);
       if (!assignNode) {
         throw new Error(`Impossible error, no assign node in output`);
       }
@@ -81,7 +93,12 @@ export const parsers: Parsers = {
     produceFiller: emptyFiller,
   },
   shader: {
-    produceAst: (node: Node, inputEdges: Edge[]): AstNode => {
+    produceAst: (
+      engineContext,
+      engine,
+      node: Node,
+      inputEdges: Edge[]
+    ): AstNode => {
       const fragmentPreprocessed = preprocess(node.fragmentSource, {
         preserve: {
           version: () => true,
@@ -90,14 +107,14 @@ export const parsers: Parsers = {
       const fragmentAst = parser.parse(fragmentPreprocessed);
       from2To3(fragmentAst);
 
-      convertMainToReturn(fragmentAst);
+      convert300MainToReturn(fragmentAst);
       renameBindings(fragmentAst.scopes[0], new Set<string>(), node.id);
       renameFunctions(fragmentAst.scopes[0], node.id, {
         main: nodeName(node),
       });
       return fragmentAst;
     },
-    findInputs: (node: Node, ast: AstNode) => {
+    findInputs: (engineContext, node: Node, ast: AstNode) => {
       // console.log(util.inspect(ast.program, false, null, true));
 
       let texture2Dcalls: [AstNode, string][] = [];
@@ -129,7 +146,7 @@ export const parsers: Parsers = {
     },
   },
   add: {
-    produceAst: (node: Node, inputEdges: Edge[]) => {
+    produceAst: (engineContext, engine, node, inputEdges) => {
       const alphabet = 'abcdefghijklmnopqrstuvwxyz';
       const fragmentAst: AstNode = {
         type: 'program',
@@ -143,7 +160,7 @@ export const parsers: Parsers = {
       inspect(fragmentAst);
       return fragmentAst;
     },
-    findInputs: (node: Node, ast: AstNode, nodeContext: NodeContext) => {
+    findInputs: (engineContext, node, ast, nodeContext) => {
       let inputs: any[][] = [];
       const visitors: NodeVisitors = {
         identifier: {
@@ -173,7 +190,7 @@ export const parsers: Parsers = {
   },
 };
 
-const findVec4 = (ast: AstNode): AstNode | undefined => {
+const findVec4Constructo4 = (ast: AstNode): AstNode | undefined => {
   let parent: AstNode | undefined;
   const visitors: NodeVisitors = {
     function_call: {
@@ -195,7 +212,6 @@ export const emptyShaderSections = (): ShaderSections => ({
   version: [],
   program: [],
   inStatements: [],
-  existingIns: new Set<string>(),
 });
 
 export type NodeInputs = {
@@ -219,6 +235,14 @@ export const compileNode = (
   graphContext: GraphContext,
   node: Node
 ): GraphCompileResult => {
+  const parser = engine.parsers[node.type] || parsers[node.type];
+
+  // Will I one day get good enough at typescript to be able to remove this
+  // check? Or will I learn that I need it?
+  if (!parser) {
+    throw new Error(`No parser found for ${node.type}`);
+  }
+
   const ctx = graphContext[node.id];
   const { ast, inputs } = ctx;
 
@@ -230,29 +254,30 @@ export const compileNode = (
       if (!fromNode) {
         throw new Error(`Node for edge ${edge.from} not found`);
       }
-      const [nextSections, fillerAst] = compileNode(
+      console.log('compiling ', fromNode);
+      const [inputSections, fillerAst] = compileNode(
         engine,
         graph,
         graphContext,
         fromNode
       );
-
-      continuation = mergeShaderSections(continuation, nextSections);
-
-      // TODO: The output generated here doesn't have the filled in asts, is that
-      // because the algorithm is wrong? or is it because the shadersections
-      // don't get updated since we're mutating the ast?
       if (!fillerAst) {
         throw new Error(
-          `Expected a filler ast for ${edge.from} but none was returned`
+          `Expected a filler ast from node ID ${fromNode.id} (${fromNode.type}) but none was returned`
         );
       }
+
+      continuation = mergeShaderSections(continuation, inputSections);
+
       inputs[edge.input](fillerAst);
       // console.log(generate(ast.program));
     });
+
+    // Order matters here! *Prepend* the input nodes to this one, because
+    // you have to declare functions in order of use in GLSL
     const sections = mergeShaderSections(
-      node.expressionOnly ? emptyShaderSections() : findShaderSections(ast),
-      continuation
+      continuation,
+      node.expressionOnly ? emptyShaderSections() : findShaderSections(ast)
     );
     // console.log(
     //   'the sections so far for',
@@ -261,33 +286,44 @@ export const compileNode = (
     //   node.expressionOnly,
     //   generate(shaderSectionsToAst(sections).program)
     // );
-    return [sections, parsers[node.type]?.produceFiller(node, ast)];
+    return [sections, parser.produceFiller(node, ast)];
   } else {
     const sections = node.expressionOnly
       ? emptyShaderSections()
       : findShaderSections(ast);
-    console.log(
-      'the sections so far for',
-      node.type,
-      node.id,
-      node.expressionOnly,
-      generate(shaderSectionsToAst(sections).program)
-    );
-    return [sections, parsers[node.type]?.produceFiller(node, ast)];
+    // console.log(
+    //   'the sections so far for',
+    //   node.type,
+    //   node.id,
+    //   node.expressionOnly,
+    //   generate(shaderSectionsToAst(sections).program)
+    // );
+    return [sections, parser.produceFiller(node, ast)];
   }
 };
 
-export const computeGraphContext = (graph: Graph) =>
+export const computeGraphContext = <T extends unknown>(
+  engineContext: T,
+  engine: Engine,
+  graph: Graph
+) =>
   graph.nodes.reduce((context, node) => {
     const nodeContext: any = {};
 
     const inputEdges = graph.edges.filter((edge) => edge.to === node.id);
+    const parser = engine.parsers[node.type] || parsers[node.type];
 
-    if (!parsers[node.type]) {
+    if (!parser) {
       throw new Error(`No parser for ${node.type}`);
     }
-    nodeContext.ast = parsers[node.type]?.produceAst(node, inputEdges);
-    nodeContext.inputs = parsers[node.type]?.findInputs(
+    nodeContext.ast = parser.produceAst<T>(
+      engineContext,
+      engine,
+      node,
+      inputEdges
+    );
+    nodeContext.inputs = parser.findInputs<T>(
+      engineContext,
       node,
       nodeContext.ast,
       nodeContext
@@ -299,13 +335,20 @@ export const computeGraphContext = (graph: Graph) =>
     };
   }, {});
 
-export const compileGraph = (engine: Engine, graph: Graph) => {
-  const graphContext = computeGraphContext(graph);
+export const compileGraph = <T extends unknown>(
+  engineContext: T,
+  engine: Engine,
+  graph: Graph
+): ShaderSections => {
+  const graphContext = computeGraphContext<T>(engineContext, engine, graph);
 
   const outputNode = graph.nodes.find((node) => node.type === 'output');
   if (!outputNode) {
     throw new Error('No output in graph');
   }
 
-  return compileNode(engine, graph, graphContext, outputNode);
+  // Every compileNode returns the AST so far, as well as the filler for the
+  // next node with inputs. On the final step, we discard the filler, as it
+  // *should* be the
+  return compileNode(engine, graph, graphContext, outputNode)[0];
 };

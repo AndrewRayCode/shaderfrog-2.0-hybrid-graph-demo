@@ -1,9 +1,34 @@
 import { generate, parser } from '@shaderfrog/glsl-parser';
+import { visit, AstNode, NodeVisitors } from '@shaderfrog/glsl-parser/dist/ast';
 import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor';
 import { useEffect, useRef, useState } from 'react';
 import * as three from 'three';
-import { ShaderType, ProgramAst, outputNode, Graph, Node } from './nodestuff';
-import { Engine, NodeParsers } from './graph';
+import { Engine, NodeParsers, nodeName } from './graph';
+
+import {
+  ProgramAst,
+  ShaderType,
+  Graph,
+  Node,
+  outputNode,
+  ShaderSections,
+  findShaderSections,
+  mergeShaderSections,
+  shaderSectionsToAst,
+  convert300MainToReturn,
+  renameBindings,
+  renameFunctions,
+  makeExpression,
+  from2To3,
+  Edge,
+} from './nodestuff';
+
+type EngineContext = {
+  scene: object;
+  camera: object;
+  renderer: object;
+  mesh: object;
+};
 
 export const phongNode = (id: string, name: string, options: Object): Node => {
   return {
@@ -17,8 +42,11 @@ export const phongNode = (id: string, name: string, options: Object): Node => {
   };
 };
 
-export const parsePhong = (context: Object, node: Node): ProgramAst => {
-  const { scene, camera, renderer, mesh } = context;
+export const parsePhong = (
+  engineContext: EngineContext,
+  node: Node
+): ProgramAst => {
+  const { scene, camera, renderer, mesh } = engineContext;
   const material = new three.MeshPhongMaterial({
     color: 0x222222,
     map: new three.Texture(),
@@ -63,6 +91,7 @@ const graph: Graph = {
   edges: [{ from: '2', to: '1', output: 'main', input: 'color' }],
 };
 
+/*
 type Prorps = {
   engine: Engine;
   parsers: NodeParsers;
@@ -124,14 +153,14 @@ const ThreeScene = ({ engine, parsers }: Prorps) => {
     if (inputEdges.length !== 1) {
       throw new Error('No input to output in');
     }
-    const { vertex, fragment } = compile(
-      threngine,
-      { renderer, scene, camera, mesh },
-      parsers,
-      graph,
-      output,
-      inputEdges[0]
-    );
+    // const { vertex, fragment } = compile(
+    //   threngine,
+    //   { renderer, scene, camera, mesh },
+    //   parsers,
+    //   graph,
+    //   output,
+    //   inputEdges[0]
+    // );
 
     // renderer.compile(scene, camera);
 
@@ -232,6 +261,7 @@ const ThreeScene = ({ engine, parsers }: Prorps) => {
     </div>
   );
 };
+*/
 
 export const threngine: Engine = {
   preserve: new Set<string>([
@@ -258,11 +288,68 @@ export const threngine: Engine = {
     'image',
     'brightness',
   ]),
-  nodes: {
+  parsers: {
     [ShaderType.phong]: {
-      create: phongNode,
-      parse: parsePhong,
+      produceAst: (
+        // todo: help
+        engineContext: any,
+        engine: any,
+        node: Node,
+        inputEdges: Edge[]
+      ): AstNode => {
+        const gl = engineContext.renderer.getContext();
+        const fragmentProgram = engineContext.nodes[node.id].fragment;
+        const fragmentSource = gl.getShaderSource(fragmentProgram);
+
+        console.log('Before preprocessing:', fragmentSource);
+        const fragmentPreprocessed = preprocess(fragmentSource, {
+          preserve: {
+            version: () => true,
+          },
+        });
+        console.log('after', fragmentPreprocessed);
+        const fragmentAst = parser.parse(fragmentPreprocessed);
+
+        // Do I need this? Is threejs shader already in 3.00 mode?
+        // from2To3(fragmentAst);
+
+        convert300MainToReturn(fragmentAst);
+        renameBindings(fragmentAst.scopes[0], engine.preserve, node.id);
+        renameFunctions(fragmentAst.scopes[0], node.id, {
+          main: nodeName(node),
+        });
+        return fragmentAst;
+      },
+      findInputs: (engineContext, node: Node, ast: AstNode) => {
+        // console.log(util.inspect(ast.program, false, null, true));
+
+        let texture2Dcalls: [AstNode, string][] = [];
+        const visitors: NodeVisitors = {
+          function_call: {
+            enter: (path) => {
+              if (
+                path.node.identifier?.specifier?.identifier === 'texture2D' &&
+                path.key
+              ) {
+                texture2Dcalls.push([path.node, path.key]);
+              }
+            },
+          },
+        };
+        visit(ast, visitors);
+        return texture2Dcalls.reduce(
+          (inputs, [parent, key], index) => ({
+            ...inputs,
+            [`texture2d_${index}`]: (fillerAst: AstNode) => {
+              parent[key] = fillerAst;
+            },
+          }),
+          {}
+        );
+      },
+      produceFiller: (node: Node, ast: AstNode): AstNode => {
+        return makeExpression(`${nodeName(node)}()`);
+      },
     },
   },
-  Component: ThreeScene,
 };

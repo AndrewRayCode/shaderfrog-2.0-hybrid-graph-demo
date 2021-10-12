@@ -14,3 +14,9 @@ a {
 * {
   box-sizing: border-box;
 }
+
+button[disabled] {
+  opacity: 1;
+  background-color:#999;
+  color:#222;
+}

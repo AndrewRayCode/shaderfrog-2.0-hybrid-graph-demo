@@ -10,11 +10,12 @@ import {
 
 export const from2To3 = (ast: ParserProgram) => {
   const glOut = 'fragmentColor';
-  ast.program.unshift({
-    type: 'preprocessor',
-    line: '#version 300 es',
-    _: '\n',
-  });
+  // TODO: add this back in when there's only one after the merge
+  // ast.program.unshift({
+  //   type: 'preprocessor',
+  //   line: '#version 300 es',
+  //   _: '\n',
+  // });
   ast.program.unshift({
     type: 'declaration_statement',
     declaration: {
@@ -218,9 +219,9 @@ export const outputNode = (id: string, options: Object): Node => ({
   options,
   inputs: [],
   fragmentSource: `
-out vec4 color;
+out vec4 frogFragOut;
 void main() {
-  color = vec4(1.0);
+  frogFragOut = vec4(1.0);
 }
 `,
   vertexSource: '',
@@ -259,10 +260,82 @@ export enum ShaderType {
 export interface ShaderSections {
   precision: AstNode[];
   version: AstNode[];
-  preprocessor: Object[];
-  inStatements: Object[];
+  preprocessor: AstNode[];
+  structs: AstNode[];
+  inStatements: AstNode[];
+  uniforms: AstNode[];
   program: AstNode[];
 }
+
+export const emptyShaderSections = (): ShaderSections => ({
+  precision: [],
+  preprocessor: [],
+  version: [],
+  structs: [],
+  program: [],
+  inStatements: [],
+  uniforms: [],
+});
+
+export const mergeShaderSections = (
+  s1: ShaderSections,
+  s2: ShaderSections
+): ShaderSections => {
+  return {
+    version: [...s1.version, ...s2.version],
+    precision: [...s1.precision, ...s2.precision],
+    preprocessor: [...s1.preprocessor, ...s2.preprocessor],
+    inStatements: [...s1.inStatements, ...s2.inStatements],
+    structs: [...s1.structs, ...s2.structs],
+    uniforms: [...s1.uniforms, ...s2.uniforms],
+    program: [...s1.program, ...s2.program],
+  };
+};
+
+export const shaderSectionsToAst = (
+  sections: ShaderSections
+): ParserProgram => ({
+  type: 'program',
+  scopes: [],
+  program: [
+    {
+      type: 'program',
+      program: [
+        dedupeVersions(sections.version),
+        ...highestPrecisions(sections.precision),
+        ...sections.preprocessor,
+        // Structs before ins and uniforms as they can reference structs
+        ...sections.structs,
+        ...dedupeInStatements(sections.inStatements),
+        ...dedupeUniforms(sections.uniforms),
+        ...sections.program,
+      ],
+    },
+  ],
+});
+
+export const makeStatement = (stmt: string): AstNode => {
+  // console.log(stmt);
+  const ast = parser.parse(
+    `${stmt};
+`,
+    { quiet: true }
+  );
+  // console.log(util.inspect(ast, false, null, true));
+  return ast.program[0];
+};
+
+export const makeFnStatement = (stmt: string): AstNode => {
+  const ast = parser.parse(
+    `
+void main() {
+    ${stmt};
+  }`,
+    { quiet: true }
+  );
+  // console.log(util.inspect(ast, false, null, true));
+  return ast.program[0].body.statements[0];
+};
 
 export const makeExpression = (expr: string): AstNode => {
   const ast = parser.parse(
@@ -282,7 +355,9 @@ export const findShaderSections = (ast: ParserProgram): ShaderSections => {
     precision: [],
     preprocessor: [],
     version: [],
+    structs: [],
     inStatements: [],
+    uniforms: [],
     program: [],
   };
 
@@ -304,6 +379,24 @@ export const findShaderSections = (ast: ParserProgram): ShaderSections => {
       return {
         ...sections,
         preprocessor: sections.preprocessor.concat(node),
+      };
+    } else if (
+      node.type === 'declaration_statement' &&
+      node.declaration?.specified_type?.specifier?.specifier?.type === 'struct'
+    ) {
+      return {
+        ...sections,
+        structs: sections.structs.concat(node),
+      };
+    } else if (
+      node.type === 'declaration_statement' &&
+      node.declaration?.specified_type?.qualifiers?.find(
+        (n: AstNode) => n.token === 'uniform'
+      )
+    ) {
+      return {
+        ...sections,
+        uniforms: sections.uniforms.concat(node),
       };
     } else if (
       node.type === 'declaration_statement' &&
@@ -336,37 +429,85 @@ export const union = <T extends unknown>(...iterables: Set<T>[]) => {
   return set;
 };
 
-export const mergeShaderSections = (
-  s1: ShaderSections,
-  s2: ShaderSections
-): ShaderSections => {
-  return {
-    version: [...s1.version, ...s2.version],
-    precision: [...s1.precision, ...s2.precision],
-    preprocessor: [...s1.preprocessor, ...s2.preprocessor],
-    inStatements: [...s1.inStatements, ...s2.inStatements],
-    program: [...s1.program, ...s2.program],
-  };
-};
+enum Precision {
+  highp = 2,
+  mediump = 1,
+  lowp = 0,
+}
 
-export const shaderSectionsToAst = (
-  sections: ShaderSections
-): ParserProgram => ({
-  type: 'program',
-  scopes: [],
-  program: [
-    {
-      type: 'program',
-      program: [
-        ...sections.version,
-        ...sections.precision,
-        ...sections.preprocessor,
-        ...sections.inStatements,
-        ...sections.program,
-      ],
-    },
-  ],
-});
+export const higherPrecision = (p1: Precision, p2: Precision): Precision =>
+  Precision[p1] > Precision[p2] ? p1 : p2;
+
+export const dedupeVersions = (nodes: AstNode[]): AstNode => nodes[0];
+export const highestPrecisions = (nodes: AstNode[]): AstNode[] =>
+  Object.entries(
+    nodes.reduce(
+      (precisions, stmt) => ({
+        ...precisions,
+        // Like "float"
+        [stmt.declaration.specifier.specifier.token]: higherPrecision(
+          precisions[stmt.declaration.specifier.specifier.token],
+          stmt.declaration.qualifier.token
+        ),
+      }),
+      {} as { [type: string]: Precision }
+    )
+  ).map(([typeName, precision]) =>
+    makeStatement(`precision ${precision} ${typeName}`)
+  );
+
+export const dedupeInStatements = (statements: AstNode[]): any =>
+  Object.entries(
+    statements.reduce(
+      (stmts, stmt) => ({
+        ...stmts,
+        // Like "vec2"
+        [stmt.declaration.specified_type.specifier.specifier.token]: {
+          ...(stmts[
+            stmt.declaration.specified_type.specifier.specifier.token
+          ] || {}),
+          ...stmt.declaration.declarations.reduce(
+            (types: { [typeName: string]: string }, decl: AstNode) => ({
+              ...types,
+              [decl.identifier.identifier]: true,
+            }),
+            {} as { [typeName: string]: string }
+          ),
+        },
+      }),
+      {} as { [key: string]: AstNode }
+    )
+  ).map(([type, varNames]) =>
+    makeStatement(`in ${type} ${Object.keys(varNames).join(', ')}`)
+  );
+
+export const dedupeUniforms = (statements: AstNode[]): any =>
+  Object.entries(
+    statements.reduce((stmts, stmt) => {
+      const { specifier } = stmt.declaration.specified_type.specifier;
+      // Token is for "vec2", "identifier" is for custom names likes truct
+      const type = specifier.token || specifier.identifier;
+      return {
+        ...stmts,
+        [type]: {
+          ...(stmts[type] || {}),
+          ...stmt.declaration.declarations.reduce(
+            (types: { [typeName: string]: string }, decl: AstNode) => ({
+              ...types,
+              [decl.identifier.identifier]:
+                decl.identifier.identifier +
+                (decl.quantifier
+                  ? `[${decl.quantifier.specifiers[0].expression.token}]`
+                  : ''),
+            }),
+            {} as { [typeName: string]: AstNode }
+          ),
+        },
+      };
+    }, {} as { [key: string]: AstNode })
+  ).map(([type, varNames]) =>
+    makeStatement(`uniform ${type} ${Object.values(varNames).join(', ')}`)
+  );
 
 export const outDeclaration = (name: string): Object => ({
   type: 'declaration_statement',

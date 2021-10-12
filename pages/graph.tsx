@@ -21,6 +21,7 @@ import {
   makeExpression,
   from2To3,
   Edge,
+  emptyShaderSections,
 } from './nodestuff';
 
 const inspect = (thing: any): void =>
@@ -108,7 +109,7 @@ export const parsers: Parsers = {
       from2To3(fragmentAst);
 
       convert300MainToReturn(fragmentAst);
-      renameBindings(fragmentAst.scopes[0], new Set<string>(), node.id);
+      renameBindings(fragmentAst.scopes[0], engine.preserve, node.id);
       renameFunctions(fragmentAst.scopes[0], node.id, {
         main: nodeName(node),
       });
@@ -206,14 +207,6 @@ const findVec4Constructo4 = (ast: AstNode): AstNode | undefined => {
   return parent;
 };
 
-export const emptyShaderSections = (): ShaderSections => ({
-  precision: [],
-  preprocessor: [],
-  version: [],
-  program: [],
-  inStatements: [],
-});
-
 export type NodeInputs = {
   [inputName: string]: (a: AstNode) => void;
 };
@@ -254,7 +247,7 @@ export const compileNode = (
       if (!fromNode) {
         throw new Error(`Node for edge ${edge.from} not found`);
       }
-      console.log('compiling ', fromNode);
+
       const [inputSections, fillerAst] = compileNode(
         engine,
         graph,

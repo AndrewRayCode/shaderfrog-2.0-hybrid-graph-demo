@@ -36,8 +36,8 @@ const graph: Graph = {
   edges: [
     { from: '2', to: '1', output: 'main', input: 'color' },
     {
-      // from: '3',
-      from: '4',
+      from: '3',
+      // from: '4',
       to: '2',
       output: 'main',
       input: 'texture2d_0',
@@ -182,6 +182,10 @@ const ThreeScene = ({ engine, parsers }: Prorps) => {
 
     let startThree = performance.now();
 
+    const pu: any = graph.nodes.find(
+      (node) => node.name === 'Noise Shader'
+    )?.id;
+
     // the before code
     const newMat = new three.RawShaderMaterial({
       name: 'ShaderFrog Phong Material',
@@ -192,37 +196,20 @@ const ThreeScene = ({ engine, parsers }: Prorps) => {
         image: { value: new three.TextureLoader().load('/contrast-noise.png') },
         time: { value: 0 },
         color: { value: new three.Color(0xffffff) },
-        brightnessX_4: { value: 1 },
         resolution: { value: 0.5 },
         speed: { value: 3 },
         lightPosition: { value: new three.Vector3(10, 10, 10) },
 
-        permutations_4: { value: 10 },
-        iterations_4: { value: 1 },
-        uvScale_4: { value: new three.Vector2(1, 1) },
-        color1_4: { value: new three.Vector3(0.7, 0.3, 0.8) },
-        color2_4: { value: new three.Vector3(0.1, 0.2, 0.9) },
-        color3_4: { value: new three.Vector3(0.8, 0.3, 0.8) },
-        // opacity: { value: 1 },
+        [`brightnessX_${pu}`]: { value: 1 },
+        [`permutations_${pu}`]: { value: 10 },
+        [`iterations_${pu}`]: { value: 1 },
+        [`uvScale_${pu}`]: { value: new three.Vector2(1, 1) },
+        [`color1_${pu}`]: { value: new three.Vector3(0.7, 0.3, 0.8) },
+        [`color2_${pu}`]: { value: new three.Vector3(0.1, 0.2, 0.9) },
+        [`color3_${pu}`]: { value: new three.Vector3(0.8, 0.3, 0.8) },
       },
       vertexShader: vertex,
       fragmentShader: fragmentResult,
-
-      // @ts-ignore`
-      // onBeforeCompile: (shader) => {
-      //   shader.uniforms = {
-      //     ...three.ShaderLib.phong.uniforms,
-      //     ...shader.uniforms,
-      //   };
-
-      //   // console.log(
-      //   //   'three.ShaderLib.phong.uniforms',
-      //   //   three.ShaderLib.phong.uniforms
-      //   // );
-      //   shader.fragmentShader = addMainFunctions(fragmentSource, frag);
-      //   setText(shader.fragmentShader || 'oh god no');
-      //   shader.vertexShader = vertexSource;
-      // },
     });
 
     // @ts-ignore

@@ -17,6 +17,13 @@
   color: #fff;
 }
 
+.shader {
+  width:100%;
+  min-height:360px;
+  background: #040404;
+  color: #fff;
+}
+
 textarea.error {
   border:1px inset red;
 }

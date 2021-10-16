@@ -117,64 +117,6 @@ export const convert300MainToReturn = (ast: ParserProgram): void => {
   });
 };
 
-export const renameBindings = (
-  scope: Scope,
-  preserve: Set<string>,
-  suffix: string
-) => {
-  Object.entries(scope.bindings).forEach(([name, binding]) => {
-    binding.references.forEach((ref) => {
-      if (ref.doNotDescope) {
-        return;
-      }
-      if (ref.type === 'declaration') {
-        // both are "in" vars expected in vertex shader
-        if (!preserve.has(ref.identifier.identifier)) {
-          ref.identifier.identifier = `${ref.identifier.identifier}_${suffix}`;
-        }
-      } else if (ref.type === 'identifier') {
-        // TODO: does this block get called anymore??
-        if (!preserve.has(ref.identifier)) {
-          ref.identifier = `${ref.identifier}_${suffix}`;
-        }
-      } else if (ref.type === 'parameter_declaration') {
-        ref.declaration.identifier.identifier = `${ref.declaration.identifier.identifier}_${suffix}`;
-      } else {
-        console.log(ref);
-        throw new Error(`Binding for type ${ref.type} not recognized`);
-      }
-    });
-  });
-};
-
-export const renameFunctions = (
-  scope: Scope,
-  suffix: string,
-  map: { [name: string]: string }
-) => {
-  Object.entries(scope.functions).forEach(([name, binding]) => {
-    binding.references.forEach((ref) => {
-      if (ref.type === 'function_header') {
-        ref.name.identifier =
-          map[ref.name.identifier] || `${ref.name.identifier}_${suffix}`;
-      } else if (ref.type === 'function_call') {
-        if (ref.identifier.type === 'postfix') {
-          ref.identifier.expr.identifier.specifier.identifier =
-            map[ref.identifier.expr.identifier.specifier.identifier] ||
-            `${ref.identifier.expr.identifier.specifier.identifier}_${suffix}`;
-        } else {
-          ref.identifier.specifier.identifier =
-            map[ref.identifier.specifier.identifier] ||
-            `${ref.identifier.specifier.identifier}_${suffix}`;
-        }
-      } else {
-        console.log(ref);
-        throw new Error(`Function for type ${ref.type} not recognized`);
-      }
-    });
-  });
-};
-
 export interface ProgramSource {
   fragment: string;
   vertex: string;
@@ -219,6 +161,7 @@ export const outputNode = (id: string, options: Object): Node => ({
   options,
   inputs: [],
   fragmentSource: `
+#version 300 es
 out vec4 frogFragOut;
 void main() {
   frogFragOut = vec4(1.0);
@@ -238,6 +181,17 @@ export const addNode = (id: string, options: Object): Node => ({
   expressionOnly: true,
 });
 
+export const multiplyNode = (id: string, options: Object): Node => ({
+  id,
+  name: 'multiply',
+  type: ShaderType.multiply,
+  options,
+  inputs: [],
+  fragmentSource: `a * b`,
+  vertexSource: '',
+  expressionOnly: true,
+});
+
 export type Edge = {
   from: string;
   to: string;
@@ -251,10 +205,12 @@ export interface Graph {
 }
 
 export enum ShaderType {
+  toon = 'MeshToonMaterial',
   phong = 'MeshPhongMaterial',
   output = 'output',
   shader = 'shader',
   add = 'add',
+  multiply = 'multiply',
 }
 
 export interface ShaderSections {
@@ -316,34 +272,54 @@ export const shaderSectionsToAst = (
 
 export const makeStatement = (stmt: string): AstNode => {
   // console.log(stmt);
-  const ast = parser.parse(
-    `${stmt};
+  let ast;
+  try {
+    ast = parser.parse(
+      `${stmt};
 `,
-    { quiet: true }
-  );
+      { quiet: true }
+    );
+  } catch (error: any) {
+    console.error({ stmt, error });
+    throw new Error(`Error parsing stmt "${stmt}": ${error?.message}`);
+  }
   // console.log(util.inspect(ast, false, null, true));
   return ast.program[0];
 };
 
-export const makeFnStatement = (stmt: string): AstNode => {
-  const ast = parser.parse(
-    `
-void main() {
-    ${stmt};
-  }`,
-    { quiet: true }
-  );
+export const makeFnStatement = (fnStmt: string): AstNode => {
+  let ast;
+  try {
+    ast = parser.parse(
+      `
+  void main() {
+      ${fnStmt};
+    }`,
+      { quiet: true }
+    );
+  } catch (error: any) {
+    console.error({ fnStmt, error });
+    throw new Error(`Error parsing fnStmt "${fnStmt}": ${error?.message}`);
+  }
+
   // console.log(util.inspect(ast, false, null, true));
   return ast.program[0].body.statements[0];
 };
 
 export const makeExpression = (expr: string): AstNode => {
-  const ast = parser.parse(
-    `void main() {
-        a = ${expr};
-      }`,
-    { quiet: true }
-  );
+  let ast;
+  try {
+    ast = parser.parse(
+      `void main() {
+          a = ${expr};
+        }`,
+      { quiet: true }
+    );
+  } catch (error: any) {
+    console.error({ expr, error });
+    throw new Error(`Error parsing expr "${expr}": ${error?.message}`);
+  }
+
   // console.log(util.inspect(ast, false, null, true));
   return ast.program[0].body.statements[0].expression.right;
 };

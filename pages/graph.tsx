@@ -1,8 +1,11 @@
-import { FunctionComponent } from 'react';
 import util from 'util';
 
 import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor';
-import { generate, parser } from '@shaderfrog/glsl-parser';
+import { parser } from '@shaderfrog/glsl-parser';
+import {
+  renameBindings,
+  renameFunctions,
+} from '@shaderfrog/glsl-parser/dist/parser/utils';
 import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
 import { visit, AstNode, NodeVisitors } from '@shaderfrog/glsl-parser/dist/ast';
 
@@ -16,8 +19,6 @@ import {
   mergeShaderSections,
   shaderSectionsToAst,
   convert300MainToReturn,
-  renameBindings,
-  renameFunctions,
   makeExpression,
   from2To3,
   Edge,
@@ -65,7 +66,7 @@ export const nodeName = (node: Node): string =>
   'main_' + node.name.replace(/[^a-zA-Z0-9]/g, ' ').replace(/ +/g, '_');
 
 export const parsers: Parsers = {
-  output: {
+  [ShaderType.output]: {
     produceAst: (
       engineContext,
       engine,
@@ -93,7 +94,7 @@ export const parsers: Parsers = {
     },
     produceFiller: emptyFiller,
   },
-  shader: {
+  [ShaderType.shader]: {
     produceAst: (
       engineContext,
       engine,
@@ -146,14 +147,61 @@ export const parsers: Parsers = {
       return makeExpression(`${nodeName(node)}()`);
     },
   },
-  add: {
+  [ShaderType.add]: {
     produceAst: (engineContext, engine, node, inputEdges) => {
       const alphabet = 'abcdefghijklmnopqrstuvwxyz';
       const fragmentAst: AstNode = {
         type: 'program',
         program: [
           makeExpression(
-            inputEdges.map((_, index) => alphabet.charAt(index)).join(' + ')
+            inputEdges.length
+              ? inputEdges.map((_, index) => alphabet.charAt(index)).join(' + ')
+              : 'a + b'
+          ),
+        ],
+        scopes: [],
+      };
+      inspect(fragmentAst);
+      return fragmentAst;
+    },
+    findInputs: (engineContext, node, ast, nodeContext) => {
+      let inputs: any[][] = [];
+      const visitors: NodeVisitors = {
+        identifier: {
+          enter: (path) => {
+            inputs.push([path.parent, path.key, path.node.identifier]);
+          },
+        },
+      };
+      visit(ast, visitors);
+      return inputs.reduce(
+        (inputs, [parent, key, identifier], index) => ({
+          ...inputs,
+          [identifier]: (fillerAst: AstNode) => {
+            if (parent) {
+              parent[key] = fillerAst;
+            } else {
+              nodeContext.ast = fillerAst;
+            }
+          },
+        }),
+        {}
+      );
+    },
+    produceFiller: (node: Node, ast: AstNode): AstNode => {
+      return ast.program;
+    },
+  },
+  [ShaderType.multiply]: {
+    produceAst: (engineContext, engine, node, inputEdges) => {
+      const alphabet = 'abcdefghijklmnopqrstuvwxyz';
+      const fragmentAst: AstNode = {
+        type: 'program',
+        program: [
+          makeExpression(
+            inputEdges.length
+              ? inputEdges.map((_, index) => alphabet.charAt(index)).join(' * ')
+              : 'a * b'
           ),
         ],
         scopes: [],
@@ -225,7 +273,8 @@ export type GraphCompileResult = [ShaderSections, AstNode | void];
 export const compileNode = (
   engine: Engine,
   graph: Graph,
-  graphContext: GraphContext,
+  engineContext: any,
+  // graphContext: GraphContext,
   node: Node
 ): GraphCompileResult => {
   const parser = engine.parsers[node.type] || parsers[node.type];
@@ -236,8 +285,13 @@ export const compileNode = (
     throw new Error(`No parser found for ${node.type}`);
   }
 
-  const ctx = graphContext[node.id];
-  const { ast, inputs } = ctx;
+  const nodeContext = engineContext.nodes[node.id];
+  // const nodeContext = computeNodeContext(engineContext, engine, graph, node); // graphContext[node.id];
+  // engineContext.nodes[node.id] = {
+  //   ...(engineContext.nodes[node.id] || {}),
+  //   ...nodeContext,
+  // };
+  const { ast, inputs } = nodeContext;
 
   const inputEdges = graph.edges.filter((edge) => edge.to === node.id);
   if (inputEdges.length) {
@@ -251,7 +305,8 @@ export const compileNode = (
       const [inputSections, fillerAst] = compileNode(
         engine,
         graph,
-        graphContext,
+        engineContext,
+        // graphContext,
         fromNode
       );
       if (!fillerAst) {
@@ -295,8 +350,8 @@ export const compileNode = (
   }
 };
 
-export const computeGraphContext = <T extends unknown>(
-  engineContext: T,
+export const computeGraphContext = (
+  engineContext: any,
   engine: Engine,
   graph: Graph
 ) =>
@@ -309,31 +364,32 @@ export const computeGraphContext = <T extends unknown>(
     if (!parser) {
       throw new Error(`No parser for ${node.type}`);
     }
-    nodeContext.ast = parser.produceAst<T>(
+    console.log('producing', node.type);
+    nodeContext.ast = parser.produceAst(
       engineContext,
       engine,
       node,
       inputEdges
     );
-    nodeContext.inputs = parser.findInputs<T>(
+    nodeContext.inputs = parser.findInputs(
       engineContext,
       node,
       nodeContext.ast,
       nodeContext
     );
-
-    return {
-      ...context,
-      [node.id]: nodeContext,
+    context[node.id] = {
+      ...(context[node.id] || {}),
+      ...nodeContext,
     };
-  }, {});
+    return context;
+  }, engineContext.nodes);
 
-export const compileGraph = <T extends unknown>(
-  engineContext: T,
+export const compileGraph = (
+  engineContext: any,
   engine: Engine,
   graph: Graph
 ): ShaderSections => {
-  const graphContext = computeGraphContext<T>(engineContext, engine, graph);
+  computeGraphContext(engineContext, engine, graph);
 
   const outputNode = graph.nodes.find((node) => node.type === 'output');
   if (!outputNode) {
@@ -343,5 +399,5 @@ export const compileGraph = <T extends unknown>(
   // Every compileNode returns the AST so far, as well as the filler for the
   // next node with inputs. On the final step, we discard the filler, as it
   // *should* be the
-  return compileNode(engine, graph, graphContext, outputNode)[0];
+  return compileNode(engine, graph, engineContext, outputNode)[0];
 };

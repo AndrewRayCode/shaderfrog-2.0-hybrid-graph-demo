@@ -1,0 +1,550 @@
+import styles from './editor.module.css';
+import LiteGraph from 'litegraph.js';
+
+import { generate } from '@shaderfrog/glsl-parser';
+import { useEffect, useRef, useState } from 'react';
+import * as three from 'three';
+import {
+  outputNode,
+  Graph,
+  shaderSectionsToAst,
+  Node,
+  addNode,
+  multiplyNode,
+  ShaderType,
+} from '../nodestuff';
+import { compileGraph, NodeInputs } from '../graph';
+
+import { phongNode, toonNode, threngine } from '../threngine';
+import purpleNoiseNode from './purpleNoiseNode';
+import colorShaderNode from './colorShaderNode';
+import fireNode from './fireNode';
+import triplanarNode from './triplanarNode';
+
+const width = 600;
+const height = 600;
+
+type EngineContext = {
+  lGraph: LiteGraph.LGraph;
+  index: number;
+  three: any;
+  threeTone: any;
+  mesh: any;
+  scene: any;
+  camera: any;
+  fragmentPreprocessed?: string;
+  fragmentSource?: string;
+  renderer: any;
+  nodes: {
+    [nodeId: string]: {
+      fragment: string;
+      vertex: string;
+      inputs: NodeInputs[];
+    };
+  };
+};
+
+const graph: Graph = {
+  nodes: [
+    outputNode('1', {}),
+    phongNode('2', 'Phong', {}),
+    toonNode('3', 'Toon', {}),
+    colorShaderNode('4'),
+    purpleNoiseNode('5'),
+    fireNode('6'),
+    addNode('7', {}),
+    multiplyNode('8', {}),
+    triplanarNode('9'),
+  ],
+  edges: [
+    { from: '2', to: '1', output: 'main', input: 'color' },
+    // TODO: Could be cool to try outline shader https://shaderfrog.com/app/view/4876
+    // TODO: Why doesn't fire shader look right? https://shaderfrog.com/app/view/2751
+    // TODO: Make toon and phong shader interchangeable
+    // TODO: Try pbr node demo from threejs
+    {
+      from: '7',
+      to: '2',
+      output: 'main',
+      input: 'texture2d_0',
+    },
+    {
+      from: '4',
+      to: '7',
+      output: 'main',
+      input: 'a',
+    },
+    {
+      from: '5',
+      to: '7',
+      output: 'main',
+      input: 'b',
+    },
+  ],
+};
+
+class LOutputNode extends LiteGraph.LGraphNode {
+  constructor() {
+    super();
+  }
+}
+LiteGraph.LiteGraph.registerNodeType('basic/output', LOutputNode);
+
+class LShaderNode extends LiteGraph.LGraphNode {
+  constructor() {
+    super();
+    this.addOutput('main', 'string');
+  }
+}
+LiteGraph.LiteGraph.registerNodeType('basic/shader', LShaderNode);
+
+class LAddNode extends LiteGraph.LGraphNode {
+  constructor() {
+    super();
+    this.addOutput('output', 'string');
+  }
+}
+LiteGraph.LiteGraph.registerNodeType('basic/add', LAddNode);
+
+const ThreeScene = () => {
+  const graphRef = useRef<HTMLCanvasElement>(null);
+  const domRef = useRef<HTMLDivElement>(null);
+  const requestRef = useRef<number>();
+
+  const edgStr = JSON.stringify(graph.edges);
+  const [edges, setEdges] = useState<string>(edgStr);
+  const [edgesUnsaved, setEdgesUnsaved] = useState<string>(edgStr);
+  const [lgInitted, setLgInitted] = useState<boolean>(false);
+  const [lgNodesAdded, setLgNodesAdded] = useState<boolean>(false);
+
+  const [activeShader, setActiveShader] = useState<Node>(graph.nodes[0]);
+  const [shaderUnsaved, setShaderUnsaved] = useState<string>(
+    activeShader.fragmentSource
+  );
+  const [jsonError, setJsonError] = useState<boolean>(false);
+  const [selection, setSelection] = useState<string>('final');
+  const [preprocessed, setPreprocessed] = useState<string | undefined>('');
+  const [vertex, setVertex] = useState<string | undefined>('');
+  const [original, setOriginal] = useState<string | undefined>('');
+  const [finalFragment, setFinalFragment] = useState<string | undefined>('');
+
+  const [ctx, setCtx] = useState<EngineContext | undefined>();
+
+  // Setup?
+  useEffect(() => {
+    if (!graphRef.current) {
+      return;
+    }
+
+    let lGraph = ctx?.lGraph;
+    if (!lgInitted) {
+      console.warn('----- LGraph Initting!!! -----');
+      setLgInitted(true);
+      lGraph = new LiteGraph.LGraph();
+      lGraph.onAction = (action, params) => {
+        console.log({ action, params });
+      };
+      new LiteGraph.LGraphCanvas(graphRef.current, lGraph);
+      lGraph.start();
+    }
+
+    const scene = new three.Scene();
+    const camera = new three.PerspectiveCamera(75, 1 / 1, 0.1, 1000);
+    camera.position.set(0, 0, 3);
+    camera.lookAt(0, 0, 0);
+    scene.add(camera);
+
+    const threeTone = new three.TextureLoader().load('/3tone.jpg');
+    threeTone.minFilter = three.NearestFilter;
+    threeTone.magFilter = three.NearestFilter;
+
+    // const material = new three.MeshToonMaterial({
+    // const material = new three.MeshPhongMaterial({
+    //   color: 0x00ff00,
+    //   map: new three.Texture(),
+    //   gradientMap: threeTone,
+    // });
+    // const geometry = new three.SphereBufferGeometry(1, 32, 32);
+    const geometry = new three.TorusKnotGeometry(0.6, 0.25, 100, 16);
+    // const mesh = new three.Mesh(geometry, material);
+    const mesh = new three.Mesh(geometry);
+    scene.add(mesh);
+
+    const light = new three.PointLight(0xffffff, 1);
+    light.position.set(0, 0, 1);
+    scene.add(light);
+
+    const helper = new three.PointLightHelper(light, 0.1);
+    scene.add(helper);
+
+    const ambientLight = new three.AmbientLight(0x000000);
+    scene.add(ambientLight);
+
+    const renderer = new three.WebGLRenderer();
+    renderer.setSize(width, height);
+    if (domRef.current) {
+      domRef.current.appendChild(renderer.domElement);
+    }
+
+    const animate = (time: number) => {
+      renderer.render(scene, camera);
+      // mesh.rotation.x = time * 0.0003;
+      // mesh.rotation.y = time * -0.0003;
+      // mesh.rotation.z = time * 0.0003;
+      light.position.x = 1.5 * Math.sin(time * 0.002);
+      light.position.y = 1.5 * Math.cos(time * 0.002);
+      // @ts-ignore
+      if (mesh.material?.uniforms?.time) {
+        mesh.material.uniforms.time.value = time * 0.001;
+      }
+      requestRef.current = requestAnimationFrame(animate);
+    };
+    const { current } = domRef;
+    animate(0);
+
+    setCtx({
+      lGraph,
+      three,
+      renderer,
+      // material,
+      mesh,
+      scene,
+      camera,
+      index: 0,
+      threeTone,
+      nodes: {},
+    });
+
+    return () => {
+      if (current) {
+        current.removeChild(renderer.domElement);
+      }
+      if (typeof requestRef.current === 'string') {
+        cancelAnimationFrame(requestRef.current);
+      }
+    };
+  }, []);
+
+  // Compile
+  useEffect(() => {
+    setJsonError(false);
+
+    if (!ctx) {
+      return;
+    }
+    const { mesh, renderer, threeTone, lGraph } = ctx;
+
+    try {
+      graph.edges = JSON.parse(edges);
+      if (lgNodesAdded) {
+        graph.edges = Object.values(lGraph.links).map((link) => ({
+          from: link.origin_id.toString(),
+          to: link.target_id.toString(),
+          output: 'main',
+          input: Object.keys(ctx.nodes[link.target_id].inputs)[
+            link.target_slot
+          ],
+        }));
+      }
+    } catch (e) {
+      console.error(e);
+      setJsonError(true);
+      return;
+    }
+    console.log('rendering!', graph);
+
+    // const engineContext: EngineContext = {
+    //   renderer,
+    //   nodes: {},
+    // };
+
+    const allStart = performance.now();
+
+    // mesh.material = material;
+    // renderer.compile(scene, camera);
+
+    // const compileStart = performance.now();
+    // engineContext.nodes['2'] = {
+    //   fragment: renderer.properties.get(mesh.material).programs.values().next()
+    //     .value.fragmentShader,
+    //   vertex: renderer.properties.get(mesh.material).programs.values().next()
+    //     .value.vertexShader,
+    //   // console.log('vertexProgram', vertexProgram);
+    // };
+    // console.log('engineContext', engineContext);
+    const result = compileGraph(ctx, threngine, graph);
+    const fragmentResult = generate(shaderSectionsToAst(result).program);
+
+    const now = performance.now();
+    console.log(`Compilation took:
+-------------------
+total: ${(now - allStart).toFixed(3)}ms
+-------------------
+`);
+    // three renderer compile: ${(compileStart - allStart).toFixed(3)}ms
+    // frog compile: ${(now - compileStart).toFixed(3)}ms
+    // -------------------`);
+
+    // TODO: Right now the three shader doesn't output vPosition, and it's not
+    // supported by shaderfrog to merge outputs in vertex shaders yet
+    console.log(ctx.nodes);
+    const vertex = renderer
+      .getContext()
+      .getShaderSource(ctx.nodes['2'].vertex)
+      ?.replace(
+        'attribute vec3 position;',
+        'attribute vec3 position; varying vec3 vPosition;'
+      )
+      .replace('void main() {', 'void main() {\nvPosition = position;\n');
+
+    console.log('oh hai birfday boi boi boiiiii');
+
+    const pu: any = graph.nodes.find(
+      (node) => node.name === 'Noise Shader'
+    )?.id;
+
+    const uniforms = {
+      ...three.ShaderLib.phong.uniforms,
+      ...three.ShaderLib.toon.uniforms,
+      diffuse: { value: new three.Color(0xffffff) },
+      // ambientLightColor: { value: new three.Color(0xffffff) },
+      color: { value: new three.Color(0xffffff) },
+      gradientMap: { value: threeTone },
+      // map: { value: new three.TextureLoader().load('/contrast-noise.png') },
+      image: { value: new three.TextureLoader().load('/contrast-noise.png') },
+      time: { value: 0 },
+      resolution: { value: 0.5 },
+      speed: { value: 3 },
+      opacity: { value: 1 },
+      lightPosition: { value: new three.Vector3(10, 10, 10) },
+
+      [`brightnessX_${pu}`]: { value: 1.0 },
+      [`permutations_${pu}`]: { value: 10 },
+      [`iterations_${pu}`]: { value: 1 },
+      [`uvScale_${pu}`]: { value: new three.Vector2(1, 1) },
+      [`color1_${pu}`]: { value: new three.Vector3(0.7, 0.3, 0.8) },
+      [`color2_${pu}`]: { value: new three.Vector3(0.1, 0.2, 0.9) },
+      [`color3_${pu}`]: { value: new three.Vector3(0.8, 0.3, 0.8) },
+    };
+    console.log('applying uniforms', uniforms);
+
+    // the before code
+    const newMat = new three.RawShaderMaterial({
+      name: 'ShaderFrog Phong Material',
+      lights: true,
+      uniforms,
+      vertexShader: vertex,
+      fragmentShader: fragmentResult,
+    });
+
+    // @ts-ignore
+    mesh.material = newMat;
+
+    setFinalFragment(fragmentResult);
+    setVertex(vertex);
+    // Mutated from the processAst call for now
+    setPreprocessed(ctx.fragmentPreprocessed);
+    setOriginal(ctx.fragmentSource);
+
+    lGraph.clear();
+    let engines = 1;
+    let maths = 0;
+    let shaders = 0;
+    const spacing = 200;
+    const lNodes: { [key: string]: LiteGraph.LGraphNode } = {};
+    graph.nodes.forEach((node) => {
+      let x = 0;
+      let y = 0;
+      let lNode: LiteGraph.LGraphNode;
+      if (node.type === ShaderType.output) {
+        x = spacing * 2;
+        lNode = LiteGraph.LiteGraph.createNode('basic/output');
+      } else if (
+        node.type === ShaderType.phong ||
+        node.type === ShaderType.toon
+      ) {
+        x = spacing;
+        y = engines * 100;
+        lNode = LiteGraph.LiteGraph.createNode('basic/shader');
+        engines++;
+      } else if (
+        node.type === ShaderType.add ||
+        node.type === ShaderType.multiply
+      ) {
+        x = 0;
+        y = maths * 100;
+        lNode = LiteGraph.LiteGraph.createNode('basic/add');
+        maths++;
+      } else {
+        x = -spacing;
+        y = shaders * 100;
+        lNode = LiteGraph.LiteGraph.createNode('basic/shader');
+        shaders++;
+      }
+      lNode.pos = [x, y];
+      lNode.title = node.name;
+      if (ctx.nodes[node.id]) {
+        Object.keys(ctx.nodes[node.id].inputs).forEach((input) => {
+          lNode.addInput(input, 'string');
+        });
+      }
+      lGraph.add(lNode);
+      lNode.onConnectionsChange = (
+        type,
+        slotIndex,
+        isConnected,
+        link,
+        ioSlot
+      ) => {
+        console.log({ type, slotIndex, isConnected, link, ioSlot });
+      };
+      // lNode.setValue(4.5);
+      lNodes[node.id] = lNode;
+    });
+
+    graph.edges.forEach((edge) => {
+      lNodes[edge.from].connect(0, lNodes[edge.to], edge.input);
+    });
+    setLgNodesAdded(true);
+
+    console.log(lGraph);
+
+    // const node_const = LiteGraph.LiteGraph.createNode('basic/const');
+    // node_const.pos = [200, 200];
+    // lGraph.add(node_const);
+    // node_const.setValue(4.5);
+
+    // const node_watch = LiteGraph.LiteGraph.createNode('basic/watch');
+    // node_watch.pos = [700, 200];
+    // lGraph.add(node_watch);
+
+    // node_const.connect(0, node_watch, 0);
+  }, [ctx, edges]);
+
+  // TODO: You were here, trying to modify the edges in real time,
+  // and it fails. Because of mutation of the AST?
+  return (
+    <div className={styles.container}>
+      <div>
+        <canvas
+          id="mycanvas"
+          width={width}
+          height={200}
+          ref={graphRef}
+        ></canvas>
+        <button
+          className={styles.button}
+          onClick={() => setCtx({ ...ctx, index: ctx.index + 1 })}
+        >
+          Save Graph
+        </button>
+        <textarea
+          className={styles.edges + ' ' + (jsonError ? styles.error : '')}
+          onChange={(event) => setEdgesUnsaved(event.target.value)}
+          value={edgesUnsaved}
+        ></textarea>
+
+        <textarea
+          className={styles.shader}
+          onChange={(event) => setShaderUnsaved(event.target.value)}
+          value={shaderUnsaved}
+        ></textarea>
+        <button
+          className={styles.button}
+          onClick={() => {
+            const found = graph.nodes.find(({ id }) => activeShader.id === id);
+            if (found) {
+              found.fragmentSource = shaderUnsaved;
+              // @ts-ignore
+              setCtx({ ...ctx, index: ctx.index + 1 });
+            }
+          }}
+        >
+          Save Shader
+        </button>
+        {graph.nodes.map((node) => (
+          <button
+            key={node.id}
+            disabled={node.id === activeShader.id}
+            onClick={() => {
+              setActiveShader(node);
+              setShaderUnsaved(node.fragmentSource);
+            }}
+          >
+            {node.name} ({node.id})
+          </button>
+        ))}
+
+        <textarea
+          className={styles.code}
+          readOnly
+          style={{
+            display: selection === 'vertex' ? 'block' : 'none',
+          }}
+          value={vertex}
+        ></textarea>
+        <textarea
+          className={styles.code}
+          readOnly
+          style={{
+            display: selection === 'original' ? 'block' : 'none',
+          }}
+          value={original}
+        ></textarea>
+        <textarea
+          className={styles.code}
+          readOnly
+          style={{
+            display: selection === 'preprocessed' ? 'block' : 'none',
+          }}
+          value={preprocessed}
+        ></textarea>
+        <textarea
+          className={styles.code}
+          readOnly
+          style={{
+            display: selection === 'final' ? 'block' : 'none',
+          }}
+          value={finalFragment}
+        ></textarea>
+
+        <button
+          className={styles.button}
+          disabled={selection === 'vertex'}
+          onClick={() => setSelection('vertex')}
+        >
+          Vertex
+        </button>
+        <button
+          className={styles.button}
+          disabled={selection === 'original'}
+          onClick={() => setSelection('original')}
+        >
+          Original
+        </button>
+        <button
+          className={styles.button}
+          disabled={selection === 'preprocessed'}
+          onClick={() => setSelection('preprocessed')}
+        >
+          Preprocessed
+        </button>
+        <button
+          className={styles.button}
+          disabled={selection === 'final'}
+          onClick={() => setSelection('final')}
+        >
+          Final
+        </button>
+      </div>
+      <div>
+        <div
+          style={{ width: `${width}px`, height: `${height}px` }}
+          ref={domRef}
+        ></div>
+      </div>
+    </div>
+  );
+};
+
+export default ThreeScene;

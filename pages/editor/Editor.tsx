@@ -1,4 +1,5 @@
 import styles from './editor.module.css';
+import 'litegraph.js/css/litegraph.css';
 import LiteGraph from 'litegraph.js';
 
 import { generate } from '@shaderfrog/glsl-parser';
@@ -59,9 +60,8 @@ const graph: Graph = {
   edges: [
     { from: '2', to: '1', output: 'main', input: 'color' },
     // TODO: Could be cool to try outline shader https://shaderfrog.com/app/view/4876
-    // TODO: Why doesn't fire shader look right? https://shaderfrog.com/app/view/2751
-    // TODO: Make toon and phong shader interchangeable
     // TODO: Try pbr node demo from threejs
+    // TODO: Support vertex :O
     {
       from: '7',
       to: '2',
@@ -110,12 +110,14 @@ const ThreeScene = () => {
   const graphRef = useRef<HTMLCanvasElement>(null);
   const domRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef<number>();
+  const sceneData = useRef<{ [key: string]: any }>({});
 
   const edgStr = JSON.stringify(graph.edges);
   const [edges, setEdges] = useState<string>(edgStr);
   const [edgesUnsaved, setEdgesUnsaved] = useState<string>(edgStr);
   const [lgInitted, setLgInitted] = useState<boolean>(false);
   const [lgNodesAdded, setLgNodesAdded] = useState<boolean>(false);
+  const [lighting, setLighting] = useState<string>('a');
 
   const [activeShader, setActiveShader] = useState<Node>(graph.nodes[0]);
   const [shaderUnsaved, setShaderUnsaved] = useState<string>(
@@ -170,12 +172,8 @@ const ThreeScene = () => {
     const mesh = new three.Mesh(geometry);
     scene.add(mesh);
 
-    const light = new three.PointLight(0xffffff, 1);
-    light.position.set(0, 0, 1);
-    scene.add(light);
-
-    const helper = new three.PointLightHelper(light, 0.1);
-    scene.add(helper);
+    sceneData.current.scene = scene;
+    sceneData.current.mesh = mesh;
 
     const ambientLight = new three.AmbientLight(0x000000);
     scene.add(ambientLight);
@@ -191,8 +189,28 @@ const ThreeScene = () => {
       // mesh.rotation.x = time * 0.0003;
       // mesh.rotation.y = time * -0.0003;
       // mesh.rotation.z = time * 0.0003;
-      light.position.x = 1.5 * Math.sin(time * 0.002);
-      light.position.y = 1.5 * Math.cos(time * 0.002);
+      if (sceneData.current?.lights) {
+        const light = sceneData.current.lights[0];
+        light.position.x = 1.2 * Math.sin(time * 0.001);
+        light.position.y = 1.2 * Math.cos(time * 0.001);
+        light.lookAt(
+          new three.Vector3(Math.cos(time * 0.0015), Math.sin(time * 0.0015), 0)
+        );
+
+        if (sceneData.current.lights.length > 2) {
+          const light = sceneData.current.lights[1];
+          light.position.x = 1.3 * Math.cos(time * 0.0015);
+          light.position.y = 1.3 * Math.sin(time * 0.0015);
+
+          light.lookAt(
+            new three.Vector3(
+              Math.cos(time * 0.0025),
+              Math.sin(time * 0.0025),
+              0
+            )
+          );
+        }
+      }
       // @ts-ignore
       if (mesh.material?.uniforms?.time) {
         mesh.material.uniforms.time.value = time * 0.001;
@@ -224,6 +242,47 @@ const ThreeScene = () => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const { lights, scene } = sceneData.current;
+    (lights || []).forEach((light: any) => {
+      scene.remove(light);
+    });
+
+    if (lighting === 'a') {
+      const pointLight = new three.PointLight(0xffffff, 1);
+      pointLight.position.set(0, 0, 1);
+      scene.add(pointLight);
+      const helper = new three.PointLightHelper(pointLight, 0.1);
+      scene.add(helper);
+      sceneData.current.lights = [pointLight, helper];
+    } else {
+      const light = new three.SpotLight(0x00ff00, 1, 3, 0.4, 1);
+      light.position.set(0, 0, 2);
+      scene.add(light);
+
+      const helper = new three.SpotLightHelper(
+        light,
+        new three.Color(0x00ff00)
+      );
+      scene.add(helper);
+
+      const light2 = new three.SpotLight(0xff0000, 1, 4, 0.4, 1);
+      light2.position.set(0, 0, 2);
+      scene.add(light2);
+
+      const helper2 = new three.SpotLightHelper(
+        light2,
+        new three.Color(0xff0000)
+      );
+      scene.add(helper2);
+
+      sceneData.current.lights = [light, light2, helper, helper2];
+    }
+    // TODO: Exploring changing lighting issue
+    sceneData.current.mesh.material.needsUpdate = true;
+    console.log(sceneData.current.mesh.material);
+  }, [lighting]);
 
   // Compile
   useEffect(() => {
@@ -335,6 +394,9 @@ total: ${(now - allStart).toFixed(3)}ms
       uniforms,
       vertexShader: vertex,
       fragmentShader: fragmentResult,
+      // onBeforeCompile: () => {
+      //   console.log('raw shader precomp');
+      // },
     });
 
     // @ts-ignore
@@ -419,7 +481,14 @@ total: ${(now - allStart).toFixed(3)}ms
     // lGraph.add(node_watch);
 
     // node_const.connect(0, node_watch, 0);
-  }, [ctx, edges]);
+
+    // Note that after changing the lighting, a recompile needs to happen before
+    // the next render, or what seems to happen is the shader has either the
+    // spotLights or pointLights uniform, and three tries to "upload" them in
+    // StructuredUniform.prototype.setValue, because there's a
+    // StructuredUniform.map.position/coneCos etc, but there's no
+    // pointLights/spotLights present in the uniforms array maybe?
+  }, [ctx, edges, lighting]);
 
   // TODO: You were here, trying to modify the edges in real time,
   // and it fails. Because of mutation of the AST?
@@ -438,6 +507,22 @@ total: ${(now - allStart).toFixed(3)}ms
         >
           Save Graph
         </button>
+
+        <button
+          className={styles.button}
+          onClick={() => setLighting('a')}
+          disabled={lighting === 'a'}
+        >
+          Point Light
+        </button>
+        <button
+          className={styles.button}
+          onClick={() => setLighting('b')}
+          disabled={lighting === 'b'}
+        >
+          Spot Lights
+        </button>
+
         <textarea
           className={styles.edges + ' ' + (jsonError ? styles.error : '')}
           onChange={(event) => setEdgesUnsaved(event.target.value)}

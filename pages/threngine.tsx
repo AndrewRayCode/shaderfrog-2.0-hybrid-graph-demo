@@ -66,11 +66,14 @@ export const threngine: Engine = {
     'shininess',
     'opacity',
     'map',
+    'time',
+    // Uniforms for lighting
     'receiveShadow',
     'ambientLightColor',
     'lightProbe',
+    // Light uniform arrays
+    'spotLights',
     'pointLights',
-    'time',
     // This isn't three wtf
     'speed',
     'resolution',

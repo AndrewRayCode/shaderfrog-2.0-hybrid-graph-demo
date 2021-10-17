@@ -30,39 +30,29 @@ textarea.error {
 
 .button {
   align-items: center;
-  appearance: none;
-  background-image: radial-gradient(100% 100% at 100% 0, #5adaff 0, #5468ff 100%);
-  border: 0;
+  margin:1px;
+  cursor:pointer;
+  padding: 6px 14px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
   border-radius: 6px;
-  box-sizing: border-box;
+  border: none;
+
   color: #fff;
-  cursor: pointer;
-  display: inline-flex;
-  height: 28px;
-  justify-content: center;
-  line-height: 1;
-  list-style: none;
-  overflow: hidden;
-  padding-left: 8px;
-  padding-right: 8px;
-  position: relative;
-  text-align: left;
-  text-decoration: none;
+  background: linear-gradient(180deg, #4B91F7 0%, #367AF6 100%);
+  background-origin: border-box;
+  box-shadow: 0px 0.5px 1.5px rgba(54, 122, 246, 0.25), inset 0px 0.8px 0px -0.25px rgba(255, 255, 255, 0.2);
   user-select: none;
   -webkit-user-select: none;
   touch-action: manipulation;
-  white-space: nowrap;
-  font-size: 14px;
+}
+
+.button:disabled {
+  background: linear-gradient(0, #4B91F7 0%, #367AF6 100%);
+  color: #111;
+  text-shadow:2px ​1px 2px #aaa;
 }
 
 .button:focus {
-  box-shadow: #3c4fe0 0 0 0 1.5px inset, rgba(45, 35, 66, .4) 0 2px 4px, rgba(45, 35, 66, .3) 0 7px 13px -3px, #3c4fe0 0 -3px 0 inset;
-}
-
-.button:hover {
-  box-shadow: #7a82ee 0 3px 7px inset;
-}
-
-.button:active {
-  box-shadow: #3c4fe0 0 3px 7px inset;
+  box-shadow: inset 0px 0.8px 0px -0.25px rgba(255, 255, 255, 0.2), 0px 0.5px 1.5px rgba(54, 122, 246, 0.25), 0px 0px 0px 3.5px rgba(58, 108, 217, 0.5);
+  outline: 0;
 }

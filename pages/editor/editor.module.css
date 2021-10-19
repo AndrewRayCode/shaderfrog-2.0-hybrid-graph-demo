@@ -82,3 +82,32 @@ textarea.error {
 .selected {
   background:#000;
 }
+
+.secondary {
+  background: #555;
+}
+.secondary .tab {
+  background:#444;
+}
+.secondary .tab.selected {
+  background:#111;
+}
+
+.scene {
+  position:relative;
+  background:#222;
+}
+
+.sceneControls {
+  position:absolute;
+  bottom:10px;
+  right:10px;
+  color:#fff;
+}
+
+.sceneLabel {
+  position:absolute;
+  bottom:10px;
+  left:10px;
+  color:#fff;
+}

@@ -3,6 +3,7 @@ import 'litegraph.js/css/litegraph.css';
 import cx from 'classnames';
 import LiteGraph from 'litegraph.js';
 import { generate } from '@shaderfrog/glsl-parser';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import React, {
   FunctionComponent,
   ReactNode,
@@ -137,6 +138,7 @@ const Tabs = ({ children, onSelect }: ChildProps) => {
 type TabGroupProps = {
   children?: React.ReactNode;
   selected?: number;
+  className?: string;
   setSelected?: Function;
   onSelect?: Function;
 };
@@ -145,9 +147,10 @@ const TabGroup = ({
   selected,
   setSelected,
   onSelect,
+  ...props
 }: TabGroupProps) => {
   return (
-    <div className={styles.tabs}>
+    <div {...props} className={cx(styles.tabs, props.className)}>
       {React.Children.map<ReactNode, ReactNode>(
         children,
         (child, index) =>
@@ -201,9 +204,9 @@ const TabPanels = ({ selected, children }: TabPanelsProps) => (
     )}
   </>
 );
-type TabPanelProps = { children: React.ReactNode };
-const TabPanel = ({ children }: TabPanelProps) => {
-  return <>{children}</>;
+type TabPanelProps = { children: React.ReactNode; className?: string };
+const TabPanel = ({ children, ...props }: TabPanelProps) => {
+  return <div {...props}>{children}</div>;
 };
 
 const ThreeScene: React.FC = () => {
@@ -212,18 +215,17 @@ const ThreeScene: React.FC = () => {
   const requestRef = useRef<number>();
   const sceneData = useRef<{ [key: string]: any }>({});
 
-  const edgStr = JSON.stringify(graph.edges);
   const [lgInitted, setLgInitted] = useState<boolean>(false);
   const [lgNodesAdded, setLgNodesAdded] = useState<boolean>(false);
   const [lighting, setLighting] = useState<string>('a');
   const [tabIndex, setTabIndex] = useState<number>(0);
+  const [compiling, setCompiling] = useState<boolean>(true);
+  const [controls, setControls] = useState<OrbitControls | undefined>();
 
   const [activeShader, setActiveShader] = useState<Node>(graph.nodes[0]);
   const [shaderUnsaved, setShaderUnsaved] = useState<string>(
     activeShader.fragmentSource
   );
-  const [jsonError, setJsonError] = useState<boolean>(false);
-  const [selection, setSelection] = useState<string>('final');
   const [preprocessed, setPreprocessed] = useState<string | undefined>('');
   const [vertex, setVertex] = useState<string | undefined>('');
   const [original, setOriginal] = useState<string | undefined>('');
@@ -299,12 +301,19 @@ const ThreeScene: React.FC = () => {
       return;
     }
     const { renderer, scene, camera, mesh } = ctx;
+    let controls: OrbitControls;
 
     if (domRef.current) {
       domRef.current.appendChild(renderer.domElement);
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.update();
+      // setControls(controls);
     }
 
     const animate = (time: number) => {
+      if (controls) {
+        controls.update();
+      }
       renderer.render(scene, camera);
       // mesh.rotation.x = time * 0.0003;
       // mesh.rotation.y = time * -0.0003;
@@ -396,28 +405,19 @@ const ThreeScene: React.FC = () => {
 
   // Compile
   useEffect(() => {
-    setJsonError(false);
-
     if (!ctx) {
       return;
     }
     const { mesh, renderer, threeTone, lGraph } = ctx;
 
-    try {
-      if (lgNodesAdded) {
-        graph.edges = Object.values(lGraph.links).map((link) => ({
-          from: link.origin_id.toString(),
-          to: link.target_id.toString(),
-          output: 'main',
-          input: Object.keys(ctx.nodes[link.target_id].inputs)[
-            link.target_slot
-          ],
-        }));
-      }
-    } catch (e) {
-      console.error(e);
-      setJsonError(true);
-      return;
+    setCompiling(true);
+    if (lgNodesAdded) {
+      graph.edges = Object.values(lGraph.links).map((link) => ({
+        from: link.origin_id.toString(),
+        to: link.target_id.toString(),
+        output: 'main',
+        input: Object.keys(ctx.nodes[link.target_id].inputs)[link.target_slot],
+      }));
     }
     console.log('rendering!', graph);
 
@@ -503,8 +503,8 @@ total: ${(now - allStart).toFixed(3)}ms
       [`cel3_${edgeId}`]: { value: 1.0 },
       [`cel4_${edgeId}`]: { value: 1.0 },
       [`celFade_${edgeId}`]: { value: 1.0 },
-      [`edgeSteepness_${edgeId}`]: { value: 0.4 },
-      [`edgeBorder_${edgeId}`]: { value: 0.4 },
+      [`edgeSteepness_${edgeId}`]: { value: 0.1 },
+      [`edgeBorder_${edgeId}`]: { value: 0.1 },
       [`color_${edgeId}`]: { value: 1.0 },
     };
     console.log('applying uniforms', uniforms);
@@ -524,6 +524,7 @@ total: ${(now - allStart).toFixed(3)}ms
     // @ts-ignore
     mesh.material = newMat;
 
+    setCompiling(false);
     setFinalFragment(fragmentResult);
     setVertex(vertex);
     // Mutated from the processAst call for now
@@ -631,24 +632,12 @@ total: ${(now - allStart).toFixed(3)}ms
         <button
           className={styles.button}
           // @ts-ignore
-          onClick={() => setCtx({ ...ctx, index: ctx.index + 1 })}
+          onClick={() => {
+            setCompiling(true);
+            setCtx({ ...ctx, index: ctx.index + 1 });
+          }}
         >
           Save Graph
-        </button>
-
-        <button
-          className={styles.button}
-          onClick={() => setLighting('a')}
-          disabled={lighting === 'a'}
-        >
-          Point Light
-        </button>
-        <button
-          className={styles.button}
-          onClick={() => setLighting('b')}
-          disabled={lighting === 'b'}
-        >
-          Spot Lights
         </button>
 
         <textarea
@@ -661,6 +650,7 @@ total: ${(now - allStart).toFixed(3)}ms
           onClick={() => {
             const found = graph.nodes.find(({ id }) => activeShader.id === id);
             if (found) {
+              setCompiling(true);
               found.fragmentSource = shaderUnsaved;
               // @ts-ignore
               setCtx({ ...ctx, index: ctx.index + 1 });
@@ -677,15 +667,35 @@ total: ${(now - allStart).toFixed(3)}ms
             <Tab>Final Shader Source</Tab>
           </TabGroup>
           <TabPanels>
-            <TabPanel>
+            <TabPanel className={styles.scene}>
               <div
                 style={{ width: `${width}px`, height: `${height}px` }}
                 ref={domRef}
               ></div>
+              <div className={styles.sceneLabel}>
+                {compiling && 'Compiling...'}
+              </div>
+              <div className={styles.sceneControls}>
+                Preview with:
+                <button
+                  className={styles.button}
+                  onClick={() => setLighting('a')}
+                  disabled={lighting === 'a'}
+                >
+                  Point Light
+                </button>
+                <button
+                  className={styles.button}
+                  onClick={() => setLighting('b')}
+                  disabled={lighting === 'b'}
+                >
+                  Spot Lights
+                </button>
+              </div>
             </TabPanel>
             <TabPanel>
               <Tabs>
-                <TabGroup>
+                <TabGroup className={styles.secondary}>
                   <Tab>Vertex</Tab>
                   <Tab>Original</Tab>
                   <Tab>Preprocessed</Tab>

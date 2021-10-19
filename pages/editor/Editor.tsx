@@ -283,6 +283,7 @@ const ThreeScene: React.FC = () => {
     renderer.setSize(width, height);
 
     setCtx({
+      // @ts-ignore
       lGraph,
       three,
       renderer,
@@ -631,9 +632,9 @@ total: ${(now - allStart).toFixed(3)}ms
         ></canvas>
         <button
           className={styles.button}
-          // @ts-ignore
           onClick={() => {
             setCompiling(true);
+            // @ts-ignore
             setCtx({ ...ctx, index: ctx.index + 1 });
           }}
         >

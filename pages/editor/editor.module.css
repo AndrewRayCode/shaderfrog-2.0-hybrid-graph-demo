@@ -4,6 +4,12 @@
   grid-template-columns: 1fr 1fr;
 }
 
+.leftCol {
+  overflow:auto;
+  resize:horizontal;
+  border:1px solid #000;
+}
+
 .edges {
   width:100%;
   background: #010101;
@@ -55,4 +61,24 @@ textarea.error {
 .button:focus {
   box-shadow: inset 0px 0.8px 0px -0.25px rgba(255, 255, 255, 0.2), 0px 0.5px 1.5px rgba(54, 122, 246, 0.25), 0px 0px 0px 3.5px rgba(58, 108, 217, 0.5);
   outline: 0;
+}
+
+.tabs {
+  display: grid;
+  background: #444;
+  grid-auto-flow: column;
+  color: #fff;
+  grid-auto-columns: max-content;
+  border-top:1px solid #555;
+  border-bottom:1px solid #000;
+}
+
+.tab {
+  background: #333;
+  border-right:1px solid #000;
+  padding:4px 8px;
+  cursor:pointer;
+}
+.selected {
+  background:#000;
 }

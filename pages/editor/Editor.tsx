@@ -1,9 +1,15 @@
 import styles from './editor.module.css';
 import 'litegraph.js/css/litegraph.css';
+import cx from 'classnames';
 import LiteGraph from 'litegraph.js';
-
 import { generate } from '@shaderfrog/glsl-parser';
-import { useEffect, useRef, useState } from 'react';
+import React, {
+  FunctionComponent,
+  ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import * as three from 'three';
 import {
   outputNode,
@@ -62,6 +68,7 @@ const graph: Graph = {
     // TODO: Could be cool to try outline shader https://shaderfrog.com/app/view/4876
     // TODO: Try pbr node demo from threejs
     // TODO: Support vertex :O
+    // TODO: Have uniforms added per shader in the graph
     {
       from: '7',
       to: '2',
@@ -94,7 +101,9 @@ class LShaderNode extends LiteGraph.LGraphNode {
   constructor() {
     super();
     this.addOutput('main', 'string');
+    this.color = '#fff';
   }
+  bgcolor = '#000';
 }
 LiteGraph.LiteGraph.registerNodeType('basic/shader', LShaderNode);
 
@@ -106,18 +115,108 @@ class LAddNode extends LiteGraph.LGraphNode {
 }
 LiteGraph.LiteGraph.registerNodeType('basic/add', LAddNode);
 
-const ThreeScene = () => {
+type ChildProps = { children?: React.ReactNode; onSelect?: Function };
+const Tabs = ({ children, onSelect }: ChildProps) => {
+  const [selected, setSelected] = useState<number>(0);
+  return (
+    <>
+      {React.Children.map<ReactNode, ReactNode>(
+        children,
+        (child) =>
+          React.isValidElement(child) &&
+          React.cloneElement(child, {
+            selected,
+            setSelected,
+            onSelect,
+          })
+      )}
+    </>
+  );
+};
+
+type TabGroupProps = {
+  children?: React.ReactNode;
+  selected?: number;
+  setSelected?: Function;
+  onSelect?: Function;
+};
+const TabGroup = ({
+  children,
+  selected,
+  setSelected,
+  onSelect,
+}: TabGroupProps) => {
+  return (
+    <div className={styles.tabs}>
+      {React.Children.map<ReactNode, ReactNode>(
+        children,
+        (child, index) =>
+          React.isValidElement(child) &&
+          React.cloneElement(child, {
+            selected,
+            setSelected,
+            onSelect,
+            index,
+          })
+      )}
+    </div>
+  );
+};
+
+type TabProps = {
+  children?: React.ReactNode;
+  selected?: number;
+  setSelected?: Function;
+  onSelect?: Function;
+  index?: number;
+};
+const Tab = ({
+  children,
+  selected,
+  setSelected,
+  onSelect,
+  index,
+  ...props
+}: TabProps) => {
+  return (
+    <div
+      {...props}
+      className={cx(styles.tab, { [styles.selected]: selected === index })}
+      onClick={(event) => {
+        event.preventDefault();
+        onSelect && onSelect(index);
+        setSelected && setSelected(index);
+      }}
+    >
+      {children}
+    </div>
+  );
+};
+
+type TabPanelsProps = { selected?: number; children: React.ReactNode };
+const TabPanels = ({ selected, children }: TabPanelsProps) => (
+  <>
+    {React.Children.map<ReactNode, ReactNode>(children, (child, index) =>
+      selected === index ? child : null
+    )}
+  </>
+);
+type TabPanelProps = { children: React.ReactNode };
+const TabPanel = ({ children }: TabPanelProps) => {
+  return <>{children}</>;
+};
+
+const ThreeScene: React.FC = () => {
   const graphRef = useRef<HTMLCanvasElement>(null);
   const domRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef<number>();
   const sceneData = useRef<{ [key: string]: any }>({});
 
   const edgStr = JSON.stringify(graph.edges);
-  const [edges, setEdges] = useState<string>(edgStr);
-  const [edgesUnsaved, setEdgesUnsaved] = useState<string>(edgStr);
   const [lgInitted, setLgInitted] = useState<boolean>(false);
   const [lgNodesAdded, setLgNodesAdded] = useState<boolean>(false);
   const [lighting, setLighting] = useState<string>('a');
+  const [tabIndex, setTabIndex] = useState<number>(0);
 
   const [activeShader, setActiveShader] = useState<Node>(graph.nodes[0]);
   const [shaderUnsaved, setShaderUnsaved] = useState<string>(
@@ -180,6 +279,27 @@ const ThreeScene = () => {
 
     const renderer = new three.WebGLRenderer();
     renderer.setSize(width, height);
+
+    setCtx({
+      lGraph,
+      three,
+      renderer,
+      // material,
+      mesh,
+      scene,
+      camera,
+      index: 0,
+      threeTone,
+      nodes: {},
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!ctx) {
+      return;
+    }
+    const { renderer, scene, camera, mesh } = ctx;
+
     if (domRef.current) {
       domRef.current.appendChild(renderer.domElement);
     }
@@ -217,31 +337,21 @@ const ThreeScene = () => {
       }
       requestRef.current = requestAnimationFrame(animate);
     };
-    const { current } = domRef;
+    console.log('mounting');
     animate(0);
 
-    setCtx({
-      lGraph,
-      three,
-      renderer,
-      // material,
-      mesh,
-      scene,
-      camera,
-      index: 0,
-      threeTone,
-      nodes: {},
-    });
-
     return () => {
-      if (current) {
-        current.removeChild(renderer.domElement);
-      }
-      if (typeof requestRef.current === 'string') {
+      // const { current } = domRef;
+      // console.log('unmounting');
+      // if (current) {
+      //   current.removeChild(renderer.domElement);
+      // }
+      if (requestRef.current) {
+        console.log('cancel');
         cancelAnimationFrame(requestRef.current);
       }
     };
-  }, []);
+  }, [ctx, tabIndex]);
 
   useEffect(() => {
     const { lights, scene } = sceneData.current;
@@ -294,7 +404,6 @@ const ThreeScene = () => {
     const { mesh, renderer, threeTone, lGraph } = ctx;
 
     try {
-      graph.edges = JSON.parse(edges);
       if (lgNodesAdded) {
         graph.edges = Object.values(lGraph.links).map((link) => ({
           from: link.origin_id.toString(),
@@ -361,6 +470,9 @@ total: ${(now - allStart).toFixed(3)}ms
     const pu: any = graph.nodes.find(
       (node) => node.name === 'Noise Shader'
     )?.id;
+    const edgeId: any = graph.nodes.find(
+      (node) => node.name === 'Triplanar'
+    )?.id;
 
     const uniforms = {
       ...three.ShaderLib.phong.uniforms,
@@ -384,6 +496,16 @@ total: ${(now - allStart).toFixed(3)}ms
       [`color1_${pu}`]: { value: new three.Vector3(0.7, 0.3, 0.8) },
       [`color2_${pu}`]: { value: new three.Vector3(0.1, 0.2, 0.9) },
       [`color3_${pu}`]: { value: new three.Vector3(0.8, 0.3, 0.8) },
+
+      [`cel0_${edgeId}`]: { value: 1.0 },
+      [`cel1_${edgeId}`]: { value: 1.0 },
+      [`cel2_${edgeId}`]: { value: 1.0 },
+      [`cel3_${edgeId}`]: { value: 1.0 },
+      [`cel4_${edgeId}`]: { value: 1.0 },
+      [`celFade_${edgeId}`]: { value: 1.0 },
+      [`edgeSteepness_${edgeId}`]: { value: 0.4 },
+      [`edgeBorder_${edgeId}`]: { value: 0.4 },
+      [`color_${edgeId}`]: { value: 1.0 },
     };
     console.log('applying uniforms', uniforms);
 
@@ -445,12 +567,17 @@ total: ${(now - allStart).toFixed(3)}ms
       }
       lNode.pos = [x, y];
       lNode.title = node.name;
+      // lNode.properties = { id: node.id };
       if (ctx.nodes[node.id]) {
         Object.keys(ctx.nodes[node.id].inputs).forEach((input) => {
           lNode.addInput(input, 'string');
         });
       }
       lGraph.add(lNode);
+      lNode.onSelected = () => {
+        setActiveShader(node);
+        setShaderUnsaved(node.fragmentSource);
+      };
       lNode.onConnectionsChange = (
         type,
         slotIndex,
@@ -488,13 +615,13 @@ total: ${(now - allStart).toFixed(3)}ms
     // StructuredUniform.prototype.setValue, because there's a
     // StructuredUniform.map.position/coneCos etc, but there's no
     // pointLights/spotLights present in the uniforms array maybe?
-  }, [ctx, edges, lighting]);
+  }, [ctx, lighting, lgNodesAdded]);
 
   // TODO: You were here, trying to modify the edges in real time,
   // and it fails. Because of mutation of the AST?
   return (
     <div className={styles.container}>
-      <div>
+      <div className={styles.leftCol}>
         <canvas
           id="mycanvas"
           width={width}
@@ -503,6 +630,7 @@ total: ${(now - allStart).toFixed(3)}ms
         ></canvas>
         <button
           className={styles.button}
+          // @ts-ignore
           onClick={() => setCtx({ ...ctx, index: ctx.index + 1 })}
         >
           Save Graph
@@ -524,12 +652,6 @@ total: ${(now - allStart).toFixed(3)}ms
         </button>
 
         <textarea
-          className={styles.edges + ' ' + (jsonError ? styles.error : '')}
-          onChange={(event) => setEdgesUnsaved(event.target.value)}
-          value={edgesUnsaved}
-        ></textarea>
-
-        <textarea
           className={styles.shader}
           onChange={(event) => setShaderUnsaved(event.target.value)}
           value={shaderUnsaved}
@@ -547,86 +669,62 @@ total: ${(now - allStart).toFixed(3)}ms
         >
           Save Shader
         </button>
-        {graph.nodes.map((node) => (
-          <button
-            key={node.id}
-            disabled={node.id === activeShader.id}
-            onClick={() => {
-              setActiveShader(node);
-              setShaderUnsaved(node.fragmentSource);
-            }}
-          >
-            {node.name} ({node.id})
-          </button>
-        ))}
-
-        <textarea
-          className={styles.code}
-          readOnly
-          style={{
-            display: selection === 'vertex' ? 'block' : 'none',
-          }}
-          value={vertex}
-        ></textarea>
-        <textarea
-          className={styles.code}
-          readOnly
-          style={{
-            display: selection === 'original' ? 'block' : 'none',
-          }}
-          value={original}
-        ></textarea>
-        <textarea
-          className={styles.code}
-          readOnly
-          style={{
-            display: selection === 'preprocessed' ? 'block' : 'none',
-          }}
-          value={preprocessed}
-        ></textarea>
-        <textarea
-          className={styles.code}
-          readOnly
-          style={{
-            display: selection === 'final' ? 'block' : 'none',
-          }}
-          value={finalFragment}
-        ></textarea>
-
-        <button
-          className={styles.button}
-          disabled={selection === 'vertex'}
-          onClick={() => setSelection('vertex')}
-        >
-          Vertex
-        </button>
-        <button
-          className={styles.button}
-          disabled={selection === 'original'}
-          onClick={() => setSelection('original')}
-        >
-          Original
-        </button>
-        <button
-          className={styles.button}
-          disabled={selection === 'preprocessed'}
-          onClick={() => setSelection('preprocessed')}
-        >
-          Preprocessed
-        </button>
-        <button
-          className={styles.button}
-          disabled={selection === 'final'}
-          onClick={() => setSelection('final')}
-        >
-          Final
-        </button>
       </div>
       <div>
-        <div
-          style={{ width: `${width}px`, height: `${height}px` }}
-          ref={domRef}
-        ></div>
+        <Tabs onSelect={setTabIndex}>
+          <TabGroup>
+            <Tab>Scene</Tab>
+            <Tab>Final Shader Source</Tab>
+          </TabGroup>
+          <TabPanels>
+            <TabPanel>
+              <div
+                style={{ width: `${width}px`, height: `${height}px` }}
+                ref={domRef}
+              ></div>
+            </TabPanel>
+            <TabPanel>
+              <Tabs>
+                <TabGroup>
+                  <Tab>Vertex</Tab>
+                  <Tab>Original</Tab>
+                  <Tab>Preprocessed</Tab>
+                  <Tab>Final</Tab>
+                </TabGroup>
+                <TabPanels>
+                  <TabPanel>
+                    <textarea
+                      className={styles.code}
+                      readOnly
+                      value={vertex}
+                    ></textarea>
+                  </TabPanel>
+                  <TabPanel>
+                    <textarea
+                      className={styles.code}
+                      readOnly
+                      value={original}
+                    ></textarea>
+                  </TabPanel>
+                  <TabPanel>
+                    <textarea
+                      className={styles.code}
+                      readOnly
+                      value={preprocessed}
+                    ></textarea>
+                  </TabPanel>
+                  <TabPanel>
+                    <textarea
+                      className={styles.code}
+                      readOnly
+                      value={finalFragment}
+                    ></textarea>
+                  </TabPanel>
+                </TabPanels>
+              </Tabs>
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
       </div>
     </div>
   );

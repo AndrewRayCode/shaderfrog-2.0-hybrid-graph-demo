@@ -101,7 +101,6 @@ export const threngine: Engine = {
         mesh.material = new three.MeshPhongMaterial({
           color: 0x00ff00,
           map: new three.Texture(),
-          // gradientMap: threeTone,
         });
         renderer.compile(scene, camera);
 
@@ -171,13 +170,12 @@ export const threngine: Engine = {
           (inputs, [parent, key], index) => ({
             ...inputs,
             [`texture2d_${index}`]: (fillerAst: AstNode) => {
-              console.log('FILLING...', fillerAst);
               parent[key] = fillerAst;
             },
           }),
           {}
         );
-        console.log('inputs', inputs);
+
         return inputs;
       },
       produceFiller: (node: Node, ast: AstNode): AstNode => {
@@ -267,13 +265,12 @@ export const threngine: Engine = {
           (inputs, [parent, key], index) => ({
             ...inputs,
             [`texture2d_${index}`]: (fillerAst: AstNode) => {
-              console.log('FILLING...', fillerAst);
               parent[key] = fillerAst;
             },
           }),
           {}
         );
-        console.log('inputs', inputs);
+
         return inputs;
       },
       produceFiller: (node: Node, ast: AstNode): AstNode => {

@@ -161,7 +161,6 @@ export const parsers: Parsers = {
         ],
         scopes: [],
       };
-      inspect(fragmentAst);
       return fragmentAst;
     },
     findInputs: (engineContext, node, ast, nodeContext) => {
@@ -206,7 +205,6 @@ export const parsers: Parsers = {
         ],
         scopes: [],
       };
-      inspect(fragmentAst);
       return fragmentAst;
     },
     findInputs: (engineContext, node, ast, nodeContext) => {
@@ -364,7 +362,7 @@ export const computeGraphContext = (
     if (!parser) {
       throw new Error(`No parser for ${node.type}`);
     }
-    console.log('producing', node.type);
+
     nodeContext.ast = parser.produceAst(
       engineContext,
       engine,

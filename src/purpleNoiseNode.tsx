@@ -1,4 +1,4 @@
-import { shaderNode } from '../nodestuff';
+import { shaderNode } from './nodestuff';
 
 const purpleNoiseNode = (id: string) =>
   shaderNode(

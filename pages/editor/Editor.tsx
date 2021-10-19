@@ -20,14 +20,14 @@ import {
   addNode,
   multiplyNode,
   ShaderType,
-} from '../nodestuff';
-import { compileGraph, NodeInputs } from '../graph';
+} from '../../src/nodestuff';
+import { compileGraph, NodeInputs } from '../../src/graph';
 
-import { phongNode, toonNode, threngine } from '../threngine';
-import purpleNoiseNode from './purpleNoiseNode';
-import colorShaderNode from './colorShaderNode';
-import fireNode from './fireNode';
-import triplanarNode from './triplanarNode';
+import { phongNode, toonNode, threngine } from '../../src/threngine';
+import purpleNoiseNode from '../../src/purpleNoiseNode';
+import colorShaderNode from '../../src/colorShaderNode';
+import fireNode from '../../src/fireNode';
+import triplanarNode from '../../src/triplanarNode';
 
 const width = 600;
 const height = 600;

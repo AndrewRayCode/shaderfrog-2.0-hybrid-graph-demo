@@ -1,4 +1,4 @@
-import { shaderNode } from '../nodestuff';
+import { shaderNode } from './nodestuff';
 
 const colorShaderNode = (id: string) =>
   shaderNode(

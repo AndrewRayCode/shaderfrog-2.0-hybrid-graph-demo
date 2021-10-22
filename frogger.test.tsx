@@ -1,7 +1,7 @@
 import { generate } from '@shaderfrog/glsl-parser';
 import util from 'util';
 
-import { compileGraph } from './pages/graph';
+import { compileGraph } from './src/graph';
 
 import {
   ShaderType,
@@ -9,7 +9,7 @@ import {
   Graph,
   shaderSectionsToAst,
   addNode,
-} from './pages/nodestuff';
+} from './src/nodestuff';
 
 const graph: Graph = {
   nodes: [

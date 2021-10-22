@@ -29,6 +29,8 @@ import colorShaderNode from '../../src/colorShaderNode';
 import fireNode from '../../src/fireNode';
 import triplanarNode from '../../src/triplanarNode';
 
+import contrastNoise from '..';
+
 const width = 600;
 const height = 600;
 
@@ -65,11 +67,16 @@ const graph: Graph = {
     triplanarNode('9'),
   ],
   edges: [
-    { from: '2', to: '1', output: 'main', input: 'color' },
+    // { from: '2', to: '1', output: 'main', input: 'color' },
+    // TODO: Put other images in the graphf like the toon step shader
     // TODO: Could be cool to try outline shader https://shaderfrog.com/app/view/4876
     // TODO: Try pbr node demo from threejs
     // TODO: Support vertex :O
     // TODO: Have uniforms added per shader in the graph
+    // TODO: Fix hot reloading breaking the graph
+    // TODO: Try plugging into normal map
+    // TODO: AnyCode node to try manipulating above shader for normal map
+    // TODO: Make uniforms like map: change the uniforms
     {
       from: '7',
       to: '2',
@@ -87,6 +94,12 @@ const graph: Graph = {
       to: '7',
       output: 'main',
       input: 'b',
+    },
+    {
+      from: '6',
+      to: '1',
+      output: 'main',
+      input: 'color',
     },
   ],
 };

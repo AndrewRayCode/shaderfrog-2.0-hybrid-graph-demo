@@ -3,7 +3,7 @@ import { shaderNode } from './nodestuff';
 const fireShader = (id: string) =>
   shaderNode(
     id,
-    'Triplanar',
+    'Outline Shader',
     {},
     `
 /**

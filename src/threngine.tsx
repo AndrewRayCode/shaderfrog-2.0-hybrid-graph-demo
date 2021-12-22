@@ -5,7 +5,7 @@ import {
 } from '@shaderfrog/glsl-parser/dist/parser/utils';
 import { visit, AstNode, NodeVisitors } from '@shaderfrog/glsl-parser/dist/ast';
 import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor';
-import { Engine, nodeName } from './graph';
+import { Engine, nodeName, EngineContext } from './graph';
 
 import {
   ShaderType,
@@ -16,11 +16,26 @@ import {
   Edge,
 } from './nodestuff';
 
-type EngineContext = {
-  scene: object;
-  camera: object;
-  renderer: object;
-  mesh: object;
+export type RuntimeContext = {
+  scene: any;
+  camera: any;
+  renderer: any;
+  mesh: any;
+  three: any;
+  material: any;
+  lGraph: any;
+  index: number;
+  threeTone: any;
+  cache: {
+    nodes: {
+      [id: string]: {
+        fragmentRef: any;
+        vertexRef: any;
+        fragment: string;
+        vertex: string;
+      };
+    };
+  };
 };
 
 export const phongNode = (id: string, name: string, options: Object): Node => {
@@ -47,7 +62,7 @@ export const toonNode = (id: string, name: string, options: Object): Node => {
   };
 };
 
-export const threngine: Engine = {
+export const threngine: Engine<RuntimeContext> = {
   preserve: new Set<string>([
     'viewMatrix',
     'modelMatrix',
@@ -89,109 +104,224 @@ export const threngine: Engine = {
   ]),
   parsers: {
     [ShaderType.phong]: {
-      produceAst: (
-        // todo: help
-        engineContext: any,
-        engine: any,
-        node: Node,
-        inputEdges: Edge[]
-      ): AstNode => {
+      onBeforeCompile: (engineContext, node) => {
+        console.log('onbeforecompile [ShaderType.phong]: {');
+        if (engineContext.runtime.cache.nodes[node.id]) {
+          return;
+        }
         const { renderer, mesh, scene, camera, material, threeTone, three } =
-          engineContext;
+          engineContext.runtime;
+
         mesh.material = new three.MeshPhongMaterial({
           color: 0x00ff00,
           map: new three.Texture(),
         });
         renderer.compile(scene, camera);
 
-        engineContext.nodes[node.id] = {
-          fragment: renderer.properties
-            .get(mesh.material)
-            .programs.values()
-            .next().value.fragmentShader,
-          vertex: renderer.properties
-            .get(mesh.material)
-            .programs.values()
-            .next().value.vertexShader,
-        };
+        // The referecnes to the compiled shaders in WebGL
+        const fragmentRef = renderer.properties
+          .get(mesh.material)
+          .programs.values()
+          .next().value.fragmentShader;
+        const vertexRef = renderer.properties
+          .get(mesh.material)
+          .programs.values()
+          .next().value.vertexShader;
 
         const gl = renderer.getContext();
-        const fragmentProgram = engineContext.nodes[node.id].fragment;
-        const fragmentSource = gl.getShaderSource(fragmentProgram);
+        const fragment = gl.getShaderSource(fragmentRef);
+        const vertex = gl.getShaderSource(vertexRef);
 
-        // console.log('Before preprocessing:', fragmentSource);
-        const fragmentPreprocessed = preprocess(fragmentSource, {
-          preserve: {
-            version: () => true,
-          },
-        });
-        // console.log('after', fragmentPreprocessed);
-        const fragmentAst = parser.parse(fragmentPreprocessed);
-
-        // Used for the UI only right now
-        engineContext.fragmentPreprocessed = fragmentPreprocessed;
-        engineContext.fragmentSource = fragmentSource;
-
-        // Do I need this? Is threejs shader already in 3.00 mode?
-        // from2To3(fragmentAst);
-
-        convert300MainToReturn(fragmentAst);
-        renameBindings(fragmentAst.scopes[0], engine.preserve, node.id);
-        renameFunctions(fragmentAst.scopes[0], node.id, {
-          main: nodeName(node),
-        });
-        return fragmentAst;
-      },
-      findInputs: (engineContext, node: Node, ast: AstNode) => {
-        // console.log(util.inspect(ast.program, false, null, true));
-
-        let texture2Dcalls: [AstNode, string][] = [];
-        const visitors: NodeVisitors = {
-          function_call: {
-            enter: (path) => {
-              if (
-                // TODO: 100 vs 300
-                (path.node.identifier?.specifier?.identifier === 'texture2D' ||
-                  path.node.identifier?.specifier?.identifier === 'texture') &&
-                path.key
-              ) {
-                if (!path.parent) {
-                  throw new Error(
-                    'This is impossible a function call always has a parent'
-                  );
-                }
-                texture2Dcalls.push([path.parent, path.key]);
-              }
-            },
-          },
+        engineContext.runtime.cache.nodes[node.id] = {
+          fragmentRef,
+          vertexRef,
+          fragment,
+          vertex,
         };
-        visit(ast, visitors);
-        const inputs = texture2Dcalls.reduce(
-          (inputs, [parent, key], index) => ({
-            ...inputs,
-            [`texture2d_${index}`]: (fillerAst: AstNode) => {
-              parent[key] = fillerAst;
-            },
-          }),
-          {}
-        );
-
-        return inputs;
       },
-      produceFiller: (node: Node, ast: AstNode): AstNode => {
-        return makeExpression(`${nodeName(node)}()`);
+      fragment: {
+        produceAst: (
+          // todo: help
+          engineContext,
+          engine: any,
+          node,
+          inputEdges
+        ): AstNode => {
+          const { fragment } = engineContext.runtime.cache.nodes[node.id];
+
+          // console.log('Before preprocessing:', fragmentSource);
+          const fragmentPreprocessed = preprocess(fragment, {
+            preserve: {
+              version: () => true,
+            },
+          });
+          // console.log('after', fragmentPreprocessed);
+          const fragmentAst = parser.parse(fragmentPreprocessed);
+
+          // Used for the UI only right now
+          engineContext.debuggingNonsense.fragmentPreprocessed =
+            fragmentPreprocessed;
+          engineContext.debuggingNonsense.fragmentSource = fragment;
+
+          // Do I need this? Is threejs shader already in 3.00 mode?
+          // from2To3(fragmentAst);
+
+          convert300MainToReturn(fragmentAst);
+          renameBindings(fragmentAst.scopes[0], threngine.preserve, node.id);
+          renameFunctions(fragmentAst.scopes[0], node.id, {
+            main: nodeName(node),
+          });
+          return fragmentAst;
+        },
+        findInputs: (engineContext, node: Node, ast: AstNode) => {
+          // console.log(util.inspect(ast.program, false, null, true));
+
+          let texture2Dcalls: [AstNode, string][] = [];
+          const visitors: NodeVisitors = {
+            function_call: {
+              enter: (path) => {
+                if (
+                  // TODO: 100 vs 300
+                  (path.node.identifier?.specifier?.identifier ===
+                    'texture2D' ||
+                    path.node.identifier?.specifier?.identifier ===
+                      'texture') &&
+                  path.key
+                ) {
+                  if (!path.parent) {
+                    throw new Error(
+                      'This is impossible a function call always has a parent'
+                    );
+                  }
+                  texture2Dcalls.push([path.parent, path.key]);
+                }
+              },
+            },
+          };
+          visit(ast, visitors);
+          const inputs = texture2Dcalls.reduce(
+            (inputs, [parent, key], index) => ({
+              ...inputs,
+              [`texture2d_${index}`]: (fillerAst: AstNode) => {
+                parent[key] = fillerAst;
+              },
+            }),
+            {}
+          );
+
+          return inputs;
+        },
+        produceFiller: (node: Node, ast: AstNode): AstNode => {
+          return makeExpression(`${nodeName(node)}()`);
+        },
+      },
+      vertex: {
+        produceAst: (
+          // todo: help
+          engineContext,
+          engine: any,
+          node,
+          inputEdges
+        ): AstNode => {
+          const { vertex } = engineContext.runtime.cache.nodes[node.id];
+          // const { renderer, mesh, scene, camera, material, threeTone, three } =
+          //   engineContext.runtime;
+          // mesh.material = new three.MeshPhongMaterial({
+          //   color: 0x00ff00,
+          //   map: new three.Texture(),
+          // });
+          // renderer.compile(scene, camera);
+
+          // engineContext.nodes[node.id] = {
+          //   fragment: renderer.properties
+          //     .get(mesh.material)
+          //     .programs.values()
+          //     .next().value.fragmentShader,
+          //   vertex: renderer.properties
+          //     .get(mesh.material)
+          //     .programs.values()
+          //     .next().value.vertexShader,
+          // };
+
+          // const gl = renderer.getContext();
+          // const fragmentProgram = engineContext.nodes[node.id].fragment;
+          // const fragmentSource = gl.getShaderSource(fragmentProgram);
+
+          // console.log('Before preprocessing:', fragmentSource);
+          const fragmentPreprocessed = preprocess(vertex, {
+            preserve: {
+              version: () => true,
+            },
+          });
+          // console.log('after', fragmentPreprocessed);
+          const fragmentAst = parser.parse(fragmentPreprocessed);
+
+          // Used for the UI only right now
+          // engineContext.fragmentPreprocessed = fragmentPreprocessed;
+          // engineContext.fragmentSource = fragmentSource;
+
+          // Do I need this? Is threejs shader already in 3.00 mode?
+          // from2To3(fragmentAst);
+
+          convert300MainToReturn(fragmentAst);
+          renameBindings(fragmentAst.scopes[0], threngine.preserve, node.id);
+          renameFunctions(fragmentAst.scopes[0], node.id, {
+            main: nodeName(node),
+          });
+          return fragmentAst;
+        },
+        findInputs: (engineContext, node: Node, ast: AstNode) => {
+          // console.log(util.inspect(ast.program, false, null, true));
+
+          let texture2Dcalls: [AstNode, string][] = [];
+          const visitors: NodeVisitors = {
+            function_call: {
+              enter: (path) => {
+                if (
+                  // TODO: 100 vs 300
+                  (path.node.identifier?.specifier?.identifier ===
+                    'texture2D' ||
+                    path.node.identifier?.specifier?.identifier ===
+                      'texture') &&
+                  path.key
+                ) {
+                  if (!path.parent) {
+                    throw new Error(
+                      'This is impossible a function call always has a parent'
+                    );
+                  }
+                  texture2Dcalls.push([path.parent, path.key]);
+                }
+              },
+            },
+          };
+          visit(ast, visitors);
+          const inputs = texture2Dcalls.reduce(
+            (inputs, [parent, key], index) => ({
+              ...inputs,
+              [`texture2d_${index}`]: (fillerAst: AstNode) => {
+                parent[key] = fillerAst;
+              },
+            }),
+            {}
+          );
+
+          return inputs;
+        },
+        produceFiller: (node: Node, ast: AstNode): AstNode => {
+          return makeExpression(`${nodeName(node)}()`);
+        },
       },
     },
     [ShaderType.toon]: {
-      produceAst: (
-        // todo: help
-        engineContext: any,
-        engine: any,
-        node: Node,
-        inputEdges: Edge[]
-      ): AstNode => {
+      onBeforeCompile: (engineContext, node) => {
+        console.log('onbeforecompile [ShaderType.toon]: {');
+        if (engineContext.runtime.cache.nodes[node.id]) {
+          return;
+        }
         const { renderer, mesh, scene, camera, material, threeTone, three } =
-          engineContext;
+          engineContext.runtime;
+
         mesh.material = new three.MeshToonMaterial({
           color: 0x00ff00,
           map: new three.Texture(),
@@ -199,82 +329,172 @@ export const threngine: Engine = {
         });
         renderer.compile(scene, camera);
 
-        engineContext.nodes[node.id] = {
-          fragment: renderer.properties
-            .get(mesh.material)
-            .programs.values()
-            .next().value.fragmentShader,
-          vertex: renderer.properties
-            .get(mesh.material)
-            .programs.values()
-            .next().value.vertexShader,
-        };
+        // The referecnes to the compiled shaders in WebGL
+        const fragmentRef = renderer.properties
+          .get(mesh.material)
+          .programs.values()
+          .next().value.fragmentShader;
+        const vertexRef = renderer.properties
+          .get(mesh.material)
+          .programs.values()
+          .next().value.vertexShader;
 
         const gl = renderer.getContext();
-        const fragmentProgram = engineContext.nodes[node.id].fragment;
-        const fragmentSource = gl.getShaderSource(fragmentProgram);
+        const fragment = gl.getShaderSource(fragmentRef);
+        const vertex = gl.getShaderSource(vertexRef);
 
-        // console.log('Before preprocessing:', fragmentSource);
-        const fragmentPreprocessed = preprocess(fragmentSource, {
-          preserve: {
-            version: () => true,
-          },
-        });
-        // console.log('after', fragmentPreprocessed);
-        const fragmentAst = parser.parse(fragmentPreprocessed);
-
-        // Used for the UI only right now
-        engineContext.fragmentPreprocessed = fragmentPreprocessed;
-        engineContext.fragmentSource = fragmentSource;
-
-        // Do I need this? Is threejs shader already in 3.00 mode?
-        // from2To3(fragmentAst);
-
-        convert300MainToReturn(fragmentAst);
-        renameBindings(fragmentAst.scopes[0], engine.preserve, node.id);
-        renameFunctions(fragmentAst.scopes[0], node.id, {
-          main: nodeName(node),
-        });
-        return fragmentAst;
-      },
-      findInputs: (engineContext, node: Node, ast: AstNode) => {
-        // console.log(util.inspect(ast.program, false, null, true));
-
-        let texture2Dcalls: [AstNode, string][] = [];
-        const visitors: NodeVisitors = {
-          function_call: {
-            enter: (path) => {
-              if (
-                // TODO: 100 vs 300
-                (path.node.identifier?.specifier?.identifier === 'texture2D' ||
-                  path.node.identifier?.specifier?.identifier === 'texture') &&
-                path.key
-              ) {
-                if (!path.parent) {
-                  throw new Error(
-                    'This is impossible a function call always has a parent'
-                  );
-                }
-                texture2Dcalls.push([path.parent, path.key]);
-              }
-            },
-          },
+        engineContext.runtime.cache.nodes[node.id] = {
+          fragmentRef,
+          vertexRef,
+          fragment,
+          vertex,
         };
-        visit(ast, visitors);
-        const inputs = texture2Dcalls.reduce(
-          (inputs, [parent, key], index) => ({
-            ...inputs,
-            [`texture2d_${index}`]: (fillerAst: AstNode) => {
-              parent[key] = fillerAst;
-            },
-          }),
-          {}
-        );
-
-        return inputs;
       },
-      produceFiller: (node: Node, ast: AstNode): AstNode => {
-        return makeExpression(`${nodeName(node)}()`);
+      fragment: {
+        produceAst: (
+          // todo: help
+          engineContext,
+          engine,
+          node: Node,
+          inputEdges: Edge[]
+        ): AstNode => {
+          const { fragment } = engineContext.runtime.cache.nodes[node.id];
+          // console.log('Before preprocessing:', fragmentSource);
+          const fragmentPreprocessed = preprocess(fragment, {
+            preserve: {
+              version: () => true,
+            },
+          });
+          // console.log('after', fragmentPreprocessed);
+          const fragmentAst = parser.parse(fragmentPreprocessed);
+
+          // Used for the UI only right now
+          engineContext.debuggingNonsense.fragmentPreprocessed =
+            fragmentPreprocessed;
+          engineContext.debuggingNonsense.fragmentSource = fragment;
+
+          // Do I need this? Is threejs shader already in 3.00 mode?
+          // from2To3(fragmentAst);
+
+          convert300MainToReturn(fragmentAst);
+          renameBindings(fragmentAst.scopes[0], threngine.preserve, node.id);
+          renameFunctions(fragmentAst.scopes[0], node.id, {
+            main: nodeName(node),
+          });
+          return fragmentAst;
+        },
+        findInputs: (engineContext, node: Node, ast: AstNode) => {
+          // console.log(util.inspect(ast.program, false, null, true));
+
+          let texture2Dcalls: [AstNode, string][] = [];
+          const visitors: NodeVisitors = {
+            function_call: {
+              enter: (path) => {
+                if (
+                  // TODO: 100 vs 300
+                  (path.node.identifier?.specifier?.identifier ===
+                    'texture2D' ||
+                    path.node.identifier?.specifier?.identifier ===
+                      'texture') &&
+                  path.key
+                ) {
+                  if (!path.parent) {
+                    throw new Error(
+                      'This is impossible a function call always has a parent'
+                    );
+                  }
+                  texture2Dcalls.push([path.parent, path.key]);
+                }
+              },
+            },
+          };
+          visit(ast, visitors);
+          const inputs = texture2Dcalls.reduce(
+            (inputs, [parent, key], index) => ({
+              ...inputs,
+              [`texture2d_${index}`]: (fillerAst: AstNode) => {
+                parent[key] = fillerAst;
+              },
+            }),
+            {}
+          );
+
+          return inputs;
+        },
+        produceFiller: (node: Node, ast: AstNode): AstNode => {
+          return makeExpression(`${nodeName(node)}()`);
+        },
+      },
+      vertex: {
+        produceAst: (
+          // todo: help
+          engineContext,
+          engine: any,
+          node: Node,
+          inputEdges: Edge[]
+        ): AstNode => {
+          const { vertex } = engineContext.runtime.cache.nodes[node.id];
+
+          // console.log('Before preprocessing:', fragmentSource);
+          const fragmentPreprocessed = preprocess(vertex, {
+            preserve: {
+              version: () => true,
+            },
+          });
+          // console.log('after', fragmentPreprocessed);
+          const fragmentAst = parser.parse(fragmentPreprocessed);
+
+          // Do I need this? Is threejs shader already in 3.00 mode?
+          // from2To3(fragmentAst);
+
+          convert300MainToReturn(fragmentAst);
+          renameBindings(fragmentAst.scopes[0], threngine.preserve, node.id);
+          renameFunctions(fragmentAst.scopes[0], node.id, {
+            main: nodeName(node),
+          });
+          return fragmentAst;
+        },
+        findInputs: (engineContext, node: Node, ast: AstNode) => {
+          // console.log(util.inspect(ast.program, false, null, true));
+
+          let texture2Dcalls: [AstNode, string][] = [];
+          const visitors: NodeVisitors = {
+            function_call: {
+              enter: (path) => {
+                if (
+                  // TODO: 100 vs 300
+                  (path.node.identifier?.specifier?.identifier ===
+                    'texture2D' ||
+                    path.node.identifier?.specifier?.identifier ===
+                      'texture') &&
+                  path.key
+                ) {
+                  if (!path.parent) {
+                    throw new Error(
+                      'This is impossible a function call always has a parent'
+                    );
+                  }
+                  texture2Dcalls.push([path.parent, path.key]);
+                }
+              },
+            },
+          };
+          visit(ast, visitors);
+          const inputs = texture2Dcalls.reduce(
+            (inputs, [parent, key], index) => ({
+              ...inputs,
+              [`texture2d_${index}`]: (fillerAst: AstNode) => {
+                parent[key] = fillerAst;
+              },
+            }),
+            {}
+          );
+
+          return inputs;
+        },
+        produceFiller: (node: Node, ast: AstNode): AstNode => {
+          return makeExpression(`${nodeName(node)}()`);
+        },
       },
     },
   },

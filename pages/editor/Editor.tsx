@@ -4,13 +4,7 @@ import cx from 'classnames';
 import LiteGraph from 'litegraph.js';
 import { generate } from '@shaderfrog/glsl-parser';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import React, {
-  FunctionComponent,
-  ReactNode,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import React, { ReactNode, useEffect, useRef, useState } from 'react';
 import * as three from 'three';
 import {
   outputNode,
@@ -21,9 +15,14 @@ import {
   multiplyNode,
   ShaderType,
 } from '../../src/nodestuff';
-import { compileGraph, NodeInputs } from '../../src/graph';
+import { compileGraph, EngineContext, NodeInputs } from '../../src/graph';
 
-import { phongNode, toonNode, threngine } from '../../src/threngine';
+import {
+  phongNode,
+  toonNode,
+  threngine,
+  RuntimeContext,
+} from '../../src/threngine';
 import purpleNoiseNode from '../../src/purpleNoiseNode';
 import colorShaderNode from '../../src/colorShaderNode';
 import fireNode from '../../src/fireNode';
@@ -34,7 +33,7 @@ import contrastNoise from '..';
 const width = 600;
 const height = 600;
 
-type EngineContext = {
+type Runtime = {
   lGraph: LiteGraph.LGraph;
   index: number;
   three: any;
@@ -45,13 +44,13 @@ type EngineContext = {
   fragmentPreprocessed?: string;
   fragmentSource?: string;
   renderer: any;
-  nodes: {
-    [nodeId: string]: {
-      fragment: string;
-      vertex: string;
-      inputs: NodeInputs[];
-    };
-  };
+  // nodes: {
+  //   [nodeId: string]: {
+  //     fragment: string;
+  //     vertex: string;
+  //     inputs: NodeInputs[];
+  //   };
+  // };
 };
 
 const graph: Graph = {
@@ -77,6 +76,7 @@ const graph: Graph = {
     // TODO: Try plugging into normal map
     // TODO: AnyCode node to try manipulating above shader for normal map
     // TODO: Make uniforms like map: change the uniforms
+    // TODO: Add 1.00 / 3.00 switch
     {
       from: '7',
       to: '2',
@@ -244,7 +244,22 @@ const ThreeScene: React.FC = () => {
   const [original, setOriginal] = useState<string | undefined>('');
   const [finalFragment, setFinalFragment] = useState<string | undefined>('');
 
-  const [ctx, setCtx] = useState<EngineContext | undefined>();
+  const [ctx, setCtx] = useState<EngineContext<RuntimeContext>>({
+    debuggingNonsense: {},
+    nodes: {},
+    runtime: {
+      lGraph: null,
+      three: null,
+      renderer: null,
+      material: null,
+      mesh: null,
+      scene: null,
+      camera: null,
+      index: 0,
+      threeTone: null,
+      cache: { nodes: {} },
+    },
+  });
 
   // Setup?
   useEffect(() => {
@@ -252,12 +267,12 @@ const ThreeScene: React.FC = () => {
       return;
     }
 
-    let lGraph = ctx?.lGraph;
+    let lGraph = ctx.runtime.lGraph;
     if (!lgInitted) {
       console.warn('----- LGraph Initting!!! -----');
       setLgInitted(true);
       lGraph = new LiteGraph.LGraph();
-      lGraph.onAction = (action, params) => {
+      lGraph.onAction = (action: any, params: any) => {
         console.log({ action, params });
       };
       new LiteGraph.LGraphCanvas(graphRef.current, lGraph);
@@ -296,25 +311,30 @@ const ThreeScene: React.FC = () => {
     renderer.setSize(width, height);
 
     setCtx({
-      // @ts-ignore
-      lGraph,
-      three,
-      renderer,
-      // material,
-      mesh,
-      scene,
-      camera,
-      index: 0,
-      threeTone,
+      runtime: {
+        lGraph,
+        three,
+        renderer,
+        material: null,
+        mesh,
+        scene,
+        camera,
+        index: 0,
+        threeTone,
+        cache: { nodes: {} },
+      },
       nodes: {},
+      debuggingNonsense: {},
     });
+    console.log('set context!', sceneData.current);
   }, []);
 
   useEffect(() => {
-    if (!ctx) {
+    if (!ctx.runtime.renderer) {
       return;
     }
-    const { renderer, scene, camera, mesh } = ctx;
+    const { renderer, scene, camera, mesh } = ctx.runtime;
+    console.log('reading context', ctx);
     let controls: OrbitControls;
 
     if (domRef.current) {
@@ -377,6 +397,7 @@ const ThreeScene: React.FC = () => {
   }, [ctx, tabIndex]);
 
   useEffect(() => {
+    console.log('running bad effect with', sceneData);
     const { lights, scene } = sceneData.current;
     (lights || []).forEach((light: any) => {
       scene.remove(light);
@@ -419,18 +440,20 @@ const ThreeScene: React.FC = () => {
 
   // Compile
   useEffect(() => {
-    if (!ctx) {
+    if (!ctx.runtime.renderer) {
       return;
     }
-    const { mesh, renderer, threeTone, lGraph } = ctx;
+    const { mesh, renderer, threeTone, lGraph } = ctx.runtime;
 
     setCompiling(true);
     if (lgNodesAdded) {
-      graph.edges = Object.values(lGraph.links).map((link) => ({
+      graph.edges = Object.values(lGraph.links).map((link: any) => ({
         from: link.origin_id.toString(),
         to: link.target_id.toString(),
         output: 'main',
-        input: Object.keys(ctx.nodes[link.target_id].inputs)[link.target_slot],
+        input: Object.keys(ctx.nodes[link.target_id].inputs || {})[
+          link.target_slot
+        ],
       }));
     }
     console.log('rendering!', graph);
@@ -455,7 +478,9 @@ const ThreeScene: React.FC = () => {
     // };
     // console.log('engineContext', engineContext);
     const result = compileGraph(ctx, threngine, graph);
-    const fragmentResult = generate(shaderSectionsToAst(result).program);
+    const fragmentResult = generate(
+      shaderSectionsToAst(result.fragment).program
+    );
 
     const now = performance.now();
     console.log(`Compilation took:
@@ -472,7 +497,7 @@ total: ${(now - allStart).toFixed(3)}ms
     console.log(ctx.nodes);
     const vertex = renderer
       .getContext()
-      .getShaderSource(ctx.nodes['2'].vertex)
+      .getShaderSource(ctx.runtime.cache.nodes['2'].vertexRef)
       ?.replace(
         'attribute vec3 position;',
         'attribute vec3 position; varying vec3 vPosition;'
@@ -496,7 +521,7 @@ total: ${(now - allStart).toFixed(3)}ms
       color: { value: new three.Color(0xffffff) },
       gradientMap: { value: threeTone },
       // map: { value: new three.TextureLoader().load('/contrast-noise.png') },
-      image: { value: new three.TextureLoader().load('/contrast-noise.png') },
+      image: { value: new three.TextureLoader().load('/2/contrast-noise.png') },
       time: { value: 0 },
       resolution: { value: 0.5 },
       speed: { value: 3 },
@@ -542,8 +567,8 @@ total: ${(now - allStart).toFixed(3)}ms
     setFinalFragment(fragmentResult);
     setVertex(vertex);
     // Mutated from the processAst call for now
-    setPreprocessed(ctx.fragmentPreprocessed);
-    setOriginal(ctx.fragmentSource);
+    setPreprocessed(ctx.debuggingNonsense.fragmentPreprocessed);
+    setOriginal(ctx.debuggingNonsense.fragmentSource);
 
     lGraph.clear();
     let engines = 1;
@@ -584,7 +609,7 @@ total: ${(now - allStart).toFixed(3)}ms
       lNode.title = node.name;
       // lNode.properties = { id: node.id };
       if (ctx.nodes[node.id]) {
-        Object.keys(ctx.nodes[node.id].inputs).forEach((input) => {
+        Object.keys(ctx.nodes[node.id].inputs || {}).forEach((input) => {
           lNode.addInput(input, 'string');
         });
       }
@@ -710,10 +735,10 @@ total: ${(now - allStart).toFixed(3)}ms
             <TabPanel>
               <Tabs>
                 <TabGroup className={styles.secondary}>
-                  <Tab>Vertex</Tab>
-                  <Tab>Original</Tab>
-                  <Tab>Preprocessed</Tab>
-                  <Tab>Final</Tab>
+                  <Tab>Original Three Frag</Tab>
+                  <Tab>Preprocessed Three Frag</Tab>
+                  <Tab>Final Vert</Tab>
+                  <Tab>Final Frag</Tab>
                 </TabGroup>
                 <TabPanels>
                   <TabPanel>

@@ -1,5 +1,4 @@
 import { generate } from '@shaderfrog/glsl-parser';
-import util from 'util';
 
 import { compileGraph } from './src/graph';
 
@@ -9,7 +8,34 @@ import {
   Graph,
   shaderSectionsToAst,
   addNode,
+  shaderNode,
 } from './src/nodestuff';
+
+const sourceToGraphWithOutputHelper = (
+  vertex: string,
+  fragment: string
+): Graph => ({
+  nodes: [
+    outputNode('1', {}),
+    shaderNode(
+      '2',
+      'Shader',
+      {
+        modifiesPosition: true,
+      },
+      fragment,
+      vertex
+    ),
+  ],
+  edges: [
+    {
+      from: '2',
+      to: '1',
+      output: 'main',
+      input: 'color',
+    },
+  ],
+});
 
 const graph: Graph = {
   nodes: [
@@ -69,12 +95,68 @@ void main() {
 };
 
 test('horrible jesus help me', () => {
+  // Some shaders have positional transforms. An advanced technique is
+  // extracting the transforms and applying them.
+  // Also don't want to lock people out of writing real shader source code
+  // to plug into threejs
+  // Replace the position attribute in upstream systems...
   const result = compileGraph(
-    {},
+    {
+      nodes: {},
+      runtime: {},
+      debuggingNonsense: {},
+    },
     { preserve: new Set<string>(), parsers: {} },
-    graph
+    sourceToGraphWithOutputHelper(
+      // Fragment
+      `void main() { gl_FragColor = vec4(1.0); }`,
+      // Vertex
+      `
+precision highp float;
+precision highp int;
+
+// Default THREE.js uniforms available to both fragment and vertex shader
+uniform mat4 modelMatrix;
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+uniform mat4 viewMatrix;
+uniform mat3 normalMatrix;
+
+// Default uniforms provided by ShaderFrog.
+uniform vec3 cameraPosition;
+uniform float time;
+
+// Default attributes provided by THREE.js. Attributes are only available in the
+// vertex shader. You can pass them to the fragment shader using varyings
+attribute vec3 position;
+attribute vec3 normal;
+attribute vec2 uv;
+attribute vec2 uv2;
+
+// Examples of variables passed from vertex to fragment shader
+varying vec3 vPosition;
+varying vec3 vNormal;
+varying vec2 vUv;
+varying vec2 vUv2;
+
+void main() {
+    vUv = uv;
+    vUv2 = uv2;
+    vPosition = position;
+    vPosition = vec3(
+            r * sin(theta) * cos(gamma),
+            r * sin(theta) * sin(gamma),
+            r * cos(theta)
+        );
+    
+    // This sets the position of the vertex in 3d space. The correct math is
+    // provided below to take into account camera and object data.
+    gl_Position = projectionMatrix * modelViewMatrix * vec4( vPosition, 1.0 );
+}
+`
+    )
   );
-  const built = generate(shaderSectionsToAst(result[0]).program);
+  const built = generate(shaderSectionsToAst(result.vertex).program);
   expect(built).toBe('hi');
 });
 

@@ -69,9 +69,63 @@ export const from2To3 = (ast: ParserProgram) => {
   });
 };
 
+export const testBlorfConvertGlPositionToReturnPosition = (
+  ast: ParserProgram
+): void => {
+  const mainReturnVar = `frogOut`;
+
+  // Find the output variable, as in "pc_fragColor" from  "out highp vec4 pc_fragColor;"
+  let outName: string | undefined;
+  ast.program.find((line, index) => {
+    if (
+      line.type === 'declaration_statement' &&
+      line.declaration?.specified_type?.qualifiers?.find(
+        (n: AstNode) => n.token === 'out'
+      ) &&
+      line.declaration.specified_type.specifier.specifier.token === 'vec4'
+    ) {
+      // Remove the out declaration
+      ast.program.splice(index, 1);
+      outName = line.declaration.declarations[0].identifier.identifier;
+      return true;
+    }
+  });
+  if (!outName) {
+    throw new Error('No "out vec4" line found in the fragment shader');
+  }
+
+  visit(ast, {
+    identifier: {
+      enter: (path) => {
+        if (path.node.identifier === outName) {
+          path.node.identifier = mainReturnVar;
+          path.node.doNotDescope = true; // hack because this var is in the scope which gets renamed later
+        }
+      },
+    },
+    function: {
+      enter: (path) => {
+        if (path.node.prototype.header.name.identifier === 'main') {
+          path.node.prototype.header.returnType.specifier.specifier.token =
+            'vec4';
+          path.node.body.statements.unshift({
+            type: 'literal',
+            literal: `vec4 ${mainReturnVar};\n`,
+          });
+          path.node.body.statements.push({
+            type: 'literal',
+            literal: `return ${mainReturnVar};\n`,
+          });
+        }
+      },
+    },
+  });
+};
+
 export const convert300MainToReturn = (ast: ParserProgram): void => {
   const mainReturnVar = `frogOut`;
 
+  // Find the output variable, as in "pc_fragColor" from  "out highp vec4 pc_fragColor;"
   let outName: string | undefined;
   ast.program.find((line, index) => {
     if (

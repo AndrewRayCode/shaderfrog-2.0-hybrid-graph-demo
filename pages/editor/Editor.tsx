@@ -519,6 +519,7 @@ const ThreeScene: React.FC = () => {
     const fragmentResult = generate(
       shaderSectionsToAst(result.fragment).program
     );
+    const vertexResult = generate(shaderSectionsToAst(result.vertex).program);
 
     const now = performance.now();
     console.log(`Compilation took:
@@ -590,7 +591,7 @@ total: ${(now - allStart).toFixed(3)}ms
       name: 'ShaderFrog Phong Material',
       lights: true,
       uniforms,
-      vertexShader: vertex,
+      vertexShader: vertexResult,
       fragmentShader: fragmentResult,
       // onBeforeCompile: () => {
       //   console.log('raw shader precomp');
@@ -602,7 +603,7 @@ total: ${(now - allStart).toFixed(3)}ms
 
     setCompiling(false);
     setFinalFragment(fragmentResult);
-    setVertex(vertex);
+    setVertex(vertexResult);
     // Mutated from the processAst call for now
     setPreprocessed(ctx.debuggingNonsense.fragmentPreprocessed);
     setOriginal(ctx.debuggingNonsense.fragmentSource);
@@ -793,13 +794,6 @@ total: ${(now - allStart).toFixed(3)}ms
                     <textarea
                       className={styles.code}
                       readOnly
-                      value={vertex}
-                    ></textarea>
-                  </TabPanel>
-                  <TabPanel>
-                    <textarea
-                      className={styles.code}
-                      readOnly
                       value={original}
                     ></textarea>
                   </TabPanel>
@@ -808,6 +802,13 @@ total: ${(now - allStart).toFixed(3)}ms
                       className={styles.code}
                       readOnly
                       value={preprocessed}
+                    ></textarea>
+                  </TabPanel>
+                  <TabPanel>
+                    <textarea
+                      className={styles.code}
+                      readOnly
+                      value={vertex}
                     ></textarea>
                   </TabPanel>
                   <TabPanel>

@@ -1,3 +1,4 @@
+import { parser } from '@shaderfrog/glsl-parser';
 import { generate } from '@shaderfrog/glsl-parser';
 
 import { compileGraph } from './src/graph';
@@ -9,14 +10,12 @@ import {
   shaderSectionsToAst,
   addNode,
   sourceNode,
+  testBlorfConvertGlPositionToReturnPosition,
 } from './src/nodestuff';
 
-const sourceToGraphWithOutputHelper = (
-  vertex: string,
-  fragment: string
-): Graph => ({
+const sourceToGraphWithOutputHelper = (fragment: string): Graph => ({
   nodes: [
-    outputNode('1', {}),
+    outputNode('1', 'Output f', {}, 'fragment'),
     sourceNode(
       '2',
       'Shader',
@@ -24,7 +23,7 @@ const sourceToGraphWithOutputHelper = (
         modifiesPosition: true,
       },
       fragment,
-      vertex
+      'fragment'
     ),
   ],
   edges: [
@@ -40,15 +39,14 @@ const sourceToGraphWithOutputHelper = (
 
 const graph: Graph = {
   nodes: [
-    outputNode('output_id', {}),
+    outputNode('output_id', 'output f', {}, 'fragment'),
     {
       name: 'shader 2',
       id: 'shader_2_id',
       type: ShaderType.shader,
       options: {},
       inputs: [],
-      vertexSource: ``,
-      fragmentSource: `
+      source: `
 uniform sampler2D image;
 varying vec2 vUv;
 void main() {
@@ -63,8 +61,7 @@ void main() {
       type: ShaderType.shader,
       options: {},
       inputs: [],
-      vertexSource: ``,
-      fragmentSource: `
+      source: `
 void main() {
     gl_FragColor = vec4(4.0);
 }
@@ -76,8 +73,7 @@ void main() {
       type: ShaderType.shader,
       options: {},
       inputs: [],
-      vertexSource: ``,
-      fragmentSource: `
+      source: `
 void main() {
     gl_FragColor = vec4(5.0);
 }
@@ -126,6 +122,29 @@ void main() {
 };
 
 test('horrible jesus help me', () => {
+  const threeVertexMain = `
+  void main() {
+    vUv = ( uvTransform * vec3( uv, 1 ) ).xy;
+  vec3 objectNormal = vec3( normal );
+  vec3 transformedNormal = objectNormal;
+  transformedNormal = normalMatrix * transformedNormal;
+    vNormal = normalize( transformedNormal );
+  vec3 transformed = vec3( position );
+  vec4 mvPosition = vec4( transformed, 1.0 );
+  mvPosition = modelViewMatrix * mvPosition;
+  gl_Position = projectionMatrix * mvPosition;
+    vViewPosition = - mvPosition.xyz;
+  }
+`;
+
+  // TODO: Trying to extract gl_Position into return above
+  const vertexAst = parser.parse(threeVertexMain);
+  testBlorfConvertGlPositionToReturnPosition(vertexAst);
+  expect(generate(vertexAst)).toBe('hi');
+});
+
+/*
+test('horrible jesus help me', () => {
   // Some shaders have positional transforms. An advanced technique is
   // extracting the transforms and applying them.
   // Also don't want to lock people out of writing real shader source code
@@ -139,9 +158,6 @@ test('horrible jesus help me', () => {
     },
     { preserve: new Set<string>(), parsers: {} },
     sourceToGraphWithOutputHelper(
-      // Fragment
-      `void main() { gl_FragColor = vec4(1.0); }`,
-      // Vertex
       `
 precision highp float;
 precision highp int;
@@ -190,6 +206,7 @@ void main() {
   const built = generate(shaderSectionsToAst(result.vertex).program);
   expect(built).toBe('hi');
 });
+*/
 
 /*
 test('horrible jesus help me', () => {

@@ -304,7 +304,12 @@ export const threngine: Engine<RuntimeContext> = {
           // Do I need this? Is threejs shader already in 3.00 mode?
           // from2To3(vertexAst);
 
-          // convert300MainToReturn(vertexAst);
+          console.log('vertex convert', vertexPreprocessed);
+          try {
+            convert300MainToReturn(vertexAst);
+          } catch (err) {
+            console.error(err);
+          }
           // renameBindings(vertexAst.scopes[0], threngine.preserve, node.id);
           // renameFunctions(vertexAst.scopes[0], node.id, {
           //   main: nodeName(node),
@@ -506,23 +511,27 @@ export const threngine: Engine<RuntimeContext> = {
             (node.nextStageNodeId && nodes[node.nextStageNodeId]);
 
           // console.log('Before preprocessing:', fragmentSource);
-          const fragmentPreprocessed = preprocess(vertex, {
+          const vertexPreprocessed = preprocess(vertex, {
             preserve: {
               version: () => true,
             },
           });
-          // console.log('after', fragmentPreprocessed);
-          const fragmentAst = parser.parse(fragmentPreprocessed);
+          // console.log('after', vertexPreprocessed);
+          const vertexAst = parser.parse(vertexPreprocessed);
 
           // Do I need this? Is threejs shader already in 3.00 mode?
-          // from2To3(fragmentAst);
+          // from2To3(vertexAst);
 
-          // convert300MainToReturn(fragmentAst);
-          renameBindings(fragmentAst.scopes[0], threngine.preserve, node.id);
-          renameFunctions(fragmentAst.scopes[0], node.id, {
+          try {
+            convert300MainToReturn(vertexAst);
+          } catch (err) {
+            console.error(err);
+          }
+          renameBindings(vertexAst.scopes[0], threngine.preserve, node.id);
+          renameFunctions(vertexAst.scopes[0], node.id, {
             main: nodeName(node),
           });
-          return fragmentAst;
+          return vertexAst;
         },
         findInputs: (engineContext, node: Node, ast: AstNode) => {
           // console.log(util.inspect(ast.program, false, null, true));

@@ -14,6 +14,7 @@ import {
   addNode,
   multiplyNode,
   ShaderType,
+  Edge,
 } from '../../src/nodestuff';
 import { compileGraph, EngineContext, NodeInputs } from '../../src/graph';
 
@@ -452,17 +453,48 @@ const ThreeScene: React.FC = () => {
 
     setCompiling(true);
     if (lgNodesAdded) {
-      graph.edges = Object.values(lGraph.links).map((link: any) => ({
-        from: link.origin_id.toString(),
-        to: link.target_id.toString(),
-        output: 'main',
-        input: Object.keys(ctx.nodes[link.target_id].inputs || {})[
-          link.target_slot
-        ],
-        type: 'fragment',
-      }));
+      graph.edges = Object.values(lGraph.links).reduce<Edge[]>(
+        (edges: any, link: any) => {
+          const input = Object.keys(ctx.nodes[link.target_id].inputs || {})[
+            link.target_slot
+          ];
+          if (input) {
+            return [
+              ...edges,
+              {
+                from: link.origin_id.toString(),
+                to: link.target_id.toString(),
+                output: 'main',
+                // TODO: When conneting to a texture2d_0 here for phong F, there is no
+                // texture2d_0 input slot on "ctx.nodes[link.target_id].inputs". That
+                // var is {}.
+                input,
+                type: 'fragment',
+              },
+            ];
+          } else {
+            console.warn(
+              `For link {from: ${link.origin_id.toString()}, to: ${link.target_id.toString()}} there is no input ${
+                link.target_id
+              } in target id ${link.target_slot}. Nodes:`,
+              ctx.nodes,
+              'Links: ',
+              lGraph.links
+            );
+            return edges;
+          }
+        },
+        []
+      );
     }
-    console.warn('compiling!', graph);
+    console.warn(
+      'compiling!',
+      graph,
+      'from lGraph',
+      lGraph,
+      'for nodes',
+      ctx.nodes
+    );
 
     // const engineContext: EngineContext = {
     //   renderer,
@@ -569,7 +601,6 @@ total: ${(now - allStart).toFixed(3)}ms
     mesh.material = newMat;
 
     setCompiling(false);
-    console.log('final fragment, ', fragmentResult);
     setFinalFragment(fragmentResult);
     setVertex(vertex);
     // Mutated from the processAst call for now
@@ -629,6 +660,7 @@ total: ${(now - allStart).toFixed(3)}ms
           lNode.addInput(input, 'string');
         });
       }
+      lNode.id = parseInt(node.id, 10);
       lGraph.add(lNode);
       lNode.onSelected = () => {
         setActiveShader(node);

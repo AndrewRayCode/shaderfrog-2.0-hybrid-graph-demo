@@ -48,6 +48,8 @@ export type NodeContext = {
   // Inputs are determined at parse time and should probably be in the graph,
   // not here on the runtime context for the node
   inputs?: NodeInputs;
+  id?: string;
+  name?: string;
 };
 
 // The context an engine builds as it evaluates. It can manage its own state
@@ -106,7 +108,7 @@ type Runtime = {};
 
 export const parsers: Parser<Runtime> = {
   [ShaderType.output]: {
-    produceAst: (engineContext, engine, node, inputEdges: Edge[]): AstNode => {
+    produceAst: (engineContext, engine, node, inputEdges): AstNode => {
       const fragmentPreprocessed = preprocess(node.source, {
         preserve: {
           version: () => true,
@@ -115,7 +117,7 @@ export const parsers: Parser<Runtime> = {
       const fragmentAst = parser.parse(fragmentPreprocessed);
       return fragmentAst;
     },
-    findInputs: (engineContext, node: Node, ast: AstNode) => {
+    findInputs: (engineContext, node, ast) => {
       const assignNode = findVec4Constructo4(ast);
       if (!assignNode) {
         throw new Error(`Impossible error, no assign node in output`);
@@ -148,7 +150,7 @@ export const parsers: Parser<Runtime> = {
         });
         return fragmentAst;
       },
-      findInputs: (engineContext, node: Node, ast: AstNode) => {
+      findInputs: (engineContext, node, ast) => {
         // console.log(util.inspect(ast.program, false, null, true));
 
         let texture2Dcalls: [AstNode, string][] = [];
@@ -175,12 +177,12 @@ export const parsers: Parser<Runtime> = {
           {}
         );
       },
-      produceFiller: (node: Node, ast: AstNode): AstNode => {
+      produceFiller: (node: Node, ast) => {
         return makeExpression(`${nodeName(node)}()`);
       },
     },
     vertex: {
-      produceAst: (engineContext, engine, node, inputEdges): AstNode => {
+      produceAst: (engineContext, engine, node, inputEdges) => {
         if (!node.source) {
           return { type: 'empty' };
         }
@@ -199,7 +201,7 @@ export const parsers: Parser<Runtime> = {
         });
         return vertexAst;
       },
-      findInputs: (engineContext, node: Node, ast: AstNode) => {
+      findInputs: (engineContext, node, ast) => {
         // console.log(util.inspect(ast.program, false, null, true));
 
         let texture2Dcalls: [AstNode, string][] = [];
@@ -226,7 +228,7 @@ export const parsers: Parser<Runtime> = {
           {}
         );
       },
-      produceFiller: (node: Node, ast: AstNode): AstNode => {
+      produceFiller: (node: Node, ast) => {
         return makeExpression(`${nodeName(node)}()`);
       },
     },
@@ -482,7 +484,7 @@ export const computeSideContext = <T>(
       node,
       inputEdges
     );
-  const nodeContext: NodeContext = { ast };
+  const nodeContext: NodeContext = { ast, id: node.id, name: node.name };
   /**
    * Working on vertex refactor. I've tried to create a nodeparser type that
    * supports either a node with both vertex/frag sections (like a shader), or a
@@ -505,6 +507,7 @@ export const computeSideContext = <T>(
       ast,
       nodeContext
     );
+  console.log('Finding inputs for ', node, 'produced', nodeContext);
 
   return nodeContext;
 };

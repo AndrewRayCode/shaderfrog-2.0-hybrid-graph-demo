@@ -23,6 +23,7 @@ import {
   from2To3,
   Edge,
   emptyShaderSections,
+  ShaderStage,
 } from './nodestuff';
 
 const inspect = (thing: any): void =>
@@ -48,10 +49,6 @@ export type NodeContext = {
   // not here on the runtime context for the node
   inputs?: NodeInputs;
 };
-// export type NodeContext = {
-//   fragment: NodeShaderContext;
-//   vertex: NodeShaderContext;
-// };
 
 // The context an engine builds as it evaluates. It can manage its own state
 // as the generic "RuntimeContext" which is passed to implemented engine methods
@@ -96,8 +93,10 @@ export type ProgramParser<T> = {
   vertex: ShaderParser<T>;
 };
 
+export type NodeParser<T> = ProgramParser<T> | ShaderParser<T>;
+
 export type Parser<T> = {
-  [key in ShaderType]?: ProgramParser<T>;
+  [key in ShaderType]?: NodeParser<T>;
 };
 
 export const nodeName = (node: Node): string =>
@@ -107,72 +106,34 @@ type Runtime = {};
 
 export const parsers: Parser<Runtime> = {
   [ShaderType.output]: {
-    fragment: {
-      produceAst: (
-        engineContext,
-        engine,
-        node: Node,
-        inputEdges: Edge[]
-      ): AstNode => {
-        const fragmentPreprocessed = preprocess(node.fragmentSource, {
-          preserve: {
-            version: () => true,
-          },
-        });
-        const fragmentAst = parser.parse(fragmentPreprocessed);
-        return fragmentAst;
-      },
-      findInputs: (engineContext, node: Node, ast: AstNode) => {
-        const assignNode = findVec4Constructo4(ast);
-        if (!assignNode) {
-          throw new Error(`Impossible error, no assign node in output`);
-        }
-        return {
-          color: (fillerAst: AstNode) => {
-            assignNode.right = fillerAst;
-          },
-        };
-      },
-      produceFiller: emptyFiller,
+    produceAst: (engineContext, engine, node, inputEdges: Edge[]): AstNode => {
+      const fragmentPreprocessed = preprocess(node.source, {
+        preserve: {
+          version: () => true,
+        },
+      });
+      const fragmentAst = parser.parse(fragmentPreprocessed);
+      return fragmentAst;
     },
-    vertex: {
-      produceAst: (
-        engineContext,
-        engine,
-        node: Node,
-        inputEdges: Edge[]
-      ): AstNode => {
-        const fragmentPreprocessed = preprocess(node.fragmentSource, {
-          preserve: {
-            version: () => true,
-          },
-        });
-        const fragmentAst = parser.parse(fragmentPreprocessed);
-        return fragmentAst;
-      },
-      findInputs: (engineContext, node: Node, ast: AstNode) => {
-        const assignNode = findVec4Constructo4(ast);
-        if (!assignNode) {
-          throw new Error(`Impossible error, no assign node in output`);
-        }
-        return {
-          color: (fillerAst: AstNode) => {
-            assignNode.right = fillerAst;
-          },
-        };
-      },
-      produceFiller: emptyFiller,
+    findInputs: (engineContext, node: Node, ast: AstNode) => {
+      const assignNode = findVec4Constructo4(ast);
+      if (!assignNode) {
+        throw new Error(`Impossible error, no assign node in output`);
+      }
+      return {
+        [node.stage === 'fragment' ? 'color' : 'position']: (
+          fillerAst: AstNode
+        ) => {
+          assignNode.right = fillerAst;
+        },
+      };
     },
+    produceFiller: emptyFiller,
   },
   [ShaderType.shader]: {
     fragment: {
-      produceAst: (
-        engineContext,
-        engine,
-        node: Node,
-        inputEdges: Edge[]
-      ): AstNode => {
-        const fragmentPreprocessed = preprocess(node.fragmentSource, {
+      produceAst: (engineContext, engine, node, inputEdges): AstNode => {
+        const fragmentPreprocessed = preprocess(node.source, {
           preserve: {
             version: () => true,
           },
@@ -219,26 +180,24 @@ export const parsers: Parser<Runtime> = {
       },
     },
     vertex: {
-      produceAst: (
-        engineContext,
-        engine,
-        node: Node,
-        inputEdges: Edge[]
-      ): AstNode => {
-        const fragmentPreprocessed = preprocess(node.fragmentSource, {
+      produceAst: (engineContext, engine, node, inputEdges): AstNode => {
+        if (!node.source) {
+          return { type: 'empty' };
+        }
+        const vertexPreprocessed = preprocess(node.source, {
           preserve: {
             version: () => true,
           },
         });
-        const fragmentAst = parser.parse(fragmentPreprocessed);
-        from2To3(fragmentAst);
+        const vertexAst = parser.parse(vertexPreprocessed);
+        // from2To3(vertexAst);
 
-        convert300MainToReturn(fragmentAst);
-        renameBindings(fragmentAst.scopes[0], engine.preserve, node.id);
-        renameFunctions(fragmentAst.scopes[0], node.id, {
+        // convert300MainToReturn(vertexAst);
+        renameBindings(vertexAst.scopes[0], engine.preserve, node.id);
+        renameFunctions(vertexAst.scopes[0], node.id, {
           main: nodeName(node),
         });
-        return fragmentAst;
+        return vertexAst;
       },
       findInputs: (engineContext, node: Node, ast: AstNode) => {
         // console.log(util.inspect(ast.program, false, null, true));
@@ -273,191 +232,91 @@ export const parsers: Parser<Runtime> = {
     },
   },
   [ShaderType.add]: {
-    fragment: {
-      produceAst: (engineContext, engine, node, inputEdges) => {
-        const alphabet = 'abcdefghijklmnopqrstuvwxyz';
-        const fragmentAst: AstNode = {
-          type: 'program',
-          program: [
-            makeExpression(
-              inputEdges.length
-                ? inputEdges
-                    .map((_, index) => alphabet.charAt(index))
-                    .join(' + ')
-                : 'a + b'
-            ),
-          ],
-          scopes: [],
-        };
-        return fragmentAst;
-      },
-      findInputs: (engineContext, node, ast, nodeContext) => {
-        let inputs: any[][] = [];
-        const visitors: NodeVisitors = {
-          identifier: {
-            enter: (path) => {
-              inputs.push([path.parent, path.key, path.node.identifier]);
-            },
-          },
-        };
-        visit(ast, visitors);
-        return inputs.reduce(
-          (inputs, [parent, key, identifier], index) => ({
-            ...inputs,
-            [identifier]: (fillerAst: AstNode) => {
-              if (parent) {
-                parent[key] = fillerAst;
-              } else {
-                nodeContext.ast = fillerAst;
-              }
-            },
-          }),
-          {}
-        );
-      },
-      produceFiller: (node: Node, ast: AstNode): AstNode => {
-        return ast.program;
-      },
+    produceAst: (engineContext, engine, node, inputEdges) => {
+      const alphabet = 'abcdefghijklmnopqrstuvwxyz';
+      const fragmentAst: AstNode = {
+        type: 'program',
+        program: [
+          makeExpression(
+            inputEdges.length
+              ? inputEdges.map((_, index) => alphabet.charAt(index)).join(' + ')
+              : 'a + b'
+          ),
+        ],
+        scopes: [],
+      };
+      return fragmentAst;
     },
-    vertex: {
-      produceAst: (engineContext, engine, node, inputEdges) => {
-        const alphabet = 'abcdefghijklmnopqrstuvwxyz';
-        const fragmentAst: AstNode = {
-          type: 'program',
-          program: [
-            makeExpression(
-              inputEdges.length
-                ? inputEdges
-                    .map((_, index) => alphabet.charAt(index))
-                    .join(' + ')
-                : 'a + b'
-            ),
-          ],
-          scopes: [],
-        };
-        return fragmentAst;
-      },
-      findInputs: (engineContext, node, ast, nodeContext) => {
-        let inputs: any[][] = [];
-        const visitors: NodeVisitors = {
-          identifier: {
-            enter: (path) => {
-              inputs.push([path.parent, path.key, path.node.identifier]);
-            },
+    findInputs: (engineContext, node, ast, nodeContext) => {
+      let inputs: any[][] = [];
+      const visitors: NodeVisitors = {
+        identifier: {
+          enter: (path) => {
+            inputs.push([path.parent, path.key, path.node.identifier]);
           },
-        };
-        visit(ast, visitors);
-        return inputs.reduce(
-          (inputs, [parent, key, identifier], index) => ({
-            ...inputs,
-            [identifier]: (fillerAst: AstNode) => {
-              if (parent) {
-                parent[key] = fillerAst;
-              } else {
-                nodeContext.ast = fillerAst;
-              }
-            },
-          }),
-          {}
-        );
-      },
-      produceFiller: (node: Node, ast: AstNode): AstNode => {
-        return ast.program;
-      },
+        },
+      };
+      visit(ast, visitors);
+      return inputs.reduce(
+        (inputs, [parent, key, identifier], index) => ({
+          ...inputs,
+          [identifier]: (fillerAst: AstNode) => {
+            if (parent) {
+              parent[key] = fillerAst;
+            } else {
+              nodeContext.ast = fillerAst;
+            }
+          },
+        }),
+        {}
+      );
+    },
+    produceFiller: (node: Node, ast: AstNode): AstNode => {
+      return ast.program;
     },
   },
   [ShaderType.multiply]: {
-    fragment: {
-      produceAst: (engineContext, engine, node, inputEdges) => {
-        const alphabet = 'abcdefghijklmnopqrstuvwxyz';
-        const fragmentAst: AstNode = {
-          type: 'program',
-          program: [
-            makeExpression(
-              inputEdges.length
-                ? inputEdges
-                    .map((_, index) => alphabet.charAt(index))
-                    .join(' * ')
-                : 'a * b'
-            ),
-          ],
-          scopes: [],
-        };
-        return fragmentAst;
-      },
-      findInputs: (engineContext, node, ast, nodeContext) => {
-        let inputs: any[][] = [];
-        const visitors: NodeVisitors = {
-          identifier: {
-            enter: (path) => {
-              inputs.push([path.parent, path.key, path.node.identifier]);
-            },
-          },
-        };
-        visit(ast, visitors);
-        return inputs.reduce(
-          (inputs, [parent, key, identifier], index) => ({
-            ...inputs,
-            [identifier]: (fillerAst: AstNode) => {
-              if (parent) {
-                parent[key] = fillerAst;
-              } else {
-                nodeContext.ast = fillerAst;
-              }
-            },
-          }),
-          {}
-        );
-      },
-      produceFiller: (node: Node, ast: AstNode): AstNode => {
-        return ast.program;
-      },
+    produceAst: (engineContext, engine, node, inputEdges) => {
+      const alphabet = 'abcdefghijklmnopqrstuvwxyz';
+      const fragmentAst: AstNode = {
+        type: 'program',
+        program: [
+          makeExpression(
+            inputEdges.length
+              ? inputEdges.map((_, index) => alphabet.charAt(index)).join(' * ')
+              : 'a * b'
+          ),
+        ],
+        scopes: [],
+      };
+      return fragmentAst;
     },
-    vertex: {
-      produceAst: (engineContext, engine, node, inputEdges) => {
-        const alphabet = 'abcdefghijklmnopqrstuvwxyz';
-        const fragmentAst: AstNode = {
-          type: 'program',
-          program: [
-            makeExpression(
-              inputEdges.length
-                ? inputEdges
-                    .map((_, index) => alphabet.charAt(index))
-                    .join(' * ')
-                : 'a * b'
-            ),
-          ],
-          scopes: [],
-        };
-        return fragmentAst;
-      },
-      findInputs: (engineContext, node, ast, nodeContext) => {
-        let inputs: any[][] = [];
-        const visitors: NodeVisitors = {
-          identifier: {
-            enter: (path) => {
-              inputs.push([path.parent, path.key, path.node.identifier]);
-            },
+    findInputs: (engineContext, node, ast, nodeContext) => {
+      let inputs: any[][] = [];
+      const visitors: NodeVisitors = {
+        identifier: {
+          enter: (path) => {
+            inputs.push([path.parent, path.key, path.node.identifier]);
           },
-        };
-        visit(ast, visitors);
-        return inputs.reduce(
-          (inputs, [parent, key, identifier], index) => ({
-            ...inputs,
-            [identifier]: (fillerAst: AstNode) => {
-              if (parent) {
-                parent[key] = fillerAst;
-              } else {
-                nodeContext.ast = fillerAst;
-              }
-            },
-          }),
-          {}
-        );
-      },
-      produceFiller: (node: Node, ast: AstNode): AstNode => {
-        return ast.program;
-      },
+        },
+      };
+      visit(ast, visitors);
+      return inputs.reduce(
+        (inputs, [parent, key, identifier], index) => ({
+          ...inputs,
+          [identifier]: (fillerAst: AstNode) => {
+            if (parent) {
+              parent[key] = fillerAst;
+            } else {
+              nodeContext.ast = fillerAst;
+            }
+          },
+        }),
+        {}
+      );
+    },
+    produceFiller: (node: Node, ast: AstNode): AstNode => {
+      return ast.program;
     },
   },
 };
@@ -498,8 +357,10 @@ export const compileNode = <T>(
   graph: Graph,
   engineContext: EngineContext<T>,
   // graphContext: GraphContext,
-  node: Node
+  node: Node,
+  stage: ShaderStage
 ): CompileNodeResult => {
+  console.log('compiling', node.name);
   const parser = engine.parsers[node.type] || parsers[node.type];
 
   // Will I one day get good enough at typescript to be able to remove this
@@ -509,7 +370,7 @@ export const compileNode = <T>(
   }
 
   const nodeContext = engineContext.nodes[node.id];
-  // const nodeContext = computeNodeContext(engineContext, engine, graph, node); // graphContext[node.id];
+  // const nodeContext = computeSideContext(engineContext, engine, graph, node); // graphContext[node.id];
   // engineContext.nodes[node.id] = {
   //   ...(engineContext.nodes[node.id] || {}),
   //   ...nodeContext,
@@ -530,7 +391,8 @@ export const compileNode = <T>(
         graph,
         engineContext,
         // graphContext,
-        fromNode
+        fromNode,
+        stage
       );
       if (!fillerAst) {
         throw new Error(
@@ -542,6 +404,9 @@ export const compileNode = <T>(
 
       if (!inputs) {
         throw new Error("I'm drunk and I think this case should be impossible");
+      }
+      if (!(edge.input in inputs)) {
+        throw new Error(`Node "${node.name}" has no input ${edge.input}!`);
       }
       inputs[edge.input](fillerAst);
       // console.log(generate(ast.program));
@@ -563,8 +428,13 @@ export const compileNode = <T>(
     //   node.expressionOnly,
     //   generate(shaderSectionsToAst(sections).program)
     // );
-    return [sections, parser.fragment.produceFiller(node, ast)];
+    return [
+      sections,
+      // @ts-ignore
+      (stage in parser ? parser[stage] : parser).produceFiller(node, ast),
+    ];
   } else {
+    console.log('no inputs to node, checking', node, nodeContext);
     const sections = node.expressionOnly
       ? emptyShaderSections()
       : findShaderSections(ast as ParserProgram);
@@ -575,36 +445,66 @@ export const compileNode = <T>(
     //   node.expressionOnly,
     //   generate(shaderSectionsToAst(sections).program)
     // );
-    return [sections, parser.fragment.produceFiller(node, ast)];
+    return [
+      sections,
+      // @ts-ignore
+      (stage in parser ? parser[stage] : parser).produceFiller(node, ast),
+    ];
   }
 };
 
-export const computeNodeContext = <T>(
+export const computeSideContext = <T>(
   engineContext: EngineContext<T>,
   engine: Engine<T>,
   graph: Graph,
-  parser: ProgramParser<T>,
-  node: Node
+  parser: NodeParser<T>,
+  node: Node,
+  stage: ShaderStage
 ): NodeContext => {
+  // TODO: This doesn't follow inputs so it runs out of order, and frag runs
+  // before vert, so frag doesn't get the computed three shader source code...
+
+  // @ts-ignore
   if (parser.onBeforeCompile) {
+    // @ts-ignore
     parser.onBeforeCompile(engineContext, node);
   }
 
-  const inputEdges = graph.edges.filter((edge) => edge.to === node.id);
+  const inputEdges = graph.edges.filter(
+    (edge) => edge.to === node.id && edge.type === stage
+  );
 
-  const ast = parser.fragment.produceAst(
-    engineContext,
-    engine,
-    node,
-    inputEdges
-  );
+  const ast =
+    // @ts-ignore
+    (stage in parser ? parser[stage] : parser).produceAst(
+      engineContext,
+      engine,
+      node,
+      inputEdges
+    );
   const nodeContext: NodeContext = { ast };
-  nodeContext.inputs = parser.fragment.findInputs(
-    engineContext,
-    node,
-    ast,
-    nodeContext
-  );
+  /**
+   * Working on vertex refactor. I've tried to create a nodeparser type that
+   * supports either a node with both vertex/frag sections (like a shader), or a
+   * node that has only one section (like add). I also added a
+   * computeGraphContext(stage) function to compute the input slots for
+   * each side. This doesn't work for "add" node which doesn't have a vertex/
+   * fragment side. It's confusing to run the wiring of nodes through some that
+   * have a vertex/frag and others that don't. Should every node have one set
+   * of inputs per shader pass? That doesn't make sense for an add node because
+   * what happens when you add in a vertex and a fragment - what is the output?
+   * I think it makes more sense to break out a vertex and a fragment node
+   * that are linked together. I still need to figure out how things like
+   * toon/phong are handled. toonFrag/toonVert?
+   */
+  nodeContext.inputs =
+    // @ts-ignore
+    (stage in parser ? parser[stage] : parser).findInputs(
+      engineContext,
+      node,
+      ast,
+      nodeContext
+    );
 
   return nodeContext;
 };
@@ -612,41 +512,60 @@ export const computeNodeContext = <T>(
 export const computeGraphContext = <T>(
   engineContext: EngineContext<T>,
   engine: Engine<T>,
-  graph: Graph
+  graph: Graph,
+  stage: ShaderStage
 ) =>
-  graph.nodes.reduce((context, node) => {
-    const inputEdges = graph.edges.filter((edge) => edge.to === node.id);
-    let parser;
-    let nodeContext;
+  graph.nodes
+    .filter((node) => node.stage === stage)
+    .reduce((context, node) => {
+      // const inputEdges = graph.edges.filter((edge) => edge.to === node.id);
+      let parser;
+      let nodeContext;
 
-    // User parser
-    if ((parser = engine.parsers[node.type])) {
-      nodeContext = computeNodeContext(
-        engineContext,
-        engine,
-        graph,
-        parser,
-        node
-      );
-      // Internal parser
-    } else if ((parser = parsers[node.type])) {
-      nodeContext = computeNodeContext<Runtime>(
-        engineContext,
-        engine,
-        graph,
-        parser,
-        node
-      );
-    } else {
-      throw new Error(`No parser for ${node.type}`);
-    }
+      // if (
+      //   (stage === 'fragment' && !node.fragmentSource) ||
+      //   (stage === 'vertex' && !node.vertexSource)
+      // ) {
+      //   console.log(
+      //     'skipping',
+      //     node,
+      //     'for',
+      //     stage,
+      //     'because there is no source'
+      //   );
+      //   return context;
+      // }
 
-    context[node.id] = {
-      ...(context[node.id] || {}),
-      ...nodeContext,
-    };
-    return context;
-  }, engineContext.nodes);
+      // User parser
+      if ((parser = engine.parsers[node.type])) {
+        nodeContext = computeSideContext(
+          engineContext,
+          engine,
+          graph,
+          parser,
+          node,
+          stage
+        );
+        // Internal parser
+      } else if ((parser = parsers[node.type])) {
+        nodeContext = computeSideContext(
+          engineContext,
+          engine as unknown as Engine<Runtime>,
+          graph,
+          parser,
+          node,
+          stage
+        );
+      } else {
+        throw new Error(`No parser for ${node.type}`);
+      }
+
+      context[node.id] = {
+        ...(context[node.id] || {}),
+        ...nodeContext,
+      };
+      return context;
+    }, engineContext.nodes);
 
 export type CompileGraphResult = {
   fragment: ShaderSections;
@@ -658,18 +577,40 @@ export const compileGraph = <T>(
   engine: Engine<T>,
   graph: Graph
 ): CompileGraphResult => {
-  computeGraphContext(engineContext, engine, graph);
-
-  const outputNode = graph.nodes.find((node) => node.type === 'output');
-  if (!outputNode) {
-    throw new Error('No output in graph');
+  const outputFrag = graph.nodes.find(
+    (node) => node.type === 'output' && node.stage === 'fragment'
+  );
+  if (!outputFrag) {
+    throw new Error('No fragment output in graph');
   }
+  computeGraphContext(engineContext, engine, graph, 'fragment');
+  const fragment = compileNode(
+    engine,
+    graph,
+    engineContext,
+    outputFrag,
+    'fragment'
+  )[0];
+
+  const ouputVert = graph.nodes.find(
+    (node) => node.type === 'output' && node.stage === 'vertex'
+  );
+  if (!ouputVert) {
+    throw new Error('No vertex output in graph');
+  }
+  computeGraphContext(engineContext, engine, graph, 'vertex');
+  const vertex = compileNode(
+    engine,
+    graph,
+    engineContext,
+    ouputVert,
+    'vertex'
+  )[0];
 
   // Every compileNode returns the AST so far, as well as the filler for the
-  // next node with inputs. On the final step, we discard the filler, as it
-  // *should* be the
+  // next node with inputs. On the final step, we discard the filler
   return {
-    fragment: compileNode(engine, graph, engineContext, outputNode)[0],
-    vertex: emptyShaderSections(),
+    fragment,
+    vertex,
   };
 };

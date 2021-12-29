@@ -1,7 +1,7 @@
-import { shaderNode } from './nodestuff';
+import { sourceNode } from './nodestuff';
 
-const fireShader = (id: string) =>
-  shaderNode(
+const fireFrag = (id: string) =>
+  sourceNode(
     id,
     'Fire Shader',
     {},
@@ -191,6 +191,14 @@ const fireShader = (id: string) =>
      
      }
 `,
+    'fragment'
+  );
+
+const fireVert = (id: string) =>
+  sourceNode(
+    id,
+    'Fire Shader',
+    {},
     `
 /**
 * Example Vertex Shader
@@ -342,7 +350,8 @@ void main() {
     gl_Position = projectionMatrix * modelViewMatrix * vec4( vPosition, 1.0 );
 
 }
-`
+`,
+    'vertex'
   );
 
-export default fireShader;
+export { fireFrag, fireVert };

@@ -9,11 +9,12 @@ import { Engine, nodeName, EngineContext } from './graph';
 
 import {
   ShaderType,
-  Node,
   convert300MainToReturn,
   makeExpression,
   from2To3,
+  Node,
   Edge,
+  ShaderStage,
 } from './nodestuff';
 
 export type RuntimeContext = {
@@ -38,27 +39,41 @@ export type RuntimeContext = {
   };
 };
 
-export const phongNode = (id: string, name: string, options: Object): Node => {
+export const phongNode = (
+  id: string,
+  name: string,
+  options: Object,
+  stage: ShaderStage,
+  nextStageNodeId?: string
+): Node => {
   return {
     id,
     name,
     type: ShaderType.phong,
     options,
     inputs: [],
-    vertexSource: '',
-    fragmentSource: '',
+    source: '',
+    stage,
+    nextStageNodeId,
   };
 };
 
-export const toonNode = (id: string, name: string, options: Object): Node => {
+export const toonNode = (
+  id: string,
+  name: string,
+  options: Object,
+  stage: ShaderStage,
+  nextStageNodeId?: string
+): Node => {
   return {
     id,
     name,
     type: ShaderType.toon,
     options,
     inputs: [],
-    vertexSource: '',
-    fragmentSource: '',
+    source: '',
+    stage,
+    nextStageNodeId,
   };
 };
 
@@ -105,8 +120,21 @@ export const threngine: Engine<RuntimeContext> = {
   parsers: {
     [ShaderType.phong]: {
       onBeforeCompile: (engineContext, node) => {
-        console.log('onbeforecompile [ShaderType.phong]: {');
-        if (engineContext.runtime.cache.nodes[node.id]) {
+        console.log(
+          `⚙️ phong onbeforecompile "${node.name}" ${node.id} (${node.stage}) ${
+            node.nextStageNodeId || 'no next stage id'
+          }`
+        );
+        const { nodes } = engineContext.runtime.cache;
+        if (
+          nodes[node.id] ||
+          (node.nextStageNodeId && nodes[node.nextStageNodeId])
+        ) {
+          console.log(
+            ` -- skipping phong onbeforecompile "${node.name}" ${node.id} (${
+              node.stage
+            }) ${node.nextStageNodeId || 'no next stage id'}`
+          );
           return;
         }
         const { renderer, mesh, scene, camera, material, threeTone, three } =
@@ -143,10 +171,15 @@ export const threngine: Engine<RuntimeContext> = {
         produceAst: (
           // todo: help
           engineContext,
-          engine: any,
+          engine,
           node,
           inputEdges
-        ): AstNode => {
+        ) => {
+          console.log(
+            `produceAst "${node.name}" ${node.id} (${node.stage}) ${
+              node.nextStageNodeId || 'no next stage id'
+            }`
+          );
           const { fragment } = engineContext.runtime.cache.nodes[node.id];
 
           // console.log('Before preprocessing:', fragmentSource);
@@ -173,7 +206,7 @@ export const threngine: Engine<RuntimeContext> = {
           });
           return fragmentAst;
         },
-        findInputs: (engineContext, node: Node, ast: AstNode) => {
+        findInputs: (engineContext, node, ast: AstNode) => {
           // console.log(util.inspect(ast.program, false, null, true));
 
           let texture2Dcalls: [AstNode, string][] = [];
@@ -211,7 +244,7 @@ export const threngine: Engine<RuntimeContext> = {
 
           return inputs;
         },
-        produceFiller: (node: Node, ast: AstNode): AstNode => {
+        produceFiller: (node: Node, ast: AstNode) => {
           return makeExpression(`${nodeName(node)}()`);
         },
       },
@@ -222,8 +255,16 @@ export const threngine: Engine<RuntimeContext> = {
           engine: any,
           node,
           inputEdges
-        ): AstNode => {
-          const { vertex } = engineContext.runtime.cache.nodes[node.id];
+        ) => {
+          console.log(
+            `produceAst "${node.name}" ${node.id} (${node.stage}) ${
+              node.nextStageNodeId || 'no next stage id'
+            }`
+          );
+          const { nodes } = engineContext.runtime.cache;
+          const { vertex } =
+            nodes[node.id] ||
+            (node.nextStageNodeId && nodes[node.nextStageNodeId]);
           // const { renderer, mesh, scene, camera, material, threeTone, three } =
           //   engineContext.runtime;
           // mesh.material = new three.MeshPhongMaterial({
@@ -248,27 +289,27 @@ export const threngine: Engine<RuntimeContext> = {
           // const fragmentSource = gl.getShaderSource(fragmentProgram);
 
           // console.log('Before preprocessing:', fragmentSource);
-          const fragmentPreprocessed = preprocess(vertex, {
+          const vertexPreprocessed = preprocess(vertex, {
             preserve: {
               version: () => true,
             },
           });
-          // console.log('after', fragmentPreprocessed);
-          const fragmentAst = parser.parse(fragmentPreprocessed);
+          // console.log('after', vertexPreprocessed);
+          const vertexAst = parser.parse(vertexPreprocessed);
 
           // Used for the UI only right now
-          // engineContext.fragmentPreprocessed = fragmentPreprocessed;
-          // engineContext.fragmentSource = fragmentSource;
+          // engineContext.vertexPreprocessed = vertexPreprocessed;
+          // engineContext.vertexSource = vertexSource;
 
           // Do I need this? Is threejs shader already in 3.00 mode?
-          // from2To3(fragmentAst);
+          // from2To3(vertexAst);
 
-          convert300MainToReturn(fragmentAst);
-          renameBindings(fragmentAst.scopes[0], threngine.preserve, node.id);
-          renameFunctions(fragmentAst.scopes[0], node.id, {
-            main: nodeName(node),
-          });
-          return fragmentAst;
+          // convert300MainToReturn(vertexAst);
+          // renameBindings(vertexAst.scopes[0], threngine.preserve, node.id);
+          // renameFunctions(vertexAst.scopes[0], node.id, {
+          //   main: nodeName(node),
+          // });
+          return vertexAst;
         },
         findInputs: (engineContext, node: Node, ast: AstNode) => {
           // console.log(util.inspect(ast.program, false, null, true));
@@ -308,15 +349,26 @@ export const threngine: Engine<RuntimeContext> = {
 
           return inputs;
         },
-        produceFiller: (node: Node, ast: AstNode): AstNode => {
+        produceFiller: (node: Node, ast: AstNode) => {
           return makeExpression(`${nodeName(node)}()`);
         },
       },
     },
     [ShaderType.toon]: {
       onBeforeCompile: (engineContext, node) => {
-        console.log('onbeforecompile [ShaderType.toon]: {');
-        if (engineContext.runtime.cache.nodes[node.id]) {
+        console.log(
+          `⚙️ toon onbeforecompile "${node.name}" ${node.id} (${node.stage}) ${
+            node.nextStageNodeId || 'no next stage id'
+          }`
+        );
+        const { nodes } = engineContext.runtime.cache;
+        if (
+          nodes[node.id] ||
+          (node.nextStageNodeId && nodes[node.nextStageNodeId])
+        ) {
+          console.log(
+            ` -- skipping toon onbeforecompile "${node.name}" ${node.id} (${node.stage})`
+          );
           return;
         }
         const { renderer, mesh, scene, camera, material, threeTone, three } =
@@ -343,7 +395,7 @@ export const threngine: Engine<RuntimeContext> = {
         const fragment = gl.getShaderSource(fragmentRef);
         const vertex = gl.getShaderSource(vertexRef);
 
-        engineContext.runtime.cache.nodes[node.id] = {
+        nodes[node.id] = {
           fragmentRef,
           vertexRef,
           fragment,
@@ -355,9 +407,19 @@ export const threngine: Engine<RuntimeContext> = {
           // todo: help
           engineContext,
           engine,
-          node: Node,
-          inputEdges: Edge[]
-        ): AstNode => {
+          node,
+          inputEdges
+        ) => {
+          console.log(
+            `produceAst "${node.name}" ${node.id} (${node.stage}) ${
+              node.nextStageNodeId || 'no next stage id'
+            }`
+          );
+          console.log(
+            `fragment toon produceAst (id: ${
+              node.id
+            }) with cached [${Object.keys(engineContext.runtime.cache.nodes)}]`
+          );
           const { fragment } = engineContext.runtime.cache.nodes[node.id];
           // console.log('Before preprocessing:', fragmentSource);
           const fragmentPreprocessed = preprocess(fragment, {
@@ -421,7 +483,7 @@ export const threngine: Engine<RuntimeContext> = {
 
           return inputs;
         },
-        produceFiller: (node: Node, ast: AstNode): AstNode => {
+        produceFiller: (node, ast) => {
           return makeExpression(`${nodeName(node)}()`);
         },
       },
@@ -430,10 +492,18 @@ export const threngine: Engine<RuntimeContext> = {
           // todo: help
           engineContext,
           engine: any,
-          node: Node,
-          inputEdges: Edge[]
-        ): AstNode => {
-          const { vertex } = engineContext.runtime.cache.nodes[node.id];
+          node,
+          inputEdges
+        ) => {
+          console.log(
+            `produceAst "${node.name}" ${node.id} (${node.stage}) ${
+              node.nextStageNodeId || 'no next stage id'
+            }`
+          );
+          const { nodes } = engineContext.runtime.cache;
+          const { vertex } =
+            nodes[node.id] ||
+            (node.nextStageNodeId && nodes[node.nextStageNodeId]);
 
           // console.log('Before preprocessing:', fragmentSource);
           const fragmentPreprocessed = preprocess(vertex, {
@@ -447,7 +517,7 @@ export const threngine: Engine<RuntimeContext> = {
           // Do I need this? Is threejs shader already in 3.00 mode?
           // from2To3(fragmentAst);
 
-          convert300MainToReturn(fragmentAst);
+          // convert300MainToReturn(fragmentAst);
           renameBindings(fragmentAst.scopes[0], threngine.preserve, node.id);
           renameFunctions(fragmentAst.scopes[0], node.id, {
             main: nodeName(node),
@@ -492,7 +562,7 @@ export const threngine: Engine<RuntimeContext> = {
 
           return inputs;
         },
-        produceFiller: (node: Node, ast: AstNode): AstNode => {
+        produceFiller: (node, ast) => {
           return makeExpression(`${nodeName(node)}()`);
         },
       },

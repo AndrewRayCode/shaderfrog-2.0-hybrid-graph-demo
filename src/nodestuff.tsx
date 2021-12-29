@@ -8,6 +8,8 @@ import {
 // This file is not well organized, I have no idea what goes in here for
 // nodestuf vs graph
 
+export type ShaderStage = 'fragment' | 'vertex';
+
 export const from2To3 = (ast: ParserProgram) => {
   const glOut = 'fragmentColor';
   // TODO: add this back in when there's only one after the merge
@@ -133,41 +135,61 @@ export interface Node {
   type: ShaderType;
   options: Object;
   inputs: Array<Object>;
-  vertexSource: string;
-  fragmentSource: string;
+  source: string;
   expressionOnly?: boolean;
+  stage?: ShaderStage;
+  nextStageNodeId?: string;
 }
 
-export const shaderNode = (
+export const sourceNode = (
   id: string,
   name: string,
   options: Object,
-  fragment: string,
-  vertex: string
+  source: string,
+  stage: ShaderStage,
+  nextStageNodeId?: string
 ): Node => ({
   id,
   name,
   type: ShaderType.shader,
   options,
   inputs: [],
-  fragmentSource: fragment,
-  vertexSource: vertex,
+  source,
+  stage,
+  nextStageNodeId,
 });
 
-export const outputNode = (id: string, options: Object): Node => ({
+export const outputNode = (
+  id: string,
+  name: string,
+  options: Object,
+  stage: ShaderStage,
+  nextStageNodeId?: string
+): Node => ({
   id,
-  name: 'output',
+  name,
   type: ShaderType.output,
   options,
   inputs: [],
-  fragmentSource: `
+  // Consumed by findVec4Constructo4
+  source:
+    stage === 'fragment'
+      ? `
+#version 300 es
+out vec4 frogFragOut;
+void main() {
+  frogFragOut = vec4(1.0);
+}
+`
+      : `
 #version 300 es
 out vec4 frogFragOut;
 void main() {
   frogFragOut = vec4(1.0);
 }
 `,
-  vertexSource: '',
+  stage,
+  nextStageNodeId,
 });
 
 export const addNode = (id: string, options: Object): Node => ({
@@ -176,8 +198,7 @@ export const addNode = (id: string, options: Object): Node => ({
   type: ShaderType.add,
   options,
   inputs: [],
-  fragmentSource: `a + b`,
-  vertexSource: '',
+  source: `a + b`,
   expressionOnly: true,
 });
 
@@ -187,8 +208,7 @@ export const multiplyNode = (id: string, options: Object): Node => ({
   type: ShaderType.multiply,
   options,
   inputs: [],
-  fragmentSource: `a * b`,
-  vertexSource: '',
+  source: `a * b`,
   expressionOnly: true,
 });
 
@@ -197,6 +217,7 @@ export type Edge = {
   to: string;
   output: string;
   input: string;
+  type: ShaderStage;
 };
 
 export interface Graph {

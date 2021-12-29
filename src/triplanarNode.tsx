@@ -1,7 +1,7 @@
-import { shaderNode } from './nodestuff';
+import { sourceNode } from './nodestuff';
 
 const fireShader = (id: string) =>
-  shaderNode(
+  sourceNode(
     id,
     'Outline Shader',
     {},
@@ -76,7 +76,7 @@ void main() {
 
 }
 `,
-    ''
+    'fragment'
   );
 
 export default fireShader;

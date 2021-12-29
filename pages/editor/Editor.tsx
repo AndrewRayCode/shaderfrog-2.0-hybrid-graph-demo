@@ -25,45 +25,44 @@ import {
 } from '../../src/threngine';
 import purpleNoiseNode from '../../src/purpleNoiseNode';
 import colorShaderNode from '../../src/colorShaderNode';
-import fireNode from '../../src/fireNode';
+import { fireFrag, fireVert } from '../../src/fireNode';
 import triplanarNode from '../../src/triplanarNode';
 
 import contrastNoise from '..';
 
+let counter = 0;
+const id = () => '' + counter++;
+const outputF = outputNode(id(), 'Output F', {}, 'fragment');
+const outputV = outputNode(id(), 'Output V', {}, 'vertex', outputF.id);
+const phongF = phongNode(id(), 'Phong F', {}, 'fragment');
+const phongV = phongNode(id(), 'Phong V', {}, 'vertex', phongF.id);
+const toonF = toonNode(id(), 'Toon F', {}, 'fragment');
+const toonV = toonNode(id(), 'Toon V', {}, 'vertex', toonF.id);
+const colorShader = colorShaderNode(id());
+const purpleNoise = purpleNoiseNode(id());
+const fireF = fireFrag(id());
+const fireV = fireVert(id());
+const add = addNode(id(), {});
+const multiply = multiplyNode(id(), {});
+const triplanar = triplanarNode(id());
+
 const width = 600;
 const height = 600;
-
-type Runtime = {
-  lGraph: LiteGraph.LGraph;
-  index: number;
-  three: any;
-  threeTone: any;
-  mesh: any;
-  scene: any;
-  camera: any;
-  fragmentPreprocessed?: string;
-  fragmentSource?: string;
-  renderer: any;
-  // nodes: {
-  //   [nodeId: string]: {
-  //     fragment: string;
-  //     vertex: string;
-  //     inputs: NodeInputs[];
-  //   };
-  // };
-};
-
 const graph: Graph = {
   nodes: [
-    outputNode('1', {}),
-    phongNode('2', 'Phong', {}),
-    toonNode('3', 'Toon', {}),
-    colorShaderNode('4'),
-    purpleNoiseNode('5'),
-    fireNode('6'),
-    addNode('7', {}),
-    multiplyNode('8', {}),
-    triplanarNode('9'),
+    outputF,
+    outputV,
+    phongF,
+    phongV,
+    toonF,
+    toonV,
+    colorShader,
+    purpleNoise,
+    fireF,
+    fireV,
+    add,
+    multiply,
+    triplanar,
   ],
   edges: [
     // { from: '2', to: '1', output: 'main', input: 'color' },
@@ -77,29 +76,40 @@ const graph: Graph = {
     // TODO: AnyCode node to try manipulating above shader for normal map
     // TODO: Make uniforms like map: change the uniforms
     // TODO: Add 1.00 / 3.00 switch
+    // {
+    //   from: '7',
+    //   to: '2',
+    //   output: 'main',
+    //   input: 'texture2d_0',
+    //   type: 'fragment',
+    // },
+    // {
+    //   from: '4',
+    //   to: '7',
+    //   output: 'main',
+    //   input: 'a',
+    //   type: 'fragment',
+    // },
+    // {
+    //   from: '5',
+    //   to: '7',
+    //   output: 'main',
+    //   input: 'b',
+    //   type: 'fragment',
+    // },
     {
-      from: '7',
-      to: '2',
+      from: phongV.id,
+      to: outputV.id,
       output: 'main',
-      input: 'texture2d_0',
+      input: 'position',
+      type: 'fragment',
     },
     {
-      from: '4',
-      to: '7',
-      output: 'main',
-      input: 'a',
-    },
-    {
-      from: '5',
-      to: '7',
-      output: 'main',
-      input: 'b',
-    },
-    {
-      from: '6',
-      to: '1',
+      from: phongF.id,
+      to: outputF.id,
       output: 'main',
       input: 'color',
+      type: 'fragment',
     },
   ],
 };
@@ -237,7 +247,7 @@ const ThreeScene: React.FC = () => {
 
   const [activeShader, setActiveShader] = useState<Node>(graph.nodes[0]);
   const [shaderUnsaved, setShaderUnsaved] = useState<string>(
-    activeShader.fragmentSource
+    activeShader.source
   );
   const [preprocessed, setPreprocessed] = useState<string | undefined>('');
   const [vertex, setVertex] = useState<string | undefined>('');
@@ -285,7 +295,7 @@ const ThreeScene: React.FC = () => {
     camera.lookAt(0, 0, 0);
     scene.add(camera);
 
-    const threeTone = new three.TextureLoader().load('/3tone.jpg');
+    const threeTone = new three.TextureLoader().load('/2/3tone.jpg');
     threeTone.minFilter = three.NearestFilter;
     threeTone.magFilter = three.NearestFilter;
 
@@ -326,7 +336,6 @@ const ThreeScene: React.FC = () => {
       nodes: {},
       debuggingNonsense: {},
     });
-    console.log('set context!', sceneData.current);
   }, []);
 
   useEffect(() => {
@@ -334,7 +343,6 @@ const ThreeScene: React.FC = () => {
       return;
     }
     const { renderer, scene, camera, mesh } = ctx.runtime;
-    console.log('reading context', ctx);
     let controls: OrbitControls;
 
     if (domRef.current) {
@@ -380,7 +388,6 @@ const ThreeScene: React.FC = () => {
       }
       requestRef.current = requestAnimationFrame(animate);
     };
-    console.log('mounting');
     animate(0);
 
     return () => {
@@ -397,7 +404,6 @@ const ThreeScene: React.FC = () => {
   }, [ctx, tabIndex]);
 
   useEffect(() => {
-    console.log('running bad effect with', sceneData);
     const { lights, scene } = sceneData.current;
     (lights || []).forEach((light: any) => {
       scene.remove(light);
@@ -435,7 +441,6 @@ const ThreeScene: React.FC = () => {
     }
     // TODO: Exploring changing lighting issue
     sceneData.current.mesh.material.needsUpdate = true;
-    console.log(sceneData.current.mesh.material);
   }, [lighting]);
 
   // Compile
@@ -454,9 +459,10 @@ const ThreeScene: React.FC = () => {
         input: Object.keys(ctx.nodes[link.target_id].inputs || {})[
           link.target_slot
         ],
+        type: 'fragment',
       }));
     }
-    console.log('rendering!', graph);
+    console.warn('compiling!', graph);
 
     // const engineContext: EngineContext = {
     //   renderer,
@@ -494,7 +500,6 @@ total: ${(now - allStart).toFixed(3)}ms
 
     // TODO: Right now the three shader doesn't output vPosition, and it's not
     // supported by shaderfrog to merge outputs in vertex shaders yet
-    console.log(ctx.nodes);
     const vertex = renderer
       .getContext()
       .getShaderSource(ctx.runtime.cache.nodes['2'].vertexRef)
@@ -564,15 +569,24 @@ total: ${(now - allStart).toFixed(3)}ms
     mesh.material = newMat;
 
     setCompiling(false);
+    console.log('final fragment, ', fragmentResult);
     setFinalFragment(fragmentResult);
     setVertex(vertex);
     // Mutated from the processAst call for now
     setPreprocessed(ctx.debuggingNonsense.fragmentPreprocessed);
     setOriginal(ctx.debuggingNonsense.fragmentSource);
+  }, [ctx, lighting]);
 
+  useEffect(() => {
+    if (!ctx.runtime || !ctx.runtime.lGraph || lgNodesAdded) {
+      return;
+    }
+    console.warn('creating lgraph nodes!');
+    const { lGraph } = ctx.runtime;
     lGraph.clear();
-    let engines = 1;
+    let engines = 0;
     let maths = 0;
+    let outputs = 0;
     let shaders = 0;
     const spacing = 200;
     const lNodes: { [key: string]: LiteGraph.LGraphNode } = {};
@@ -582,7 +596,9 @@ total: ${(now - allStart).toFixed(3)}ms
       let lNode: LiteGraph.LGraphNode;
       if (node.type === ShaderType.output) {
         x = spacing * 2;
+        y = outputs * 100;
         lNode = LiteGraph.LiteGraph.createNode('basic/output');
+        outputs++;
       } else if (
         node.type === ShaderType.phong ||
         node.type === ShaderType.toon
@@ -616,17 +632,17 @@ total: ${(now - allStart).toFixed(3)}ms
       lGraph.add(lNode);
       lNode.onSelected = () => {
         setActiveShader(node);
-        setShaderUnsaved(node.fragmentSource);
+        setShaderUnsaved(node.source);
       };
-      lNode.onConnectionsChange = (
-        type,
-        slotIndex,
-        isConnected,
-        link,
-        ioSlot
-      ) => {
-        console.log({ type, slotIndex, isConnected, link, ioSlot });
-      };
+      // lNode.onConnectionsChange = (
+      //   type,
+      //   slotIndex,
+      //   isConnected,
+      //   link,
+      //   ioSlot
+      // ) => {
+      //   console.log({ type, slotIndex, isConnected, link, ioSlot });
+      // };
       // lNode.setValue(4.5);
       lNodes[node.id] = lNode;
     });
@@ -655,7 +671,7 @@ total: ${(now - allStart).toFixed(3)}ms
     // StructuredUniform.prototype.setValue, because there's a
     // StructuredUniform.map.position/coneCos etc, but there's no
     // pointLights/spotLights present in the uniforms array maybe?
-  }, [ctx, lighting, lgNodesAdded]);
+  }, [ctx]);
 
   // TODO: You were here, trying to modify the edges in real time,
   // and it fails. Because of mutation of the AST?
@@ -690,7 +706,7 @@ total: ${(now - allStart).toFixed(3)}ms
             const found = graph.nodes.find(({ id }) => activeShader.id === id);
             if (found) {
               setCompiling(true);
-              found.fragmentSource = shaderUnsaved;
+              found.source = shaderUnsaved;
               // @ts-ignore
               setCtx({ ...ctx, index: ctx.index + 1 });
             }

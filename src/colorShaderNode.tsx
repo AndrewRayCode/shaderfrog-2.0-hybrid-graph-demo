@@ -1,7 +1,7 @@
-import { shaderNode } from './nodestuff';
+import { sourceNode } from './nodestuff';
 
 const colorShaderNode = (id: string) =>
-  shaderNode(
+  sourceNode(
     id,
     'Color Shader',
     {},
@@ -43,7 +43,7 @@ void main() {
     gl_FragColor = vec4( color * tan(vNormal*time*time), 1.0 );
 }
 `,
-    ''
+    'fragment'
   );
 
 export default colorShaderNode;

@@ -8,7 +8,7 @@ import {
   Graph,
   shaderSectionsToAst,
   addNode,
-  shaderNode,
+  sourceNode,
 } from './src/nodestuff';
 
 const sourceToGraphWithOutputHelper = (
@@ -17,7 +17,7 @@ const sourceToGraphWithOutputHelper = (
 ): Graph => ({
   nodes: [
     outputNode('1', {}),
-    shaderNode(
+    sourceNode(
       '2',
       'Shader',
       {
@@ -33,6 +33,7 @@ const sourceToGraphWithOutputHelper = (
       to: '1',
       output: 'main',
       input: 'color',
+      type: 'fragment',
     },
   ],
 });
@@ -86,11 +87,41 @@ void main() {
     addNode('add_4_id', {}),
   ],
   edges: [
-    { from: 'shader_2_id', to: 'add_3_id', output: 'main', input: 'a' },
-    { from: 'shader_4_id', to: 'add_3_id', output: 'main', input: 'b' },
-    { from: 'add_3_id', to: 'output_id', output: 'expression', input: 'color' },
-    { from: 'add_4_id', to: 'add_3_id', output: 'expression', input: 'c' },
-    { from: 'shader_5_id', to: 'add_4_id', output: 'main', input: 'a' },
+    {
+      from: 'shader_2_id',
+      to: 'add_3_id',
+      output: 'main',
+      input: 'a',
+      type: 'fragment',
+    },
+    {
+      from: 'shader_4_id',
+      to: 'add_3_id',
+      output: 'main',
+      input: 'b',
+      type: 'fragment',
+    },
+    {
+      from: 'add_3_id',
+      to: 'output_id',
+      output: 'expression',
+      input: 'color',
+      type: 'fragment',
+    },
+    {
+      from: 'add_4_id',
+      to: 'add_3_id',
+      output: 'expression',
+      input: 'c',
+      type: 'fragment',
+    },
+    {
+      from: 'shader_5_id',
+      to: 'add_4_id',
+      output: 'main',
+      input: 'a',
+      type: 'fragment',
+    },
   ],
 };
 

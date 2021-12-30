@@ -1,4 +1,4 @@
-import { parser } from '@shaderfrog/glsl-parser';
+import { parser, generate } from '@shaderfrog/glsl-parser';
 import { visit, AstNode } from '@shaderfrog/glsl-parser/dist/ast';
 import {
   ParserProgram,
@@ -69,57 +69,73 @@ export const from2To3 = (ast: ParserProgram) => {
   });
 };
 
+const findFn = (ast: ParserProgram, name: string): AstNode | undefined =>
+  ast.program.find(
+    (line) =>
+      line.type === 'function' && line.prototype.header.name.identifier === name
+  );
+
 export const testBlorfConvertGlPositionToReturnPosition = (
   ast: ParserProgram
 ): void => {
   const mainReturnVar = `frogOut`;
 
-  // Find the output variable, as in "pc_fragColor" from  "out highp vec4 pc_fragColor;"
-  let outName: string | undefined;
-  ast.program.find((line, index) => {
-    if (
-      line.type === 'declaration_statement' &&
-      line.declaration?.specified_type?.qualifiers?.find(
-        (n: AstNode) => n.token === 'out'
-      ) &&
-      line.declaration.specified_type.specifier.specifier.token === 'vec4'
-    ) {
-      // Remove the out declaration
-      ast.program.splice(index, 1);
-      outName = line.declaration.declarations[0].identifier.identifier;
-      return true;
-    }
-  });
-  if (!outName) {
-    throw new Error('No "out vec4" line found in the fragment shader');
+  const main = findFn(ast, 'main');
+  if (!main) {
+    throw new Error(`No main fn found!`);
   }
-
-  visit(ast, {
-    identifier: {
-      enter: (path) => {
-        if (path.node.identifier === outName) {
-          path.node.identifier = mainReturnVar;
-          path.node.doNotDescope = true; // hack because this var is in the scope which gets renamed later
-        }
-      },
-    },
-    function: {
-      enter: (path) => {
-        if (path.node.prototype.header.name.identifier === 'main') {
-          path.node.prototype.header.returnType.specifier.specifier.token =
-            'vec4';
-          path.node.body.statements.unshift({
-            type: 'literal',
-            literal: `vec4 ${mainReturnVar};\n`,
-          });
-          path.node.body.statements.push({
-            type: 'literal',
-            literal: `return ${mainReturnVar};\n`,
-          });
-        }
-      },
-    },
+  main.prototype.header.returnType.specifier.specifier.token = 'vec4';
+  const assign = main.body.statements.find(
+    (stmt: AstNode) =>
+      stmt.type === 'expression_statement' &&
+      stmt.expression.left?.identifier === 'gl_Position'
+  );
+  if (!assign) {
+    throw new Error(`No gl position assign found in main fn!`);
+  }
+  main.body.statements.splice(main.body.statements.indexOf(assign), 1, {
+    type: 'literal',
+    literal: `vec4 ${mainReturnVar} = ${generate(assign.expression.right)};\n`,
   });
+
+  main.body.statements.push({
+    type: 'literal',
+    literal: `return ${mainReturnVar};\n`,
+  });
+
+  // todo can find this?
+  // ast.scopes[0].functions.main
+  // Find the output variable, as in "pc_fragColor" from  "out highp vec4 pc_fragColor;"
+  // const found = ast.program.find((line, index) => {
+  //   if (
+  //     line.type === 'declaration_statement' &&
+  //     line.declaration.declarations?.[0]?.identifier?.identifier === assignment
+  //   ) {
+  //     // Remove the out declaration
+  //     ast.program.splice(index, 1);
+  //     // outName = line.declaration.declarations[0].identifier.identifier;
+  //     return true;
+  //   }
+  // });
+  // if (!found) {
+  //   throw new Error(`No assignment to "${assignment}" found`);
+  // }
+
+  // todo do I really wan tto convert gl_position to return insetad?
+  // visit(ast, {
+  //   function: {
+  //     enter: (path) => {
+  //       if (path.node.prototype.header.name.identifier === 'main') {
+  //         path.node.prototype.header.returnType.specifier.specifier.token =
+  //           'vec3';
+  //         path.node.body.statements.push({
+  //           type: 'literal',
+  //           literal: `return ${assignment};\n`,
+  //         });
+  //       }
+  //     },
+  //   },
+  // });
 };
 
 export const convert300MainToReturn = (ast: ParserProgram): void => {
@@ -235,11 +251,11 @@ void main() {
   frogFragOut = vec4(1.0);
 }
 `
+// gl_Position isn't "out"-able apparently https://stackoverflow.com/a/24425436/743464
       : `
 #version 300 es
-out vec4 frogFragOut;
 void main() {
-  frogFragOut = vec4(1.0);
+  gl_Position = vec4(1.0);
 }
 `,
   stage,

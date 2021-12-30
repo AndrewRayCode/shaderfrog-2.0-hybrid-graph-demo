@@ -1,3 +1,5 @@
+import util from 'util';
+
 import { parser } from '@shaderfrog/glsl-parser';
 import { generate } from '@shaderfrog/glsl-parser';
 
@@ -12,6 +14,9 @@ import {
   sourceNode,
   testBlorfConvertGlPositionToReturnPosition,
 } from './src/nodestuff';
+
+const inspect = (thing: any): void =>
+  console.log(util.inspect(thing, false, null, true));
 
 const sourceToGraphWithOutputHelper = (fragment: string): Graph => ({
   nodes: [
@@ -124,11 +129,6 @@ void main() {
 test('horrible jesus help me', () => {
   const threeVertexMain = `
   void main() {
-    vUv = ( uvTransform * vec3( uv, 1 ) ).xy;
-  vec3 objectNormal = vec3( normal );
-  vec3 transformedNormal = objectNormal;
-  transformedNormal = normalMatrix * transformedNormal;
-    vNormal = normalize( transformedNormal );
   vec3 transformed = vec3( position );
   vec4 mvPosition = vec4( transformed, 1.0 );
   mvPosition = modelViewMatrix * mvPosition;
@@ -139,7 +139,12 @@ test('horrible jesus help me', () => {
 
   // TODO: Trying to extract gl_Position into return above
   const vertexAst = parser.parse(threeVertexMain);
-  testBlorfConvertGlPositionToReturnPosition(vertexAst);
+  inspect(
+    vertexAst.scopes[0].functions.main.references.find(
+      ({ type }) => type === 'function_header'
+    )
+  );
+  testBlorfConvertGlPositionToReturnPosition(vertexAst, 'transformed');
   expect(generate(vertexAst)).toBe('hi');
 });
 

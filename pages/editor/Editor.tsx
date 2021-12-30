@@ -26,6 +26,7 @@ import {
 } from '../../src/threngine';
 import purpleNoiseNode from '../../src/purpleNoiseNode';
 import colorShaderNode from '../../src/colorShaderNode';
+import heatShaderNode from '../../src/heatShaderNode';
 import { fireFrag, fireVert } from '../../src/fireNode';
 import triplanarNode from '../../src/triplanarNode';
 
@@ -41,6 +42,7 @@ const toonF = toonNode(id(), 'Toon F', {}, 'fragment');
 const toonV = toonNode(id(), 'Toon V', {}, 'vertex', toonF.id);
 const colorShader = colorShaderNode(id());
 const purpleNoise = purpleNoiseNode(id());
+const heatShader = heatShaderNode(id());
 const fireF = fireFrag(id());
 const fireV = fireVert(id());
 const add = addNode(id(), {});
@@ -59,6 +61,7 @@ const graph: Graph = {
     toonV,
     colorShader,
     purpleNoise,
+    heatShader,
     fireF,
     fireV,
     add,

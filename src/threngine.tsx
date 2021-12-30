@@ -10,6 +10,8 @@ import { Engine, nodeName, EngineContext } from './graph';
 import {
   ShaderType,
   convert300MainToReturn,
+  testBlorfConvertGlPositionToReturnPosition,
+  findTestBlorfAssignGlPosition,
   makeExpression,
   from2To3,
   Node,
@@ -81,6 +83,14 @@ export const threngine: Engine<RuntimeContext> = {
   preserve: new Set<string>([
     'viewMatrix',
     'modelMatrix',
+    'modelViewMatrix',
+    'projectionMatrix',
+    'normalMatrix',
+    'uvTransform',
+    // Attributes
+    'position',
+    'normal',
+    'uv',
     // Varyings
     'vUv',
     'vUv2',
@@ -306,14 +316,14 @@ export const threngine: Engine<RuntimeContext> = {
 
           console.log('vertex convert', vertexPreprocessed);
           try {
-            convert300MainToReturn(vertexAst);
+            testBlorfConvertGlPositionToReturnPosition(vertexAst);
           } catch (err) {
             console.error(err);
           }
-          // renameBindings(vertexAst.scopes[0], threngine.preserve, node.id);
-          // renameFunctions(vertexAst.scopes[0], node.id, {
-          //   main: nodeName(node),
-          // });
+          renameBindings(vertexAst.scopes[0], threngine.preserve, node.id);
+          renameFunctions(vertexAst.scopes[0], node.id, {
+            main: nodeName(node),
+          });
           return vertexAst;
         },
         findInputs: (engineContext, node: Node, ast: AstNode) => {
@@ -523,7 +533,7 @@ export const threngine: Engine<RuntimeContext> = {
           // from2To3(vertexAst);
 
           try {
-            convert300MainToReturn(vertexAst);
+            testBlorfConvertGlPositionToReturnPosition(vertexAst);
           } catch (err) {
             console.error(err);
           }

@@ -1,7 +1,5 @@
-import util from 'util';
-
 import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor';
-import { parser } from '@shaderfrog/glsl-parser';
+import { parser, generate } from '@shaderfrog/glsl-parser';
 import {
   renameBindings,
   renameFunctions,
@@ -25,9 +23,6 @@ import {
   emptyShaderSections,
   ShaderStage,
 } from './nodestuff';
-
-const inspect = (thing: any): void =>
-  console.log(util.inspect(thing, false, null, true));
 
 export interface Engine<T> {
   preserve: Set<string>;
@@ -108,29 +103,52 @@ type Runtime = {};
 
 export const parsers: Parser<Runtime> = {
   [ShaderType.output]: {
-    produceAst: (engineContext, engine, node, inputEdges): AstNode => {
-      const fragmentPreprocessed = preprocess(node.source, {
-        preserve: {
-          version: () => true,
-        },
-      });
-      const fragmentAst = parser.parse(fragmentPreprocessed);
-      return fragmentAst;
+    fragment: {
+      produceAst: (engineContext, engine, node, inputEdges): AstNode => {
+        const fragmentPreprocessed = preprocess(node.source, {
+          preserve: {
+            version: () => true,
+          },
+        });
+        const fragmentAst = parser.parse(fragmentPreprocessed);
+        return fragmentAst;
+      },
+      findInputs: (engineContext, node, ast) => {
+        const assignNode = findVec4Constructor(ast);
+        if (!assignNode) {
+          throw new Error(`Impossible error, no assign node in output`);
+        }
+        return {
+          color: (fillerAst: AstNode) => {
+            assignNode.right = fillerAst;
+          },
+        };
+      },
+      produceFiller: emptyFiller,
     },
-    findInputs: (engineContext, node, ast) => {
-      const assignNode = findVec4Constructo4(ast);
-      if (!assignNode) {
-        throw new Error(`Impossible error, no assign node in output`);
-      }
-      return {
-        [node.stage === 'fragment' ? 'color' : 'position']: (
-          fillerAst: AstNode
-        ) => {
-          assignNode.right = fillerAst;
-        },
-      };
+    vertex: {
+      produceAst: (engineContext, engine, node, inputEdges): AstNode => {
+        const vertexPreprocessed = preprocess(node.source, {
+          preserve: {
+            version: () => true,
+          },
+        });
+        const vertexAst = parser.parse(vertexPreprocessed);
+        return vertexAst;
+      },
+      findInputs: (engineContext, node, ast) => {
+        const assignNode = findTestBlorfAssignGlPosition(ast, 'gl_Position');
+        if (!assignNode) {
+          throw new Error(`Impossible error, no assign node in output`);
+        }
+        return {
+          position: (fillerAst: AstNode) => {
+            assignNode.expression.right = fillerAst;
+          },
+        };
+      },
+      produceFiller: emptyFiller,
     },
-    produceFiller: emptyFiller,
   },
   [ShaderType.shader]: {
     fragment: {
@@ -323,7 +341,7 @@ export const parsers: Parser<Runtime> = {
   },
 };
 
-const findVec4Constructo4 = (ast: AstNode): AstNode | undefined => {
+const findVec4Constructor = (ast: AstNode): AstNode | undefined => {
   let parent: AstNode | undefined;
   const visitors: NodeVisitors = {
     function_call: {
@@ -337,6 +355,25 @@ const findVec4Constructo4 = (ast: AstNode): AstNode | undefined => {
   };
   visit(ast, visitors);
   return parent;
+};
+
+export const findTestBlorfAssignGlPosition = (
+  ast: AstNode,
+  assignTo: string
+): AstNode | undefined => {
+  let assign: AstNode | undefined;
+  const visitors: NodeVisitors = {
+    expression_statement: {
+      enter: (path) => {
+        if (path.node.expression?.left?.identifier === assignTo) {
+          assign = path.node;
+        }
+        path.skip();
+      },
+    },
+  };
+  visit(ast, visitors);
+  return assign;
 };
 
 // export type NodeInputs = {

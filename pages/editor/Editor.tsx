@@ -26,7 +26,11 @@ import {
 } from '../../src/threngine';
 import purpleNoiseNode from '../../src/purpleNoiseNode';
 import colorShaderNode from '../../src/colorShaderNode';
-import heatShaderNode from '../../src/heatShaderNode';
+import fluidCirclesNode from '../../src/fluidCirclesNode';
+import {
+  heatShaderFragmentNode,
+  heatShaderVertexNode,
+} from '../../src/heatShaderNode';
 import { fireFrag, fireVert } from '../../src/fireNode';
 import triplanarNode from '../../src/triplanarNode';
 
@@ -40,9 +44,11 @@ const phongF = phongNode(id(), 'Phong F', {}, 'fragment');
 const phongV = phongNode(id(), 'Phong V', {}, 'vertex', phongF.id);
 const toonF = toonNode(id(), 'Toon F', {}, 'fragment');
 const toonV = toonNode(id(), 'Toon V', {}, 'vertex', toonF.id);
+const fluidF = fluidCirclesNode(id());
 const colorShader = colorShaderNode(id());
 const purpleNoise = purpleNoiseNode(id());
-const heatShader = heatShaderNode(id());
+const heatShaderF = heatShaderFragmentNode(id());
+const heatShaderV = heatShaderVertexNode(id());
 const fireF = fireFrag(id());
 const fireV = fireVert(id());
 const add = addNode(id(), {});
@@ -58,10 +64,12 @@ const graph: Graph = {
     phongF,
     phongV,
     toonF,
+    fluidF,
     toonV,
     colorShader,
     purpleNoise,
-    heatShader,
+    heatShaderF,
+    heatShaderV,
     fireF,
     fireV,
     add,
@@ -114,6 +122,20 @@ const graph: Graph = {
       output: 'main',
       input: 'color',
       type: 'fragment',
+    },
+    {
+      from: fireF.id,
+      to: phongF.id,
+      output: 'color',
+      input: 'texture2d_0',
+      type: 'fragment',
+    },
+    {
+      from: fireV.id,
+      to: phongV.id,
+      output: 'position',
+      input: 'position',
+      type: 'vertex',
     },
   ],
 };
@@ -256,6 +278,7 @@ const ThreeScene: React.FC = () => {
   const [preprocessed, setPreprocessed] = useState<string | undefined>('');
   const [vertex, setVertex] = useState<string | undefined>('');
   const [original, setOriginal] = useState<string | undefined>('');
+  const [originalVert, setOriginalVert] = useState<string | undefined>('');
   const [finalFragment, setFinalFragment] = useState<string | undefined>('');
 
   const [ctx, setCtx] = useState<EngineContext<RuntimeContext>>({
@@ -318,7 +341,7 @@ const ThreeScene: React.FC = () => {
     sceneData.current.scene = scene;
     sceneData.current.mesh = mesh;
 
-    const ambientLight = new three.AmbientLight(0x000000);
+    const ambientLight = new three.AmbientLight(0x221111);
     scene.add(ambientLight);
 
     const renderer = new three.WebGLRenderer();
@@ -547,8 +570,13 @@ total: ${(now - allStart).toFixed(3)}ms
 
     console.log('oh hai birfday boi boi boiiiii');
 
+    const fs1: any = graph.nodes.find((node) => node.name === 'Fireball F')?.id;
+    const fs2: any = graph.nodes.find((node) => node.name === 'Fireball V')?.id;
+    const fc: any = graph.nodes.find(
+      (node) => node.name === 'Fluid Circles'
+    )?.id;
     const pu: any = graph.nodes.find(
-      (node) => node.name === 'Noise Shader'
+      (node) => node.name === 'Purple Metal'
     )?.id;
     const edgeId: any = graph.nodes.find(
       (node) => node.name === 'Triplanar'
@@ -563,11 +591,21 @@ total: ${(now - allStart).toFixed(3)}ms
       gradientMap: { value: threeTone },
       // map: { value: new three.TextureLoader().load('/contrast-noise.png') },
       image: { value: new three.TextureLoader().load('/2/contrast-noise.png') },
+      [`tExplosion_${fs1}`]: {
+        value: new three.TextureLoader().load('/2/explosion.png'),
+      },
+      [`tExplosion_${fs2}`]: {
+        value: new three.TextureLoader().load('/2/explosion.png'),
+      },
       time: { value: 0 },
       resolution: { value: 0.5 },
       speed: { value: 3 },
       opacity: { value: 1 },
       lightPosition: { value: new three.Vector3(10, 10, 10) },
+
+      roughness: { value: 0.046 },
+      metalness: { value: 0.491 },
+      clearcoat: { value: 1 },
 
       [`brightnessX_${pu}`]: { value: 1.0 },
       [`permutations_${pu}`]: { value: 10 },
@@ -576,6 +614,22 @@ total: ${(now - allStart).toFixed(3)}ms
       [`color1_${pu}`]: { value: new three.Vector3(0.7, 0.3, 0.8) },
       [`color2_${pu}`]: { value: new three.Vector3(0.1, 0.2, 0.9) },
       [`color3_${pu}`]: { value: new three.Vector3(0.8, 0.3, 0.8) },
+
+      [`baseRadius_${fc}`]: { value: 1 },
+      [`colorVariation_${fc}`]: { value: 0.6 },
+      [`brightnessVariation_${fc}`]: { value: 0 },
+      [`variation_${fc}`]: { value: 8 },
+      [`backgroundColor_${fc}`]: { value: new three.Vector3(0.0, 0.0, 0.5) },
+
+      [`fireSpeed_${fs1}`]: { value: 0.6 },
+      [`fireSpeed_${fs2}`]: { value: 0.6 },
+      [`pulseHeight_${fs1}`]: { value: 0.1 },
+      [`pulseHeight_${fs2}`]: { value: 0.1 },
+      [`displacementHeight_${fs1}`]: { value: 0.6 },
+      [`displacementHeight_${fs2}`]: { value: 0.6 },
+      [`turbulenceDetail_${fs1}`]: { value: 0.8 },
+      [`turbulenceDetail_${fs2}`]: { value: 0.8 },
+      [`brightness`]: { value: 0.8 },
 
       [`cel0_${edgeId}`]: { value: 1.0 },
       [`cel1_${edgeId}`]: { value: 1.0 },
@@ -610,6 +664,7 @@ total: ${(now - allStart).toFixed(3)}ms
     // Mutated from the processAst call for now
     setPreprocessed(ctx.debuggingNonsense.fragmentPreprocessed);
     setOriginal(ctx.debuggingNonsense.fragmentSource);
+    setOriginalVert(ctx.debuggingNonsense.vertexSource);
   }, [ctx, lighting]);
 
   useEffect(() => {
@@ -787,10 +842,11 @@ total: ${(now - allStart).toFixed(3)}ms
             <TabPanel>
               <Tabs>
                 <TabGroup className={styles.secondary}>
-                  <Tab>Original Three Frag</Tab>
-                  <Tab>Preprocessed Three Frag</Tab>
-                  <Tab>Final Vert</Tab>
-                  <Tab>Final Frag</Tab>
+                  <Tab>Original 3Frag</Tab>
+                  <Tab>Original 3Vert</Tab>
+                  <Tab>Preprocessed 3Frag</Tab>
+                  <Tab>Vert</Tab>
+                  <Tab>Frag</Tab>
                 </TabGroup>
                 <TabPanels>
                   <TabPanel>
@@ -798,6 +854,13 @@ total: ${(now - allStart).toFixed(3)}ms
                       className={styles.code}
                       readOnly
                       value={original}
+                    ></textarea>
+                  </TabPanel>
+                  <TabPanel>
+                    <textarea
+                      className={styles.code}
+                      readOnly
+                      value={originalVert}
                     ></textarea>
                   </TabPanel>
                   <TabPanel>

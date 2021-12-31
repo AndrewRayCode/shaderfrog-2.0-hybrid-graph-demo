@@ -129,21 +129,13 @@ void main() {
 test('horrible jesus help me', () => {
   const threeVertexMain = `
   void main() {
-  vec3 transformed = vec3( position );
-  vec4 mvPosition = vec4( transformed, 1.0 );
-  mvPosition = modelViewMatrix * mvPosition;
-  gl_Position = projectionMatrix * mvPosition;
-    vViewPosition = - mvPosition.xyz;
+  x = texture2D(v,v);
   }
 `;
 
   // TODO: Trying to extract gl_Position into return above
   const vertexAst = parser.parse(threeVertexMain);
-  inspect(
-    vertexAst.scopes[0].functions.main.references.find(
-      ({ type }) => type === 'function_header'
-    )
-  );
+  inspect(vertexAst);
   testBlorfConvertGlPositionToReturnPosition(vertexAst, 'transformed');
   expect(generate(vertexAst)).toBe('hi');
 });

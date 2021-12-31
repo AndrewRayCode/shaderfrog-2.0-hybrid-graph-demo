@@ -10,7 +10,7 @@ import {
 
 export type ShaderStage = 'fragment' | 'vertex';
 
-export const from2To3 = (ast: ParserProgram) => {
+export const from2To3 = (ast: ParserProgram, stage: ShaderStage) => {
   const glOut = 'fragmentColor';
   // TODO: add this back in when there's only one after the merge
   // ast.program.unshift({
@@ -18,37 +18,46 @@ export const from2To3 = (ast: ParserProgram) => {
   //   line: '#version 300 es',
   //   _: '\n',
   // });
-  ast.program.unshift({
-    type: 'declaration_statement',
-    declaration: {
-      type: 'declarator_list',
-      specified_type: {
-        type: 'fully_specified_type',
-        qualifiers: [{ type: 'keyword', token: 'out', whitespace: ' ' }],
-        specifier: {
-          type: 'type_specifier',
-          specifier: { type: 'keyword', token: 'vec4', whitespace: ' ' },
-          quantifier: null,
-        },
-      },
-      declarations: [
-        {
-          type: 'declaration',
-          identifier: {
-            type: 'identifier',
-            identifier: glOut,
-            whitespace: undefined,
+  if (stage === 'fragment') {
+    ast.program.unshift({
+      type: 'declaration_statement',
+      declaration: {
+        type: 'declarator_list',
+        specified_type: {
+          type: 'fully_specified_type',
+          qualifiers: [{ type: 'keyword', token: 'out', whitespace: ' ' }],
+          specifier: {
+            type: 'type_specifier',
+            specifier: { type: 'keyword', token: 'vec4', whitespace: ' ' },
+            quantifier: null,
           },
-          quantifier: null,
-          operator: undefined,
-          initializer: undefined,
         },
-      ],
-      commas: [],
-    },
-    semi: { type: 'literal', literal: ';', whitespace: '\n    ' },
-  });
+        declarations: [
+          {
+            type: 'declaration',
+            identifier: {
+              type: 'identifier',
+              identifier: glOut,
+              whitespace: undefined,
+            },
+            quantifier: null,
+            operator: undefined,
+            initializer: undefined,
+          },
+        ],
+        commas: [],
+      },
+      semi: { type: 'literal', literal: ';', whitespace: '\n    ' },
+    });
+  }
   visit(ast, {
+    function_call: {
+      enter: (path) => {
+        if (path.node.identifier.specifier?.identifier === 'texture2D') {
+          path.node.identifier.specifier.identifier = 'texture';
+        }
+      },
+    },
     identifier: {
       enter: (path) => {
         if (path.node.identifier === 'gl_FragColor') {
@@ -62,7 +71,8 @@ export const from2To3 = (ast: ParserProgram) => {
           (path.node.token === 'attribute' || path.node.token === 'varying') &&
           path.findParent((path) => path.node.type === 'declaration_statement')
         ) {
-          path.node.token = 'in';
+          path.node.token =
+            stage === 'vertex' && path.node.token === 'varying' ? 'out' : 'in';
         }
       },
     },
@@ -76,7 +86,8 @@ const findFn = (ast: ParserProgram, name: string): AstNode | undefined =>
   );
 
 export const testBlorfConvertGlPositionToReturnPosition = (
-  ast: ParserProgram
+  ast: ParserProgram,
+  hack: boolean
 ): void => {
   const mainReturnVar = `frogOut`;
 
@@ -100,7 +111,9 @@ export const testBlorfConvertGlPositionToReturnPosition = (
 
   main.body.statements.push({
     type: 'literal',
-    literal: `return ${mainReturnVar};\n`,
+    literal: hack
+      ? 'return vec4(newPosition, 1.0);\n'
+      : `return ${mainReturnVar};\n`,
   });
 
   // todo can find this?
@@ -251,8 +264,8 @@ void main() {
   frogFragOut = vec4(1.0);
 }
 `
-// gl_Position isn't "out"-able apparently https://stackoverflow.com/a/24425436/743464
-      : `
+      : // gl_Position isn't "out"-able apparently https://stackoverflow.com/a/24425436/743464
+        `
 #version 300 es
 void main() {
   gl_Position = vec4(1.0);
@@ -310,6 +323,7 @@ export interface ShaderSections {
   preprocessor: AstNode[];
   structs: AstNode[];
   inStatements: AstNode[];
+  outStatements: AstNode[];
   uniforms: AstNode[];
   program: AstNode[];
 }
@@ -321,6 +335,7 @@ export const emptyShaderSections = (): ShaderSections => ({
   structs: [],
   program: [],
   inStatements: [],
+  outStatements: [],
   uniforms: [],
 });
 
@@ -333,6 +348,7 @@ export const mergeShaderSections = (
     precision: [...s1.precision, ...s2.precision],
     preprocessor: [...s1.preprocessor, ...s2.preprocessor],
     inStatements: [...s1.inStatements, ...s2.inStatements],
+    outStatements: [...s1.outStatements, ...s2.outStatements],
     structs: [...s1.structs, ...s2.structs],
     uniforms: [...s1.uniforms, ...s2.uniforms],
     program: [...s1.program, ...s2.program],
@@ -353,7 +369,8 @@ export const shaderSectionsToAst = (
         ...sections.preprocessor,
         // Structs before ins and uniforms as they can reference structs
         ...sections.structs,
-        ...dedupeInStatements(sections.inStatements),
+        ...dedupeQualifiedStatements(sections.inStatements, 'in'),
+        ...dedupeQualifiedStatements(sections.outStatements, 'out'),
         ...dedupeUniforms(sections.uniforms),
         ...sections.program,
       ],
@@ -424,6 +441,7 @@ export const findShaderSections = (ast: ParserProgram): ShaderSections => {
     version: [],
     structs: [],
     inStatements: [],
+    outStatements: [],
     uniforms: [],
     program: [],
   };
@@ -475,6 +493,16 @@ export const findShaderSections = (ast: ParserProgram): ShaderSections => {
         ...sections,
         inStatements: sections.inStatements.concat(node),
       };
+    } else if (
+      node.type === 'declaration_statement' &&
+      node.declaration?.specified_type?.qualifiers?.find(
+        (n: AstNode) => n.token === 'out'
+      )
+    ) {
+      return {
+        ...sections,
+        outStatements: sections.outStatements.concat(node),
+      };
     } else {
       return {
         ...sections,
@@ -523,7 +551,10 @@ export const highestPrecisions = (nodes: AstNode[]): AstNode[] =>
     makeStatement(`precision ${precision} ${typeName}`)
   );
 
-export const dedupeInStatements = (statements: AstNode[]): any =>
+export const dedupeQualifiedStatements = (
+  statements: AstNode[],
+  qualifier: string
+): any =>
   Object.entries(
     statements.reduce(
       (stmts, stmt) => ({
@@ -545,7 +576,7 @@ export const dedupeInStatements = (statements: AstNode[]): any =>
       {} as { [key: string]: AstNode }
     )
   ).map(([type, varNames]) =>
-    makeStatement(`in ${type} ${Object.keys(varNames).join(', ')}`)
+    makeStatement(`${qualifier} ${type} ${Object.keys(varNames).join(', ')}`)
   );
 
 export const dedupeUniforms = (statements: AstNode[]): any =>

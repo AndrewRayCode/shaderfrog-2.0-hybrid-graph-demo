@@ -3,7 +3,7 @@ import { sourceNode } from './nodestuff';
 const purpleNoiseNode = (id: string) =>
   sourceNode(
     id,
-    'Noise Shader',
+    'Purple Metal',
     {},
     `
 precision highp float;

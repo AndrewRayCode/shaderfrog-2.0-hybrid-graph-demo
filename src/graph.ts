@@ -17,6 +17,7 @@ import {
   mergeShaderSections,
   shaderSectionsToAst,
   convert300MainToReturn,
+  testBlorfConvertGlPositionToReturnPosition,
   makeExpression,
   from2To3,
   Edge,
@@ -53,16 +54,11 @@ export type EngineContext<RuntimeContext> = {
   nodes: { [id: string]: NodeContext };
   runtime: RuntimeContext;
   debuggingNonsense: {
+    vertexSource?: string;
     fragmentPreprocessed?: string;
     fragmentSource?: string;
   };
 };
-
-// export type NodeParsers = {
-//   [key in ShaderType]?: {
-//     parse: <T>(engineContext: EngineContext<T>, node: Node) => ProgramAst;
-//   };
-// };
 
 export type ShaderParser<T> = {
   produceAst: (
@@ -159,7 +155,7 @@ export const parsers: Parser<Runtime> = {
           },
         });
         const fragmentAst = parser.parse(fragmentPreprocessed);
-        from2To3(fragmentAst);
+        from2To3(fragmentAst, 'fragment');
 
         convert300MainToReturn(fragmentAst);
         renameBindings(fragmentAst.scopes[0], engine.preserve, node.id);
@@ -210,9 +206,9 @@ export const parsers: Parser<Runtime> = {
           },
         });
         const vertexAst = parser.parse(vertexPreprocessed);
-        // from2To3(vertexAst);
+        from2To3(vertexAst, 'vertex');
 
-        // convert300MainToReturn(vertexAst);
+        testBlorfConvertGlPositionToReturnPosition(vertexAst, true);
         renameBindings(vertexAst.scopes[0], engine.preserve, node.id);
         renameFunctions(vertexAst.scopes[0], node.id, {
           main: nodeName(node),
@@ -375,19 +371,6 @@ export const findTestBlorfAssignGlPosition = (
   visit(ast, visitors);
   return assign;
 };
-
-// export type NodeInputs = {
-//   [inputName: string]: (a: AstNode) => void;
-// };
-
-// export type NodeContext = {
-//   ast: AstNode;
-//   inputs: NodeInputs;
-// };
-
-// export type GraphContext = {
-//   [nodeId: string]: NodeContext;
-// };
 
 export type CompileNodeResult = [ShaderSections, AstNode | void];
 

@@ -30,11 +30,13 @@ import fluidCirclesNode from '../../src/fluidCirclesNode';
 import {
   heatShaderFragmentNode,
   heatShaderVertexNode,
-} from '../../src/heatShaderNode';
+} from '../../src/heatmapShaderNode';
 import { fireFrag, fireVert } from '../../src/fireNode';
 import triplanarNode from '../../src/triplanarNode';
 
 import contrastNoise from '..';
+import { useAsyncExtendedState } from '../../src/useAsyncExtendedState';
+import { usePromise } from '../../src/usePromise';
 
 let counter = 0;
 const id = () => '' + counter++;
@@ -124,15 +126,36 @@ const graph: Graph = {
       type: 'fragment',
     },
     {
-      from: fireF.id,
+      from: add.id,
       to: phongF.id,
       output: 'color',
       input: 'texture2d_0',
       type: 'fragment',
     },
     {
-      from: fireV.id,
+      from: purpleNoise.id,
+      to: add.id,
+      output: 'color',
+      input: 'a',
+      type: 'fragment',
+    },
+    {
+      from: heatShaderF.id,
+      to: add.id,
+      output: 'color',
+      input: 'b',
+      type: 'fragment',
+    },
+    {
+      from: heatShaderV.id,
       to: phongV.id,
+      output: 'position',
+      input: 'position',
+      type: 'vertex',
+    },
+    {
+      from: fireV.id,
+      to: heatShaderV.id,
       output: 'position',
       input: 'position',
       type: 'vertex',
@@ -164,6 +187,188 @@ class LAddNode extends LiteGraph.LGraphNode {
   }
 }
 LiteGraph.LiteGraph.registerNodeType('basic/add', LAddNode);
+
+const compileTheBlorf = async (
+  ctx: EngineContext<RuntimeContext>,
+  lGraph: any
+): Promise<{
+  compileMs: string;
+  fragmentResult: string;
+  vertexResult: string;
+}> =>
+  new Promise((resolve, reject) => {
+    setTimeout(() => {
+      console.warn(
+        'compiling!',
+        graph,
+        'from lGraph',
+        lGraph,
+        'for nodes',
+        ctx.nodes
+      );
+
+      // const engineContext: EngineContext = {
+      //   renderer,
+      //   nodes: {},
+      // };
+
+      const allStart = performance.now();
+
+      // mesh.material = material;
+      // renderer.compile(scene, camera);
+
+      // const compileStart = performance.now();
+      // engineContext.nodes['2'] = {
+      //   fragment: renderer.properties.get(mesh.material).programs.values().next()
+      //     .value.fragmentShader,
+      //   vertex: renderer.properties.get(mesh.material).programs.values().next()
+      //     .value.vertexShader,
+      //   // console.log('vertexProgram', vertexProgram);
+      // };
+      // console.log('engineContext', engineContext);
+      const result = compileGraph(ctx, threngine, graph);
+      const fragmentResult = generate(
+        shaderSectionsToAst(result.fragment).program
+      );
+      const vertexResult = generate(shaderSectionsToAst(result.vertex).program);
+
+      const now = performance.now();
+      console.log(`Compilation took:
+-------------------
+total: ${(now - allStart).toFixed(3)}ms
+-------------------
+`);
+      // three renderer compile: ${(compileStart - allStart).toFixed(3)}ms
+      // frog compile: ${(now - compileStart).toFixed(3)}ms
+      // -------------------`);
+
+      // TODO: Right now the three shader doesn't output vPosition, and it's not
+      // supported by shaderfrog to merge outputs in vertex shaders yet
+
+      const { renderer, threeTone, mesh } = ctx.runtime;
+      const vertex = renderer
+        .getContext()
+        .getShaderSource(ctx.runtime.cache.nodes['2'].vertexRef)
+        ?.replace(
+          'attribute vec3 position;',
+          'attribute vec3 position; varying vec3 vPosition;'
+        )
+        .replace('void main() {', 'void main() {\nvPosition = position;\n');
+
+      console.log('oh hai birfday boi boi boiiiii');
+
+      const fs1: any = graph.nodes.find(
+        (node) => node.name === 'Fireball F'
+      )?.id;
+      const fs2: any = graph.nodes.find(
+        (node) => node.name === 'Fireball V'
+      )?.id;
+      const fc: any = graph.nodes.find(
+        (node) => node.name === 'Fluid Circles'
+      )?.id;
+      const pu: any = graph.nodes.find(
+        (node) => node.name === 'Purple Metal'
+      )?.id;
+      const edgeId: any = graph.nodes.find(
+        (node) => node.name === 'Triplanar'
+      )?.id;
+      const hs1: any = graph.nodes.find(
+        (node) => node.name === 'Fake Heatmap F'
+      )?.id;
+      const hs2: any = graph.nodes.find(
+        (node) => node.name === 'Fake Heatmap V'
+      )?.id;
+
+      const uniforms = {
+        ...three.ShaderLib.phong.uniforms,
+        ...three.ShaderLib.toon.uniforms,
+        diffuse: { value: new three.Color(0xffffff) },
+        // ambientLightColor: { value: new three.Color(0xffffff) },
+        color: { value: new three.Color(0xffffff) },
+        gradientMap: { value: threeTone },
+        // map: { value: new three.TextureLoader().load('/contrast-noise.png') },
+        image: {
+          value: new three.TextureLoader().load('/2/contrast-noise.png'),
+        },
+        [`tExplosion_${fs1}`]: {
+          value: new three.TextureLoader().load('/2/explosion.png'),
+        },
+        [`tExplosion_${fs2}`]: {
+          value: new three.TextureLoader().load('/2/explosion.png'),
+        },
+        time: { value: 0 },
+        resolution: { value: 0.5 },
+        speed: { value: 3 },
+        opacity: { value: 1 },
+        lightPosition: { value: new three.Vector3(10, 10, 10) },
+
+        roughness: { value: 0.046 },
+        metalness: { value: 0.491 },
+        clearcoat: { value: 1 },
+
+        [`brightnessX_${pu}`]: { value: 1.0 },
+        [`permutations_${pu}`]: { value: 10 },
+        [`iterations_${pu}`]: { value: 1 },
+        [`uvScale_${pu}`]: { value: new three.Vector2(1, 1) },
+        [`color1_${pu}`]: { value: new three.Vector3(0.7, 0.3, 0.8) },
+        [`color2_${pu}`]: { value: new three.Vector3(0.1, 0.2, 0.9) },
+        [`color3_${pu}`]: { value: new three.Vector3(0.8, 0.3, 0.8) },
+
+        [`scale_${hs1}`]: { value: 1.2 },
+        [`power_${hs1}`]: { value: 1 },
+        [`scale_${hs2}`]: { value: 1.2 },
+        [`power_${hs2}`]: { value: 1 },
+
+        [`baseRadius_${fc}`]: { value: 1 },
+        [`colorVariation_${fc}`]: { value: 0.6 },
+        [`brightnessVariation_${fc}`]: { value: 0 },
+        [`variation_${fc}`]: { value: 8 },
+        [`backgroundColor_${fc}`]: { value: new three.Vector3(0.0, 0.0, 0.5) },
+
+        [`fireSpeed_${fs1}`]: { value: 0.6 },
+        [`fireSpeed_${fs2}`]: { value: 0.6 },
+        [`pulseHeight_${fs1}`]: { value: 0.1 },
+        [`pulseHeight_${fs2}`]: { value: 0.1 },
+        [`displacementHeight_${fs1}`]: { value: 0.2 },
+        [`displacementHeight_${fs2}`]: { value: 0.2 },
+        [`turbulenceDetail_${fs1}`]: { value: 0.8 },
+        [`turbulenceDetail_${fs2}`]: { value: 0.8 },
+        [`brightness`]: { value: 0.8 },
+
+        [`cel0_${edgeId}`]: { value: 1.0 },
+        [`cel1_${edgeId}`]: { value: 1.0 },
+        [`cel2_${edgeId}`]: { value: 1.0 },
+        [`cel3_${edgeId}`]: { value: 1.0 },
+        [`cel4_${edgeId}`]: { value: 1.0 },
+        [`celFade_${edgeId}`]: { value: 1.0 },
+        [`edgeSteepness_${edgeId}`]: { value: 0.1 },
+        [`edgeBorder_${edgeId}`]: { value: 0.1 },
+        [`color_${edgeId}`]: { value: 1.0 },
+      };
+      console.log('applying uniforms', uniforms);
+
+      // the before code
+      const newMat = new three.RawShaderMaterial({
+        name: 'ShaderFrog Phong Material',
+        lights: true,
+        uniforms,
+        vertexShader: vertexResult,
+        fragmentShader: fragmentResult,
+        // onBeforeCompile: () => {
+        //   console.log('raw shader precomp');
+        // },
+      });
+
+      // @ts-ignore
+      mesh.material = newMat;
+
+      resolve({
+        compileMs: (now - allStart).toFixed(3),
+        fragmentResult,
+        vertexResult,
+      });
+    }, 0);
+  });
 
 type ChildProps = { children?: React.ReactNode; onSelect?: Function };
 const Tabs = ({ children, onSelect }: ChildProps) => {
@@ -218,6 +423,7 @@ const TabGroup = ({
 type TabProps = {
   children?: React.ReactNode;
   selected?: number;
+  className?: any;
   setSelected?: Function;
   onSelect?: Function;
   index?: number;
@@ -226,6 +432,7 @@ const Tab = ({
   children,
   selected,
   setSelected,
+  className,
   onSelect,
   index,
   ...props
@@ -233,7 +440,9 @@ const Tab = ({
   return (
     <div
       {...props}
-      className={cx(styles.tab, { [styles.selected]: selected === index })}
+      className={cx(className, styles.tab, {
+        [styles.selected]: selected === index,
+      })}
       onClick={(event) => {
         event.preventDefault();
         onSelect && onSelect(index);
@@ -261,8 +470,7 @@ const TabPanel = ({ children, ...props }: TabPanelProps) => {
 const ThreeScene: React.FC = () => {
   const graphRef = useRef<HTMLCanvasElement>(null);
   const domRef = useRef<HTMLDivElement>(null);
-  const requestRef = useRef<number>();
-  const sceneData = useRef<{ [key: string]: any }>({});
+  const sceneRef = useRef<{ [key: string]: any }>({});
 
   const [lgInitted, setLgInitted] = useState<boolean>(false);
   const [lgNodesAdded, setLgNodesAdded] = useState<boolean>(false);
@@ -276,10 +484,20 @@ const ThreeScene: React.FC = () => {
     activeShader.source
   );
   const [preprocessed, setPreprocessed] = useState<string | undefined>('');
+  const [preprocessedVert, setPreprocessedVert] = useState<string | undefined>(
+    ''
+  );
   const [vertex, setVertex] = useState<string | undefined>('');
   const [original, setOriginal] = useState<string | undefined>('');
   const [originalVert, setOriginalVert] = useState<string | undefined>('');
   const [finalFragment, setFinalFragment] = useState<string | undefined>('');
+
+  const [state, setState, extendState] = useAsyncExtendedState<any>({
+    fragError: null,
+    vertError: null,
+    compileMs: null,
+  });
+  // const [_, doCompile] = usePromise(compileTheBlorf);
 
   const [ctx, setCtx] = useState<EngineContext<RuntimeContext>>({
     debuggingNonsense: {},
@@ -338,10 +556,10 @@ const ThreeScene: React.FC = () => {
     const mesh = new three.Mesh(geometry);
     scene.add(mesh);
 
-    sceneData.current.scene = scene;
-    sceneData.current.mesh = mesh;
+    sceneRef.current.scene = scene;
+    sceneRef.current.mesh = mesh;
 
-    const ambientLight = new three.AmbientLight(0x221111);
+    const ambientLight = new three.AmbientLight(0x020202);
     scene.add(ambientLight);
 
     const renderer = new three.WebGLRenderer();
@@ -376,6 +594,7 @@ const ThreeScene: React.FC = () => {
       domRef.current.appendChild(renderer.domElement);
       controls = new OrbitControls(camera, renderer.domElement);
       controls.update();
+      sceneRef.current.controls = controls;
       // setControls(controls);
     }
 
@@ -384,19 +603,38 @@ const ThreeScene: React.FC = () => {
         controls.update();
       }
       renderer.render(scene, camera);
+      if (sceneRef.current.shadersUpdated) {
+        const gl = renderer.getContext();
+
+        const fragmentRef = renderer.properties
+          .get(mesh.material)
+          .programs.values()
+          .next().value.fragmentShader;
+        const vertexRef = renderer.properties
+          .get(mesh.material)
+          .programs.values()
+          .next().value.vertexShader;
+
+        extendState({
+          fragError: gl.getShaderInfoLog(fragmentRef).trim(),
+          vertError: gl.getShaderInfoLog(vertexRef).trim(),
+        });
+
+        sceneRef.current.shadersUpdated = false;
+      }
       // mesh.rotation.x = time * 0.0003;
       // mesh.rotation.y = time * -0.0003;
       // mesh.rotation.z = time * 0.0003;
-      if (sceneData.current?.lights) {
-        const light = sceneData.current.lights[0];
+      if (sceneRef.current?.lights) {
+        const light = sceneRef.current.lights[0];
         light.position.x = 1.2 * Math.sin(time * 0.001);
         light.position.y = 1.2 * Math.cos(time * 0.001);
         light.lookAt(
           new three.Vector3(Math.cos(time * 0.0015), Math.sin(time * 0.0015), 0)
         );
 
-        if (sceneData.current.lights.length > 2) {
-          const light = sceneData.current.lights[1];
+        if (sceneRef.current.lights.length > 2) {
+          const light = sceneRef.current.lights[1];
           light.position.x = 1.3 * Math.cos(time * 0.0015);
           light.position.y = 1.3 * Math.sin(time * 0.0015);
 
@@ -413,7 +651,7 @@ const ThreeScene: React.FC = () => {
       if (mesh.material?.uniforms?.time) {
         mesh.material.uniforms.time.value = time * 0.001;
       }
-      requestRef.current = requestAnimationFrame(animate);
+      sceneRef.current.frame = requestAnimationFrame(animate);
     };
     animate(0);
 
@@ -423,15 +661,16 @@ const ThreeScene: React.FC = () => {
       // if (current) {
       //   current.removeChild(renderer.domElement);
       // }
-      if (requestRef.current) {
+      if (sceneRef.current) {
+        sceneRef.current.controls.dispose();
         console.log('cancel');
-        cancelAnimationFrame(requestRef.current);
+        cancelAnimationFrame(sceneRef.current.frame);
       }
     };
   }, [ctx, tabIndex]);
 
   useEffect(() => {
-    const { lights, scene } = sceneData.current;
+    const { lights, scene } = sceneRef.current;
     (lights || []).forEach((light: any) => {
       scene.remove(light);
     });
@@ -442,7 +681,7 @@ const ThreeScene: React.FC = () => {
       scene.add(pointLight);
       const helper = new three.PointLightHelper(pointLight, 0.1);
       scene.add(helper);
-      sceneData.current.lights = [pointLight, helper];
+      sceneRef.current.lights = [pointLight, helper];
     } else {
       const light = new three.SpotLight(0x00ff00, 1, 3, 0.4, 1);
       light.position.set(0, 0, 2);
@@ -464,10 +703,10 @@ const ThreeScene: React.FC = () => {
       );
       scene.add(helper2);
 
-      sceneData.current.lights = [light, light2, helper, helper2];
+      sceneRef.current.lights = [light, light2, helper, helper2];
     }
     // TODO: Exploring changing lighting issue
-    sceneData.current.mesh.material.needsUpdate = true;
+    sceneRef.current.mesh.material.needsUpdate = true;
   }, [lighting]);
 
   // Compile
@@ -481,7 +720,7 @@ const ThreeScene: React.FC = () => {
     if (lgNodesAdded) {
       graph.edges = Object.values(lGraph.links).reduce<Edge[]>(
         (edges: any, link: any) => {
-          const input = Object.keys(ctx.nodes[link.target_id].inputs || {})[
+          const input = Object.keys(ctx.nodes[link.target_id]?.inputs || {})[
             link.target_slot
           ];
           if (input) {
@@ -491,9 +730,6 @@ const ThreeScene: React.FC = () => {
                 from: link.origin_id.toString(),
                 to: link.target_id.toString(),
                 output: 'main',
-                // TODO: When conneting to a texture2d_0 here for phong F, there is no
-                // texture2d_0 input slot on "ctx.nodes[link.target_id].inputs". That
-                // var is {}.
                 input,
                 type: 'fragment',
               },
@@ -513,162 +749,25 @@ const ThreeScene: React.FC = () => {
         []
       );
     }
-    console.warn(
-      'compiling!',
-      graph,
-      'from lGraph',
-      lGraph,
-      'for nodes',
-      ctx.nodes
+
+    compileTheBlorf(ctx, lGraph).then(
+      ({ compileMs, vertexResult, fragmentResult }) => {
+        sceneRef.current.shadersUpdated = true;
+        setCompiling(false);
+        setFinalFragment(fragmentResult);
+        setVertex(vertexResult);
+        // Mutated from the processAst call for now
+        setPreprocessed(ctx.debuggingNonsense.fragmentPreprocessed);
+        setPreprocessedVert(ctx.debuggingNonsense.vertexPreprocessed);
+        setOriginal(ctx.debuggingNonsense.fragmentSource);
+        setOriginalVert(ctx.debuggingNonsense.vertexSource);
+        extendState({ compileMs });
+      }
     );
-
-    // const engineContext: EngineContext = {
-    //   renderer,
-    //   nodes: {},
-    // };
-
-    const allStart = performance.now();
-
-    // mesh.material = material;
-    // renderer.compile(scene, camera);
-
-    // const compileStart = performance.now();
-    // engineContext.nodes['2'] = {
-    //   fragment: renderer.properties.get(mesh.material).programs.values().next()
-    //     .value.fragmentShader,
-    //   vertex: renderer.properties.get(mesh.material).programs.values().next()
-    //     .value.vertexShader,
-    //   // console.log('vertexProgram', vertexProgram);
-    // };
-    // console.log('engineContext', engineContext);
-    const result = compileGraph(ctx, threngine, graph);
-    const fragmentResult = generate(
-      shaderSectionsToAst(result.fragment).program
-    );
-    const vertexResult = generate(shaderSectionsToAst(result.vertex).program);
-
-    const now = performance.now();
-    console.log(`Compilation took:
--------------------
-total: ${(now - allStart).toFixed(3)}ms
--------------------
-`);
-    // three renderer compile: ${(compileStart - allStart).toFixed(3)}ms
-    // frog compile: ${(now - compileStart).toFixed(3)}ms
-    // -------------------`);
-
-    // TODO: Right now the three shader doesn't output vPosition, and it's not
-    // supported by shaderfrog to merge outputs in vertex shaders yet
-    const vertex = renderer
-      .getContext()
-      .getShaderSource(ctx.runtime.cache.nodes['2'].vertexRef)
-      ?.replace(
-        'attribute vec3 position;',
-        'attribute vec3 position; varying vec3 vPosition;'
-      )
-      .replace('void main() {', 'void main() {\nvPosition = position;\n');
-
-    console.log('oh hai birfday boi boi boiiiii');
-
-    const fs1: any = graph.nodes.find((node) => node.name === 'Fireball F')?.id;
-    const fs2: any = graph.nodes.find((node) => node.name === 'Fireball V')?.id;
-    const fc: any = graph.nodes.find(
-      (node) => node.name === 'Fluid Circles'
-    )?.id;
-    const pu: any = graph.nodes.find(
-      (node) => node.name === 'Purple Metal'
-    )?.id;
-    const edgeId: any = graph.nodes.find(
-      (node) => node.name === 'Triplanar'
-    )?.id;
-
-    const uniforms = {
-      ...three.ShaderLib.phong.uniforms,
-      ...three.ShaderLib.toon.uniforms,
-      diffuse: { value: new three.Color(0xffffff) },
-      // ambientLightColor: { value: new three.Color(0xffffff) },
-      color: { value: new three.Color(0xffffff) },
-      gradientMap: { value: threeTone },
-      // map: { value: new three.TextureLoader().load('/contrast-noise.png') },
-      image: { value: new three.TextureLoader().load('/2/contrast-noise.png') },
-      [`tExplosion_${fs1}`]: {
-        value: new three.TextureLoader().load('/2/explosion.png'),
-      },
-      [`tExplosion_${fs2}`]: {
-        value: new three.TextureLoader().load('/2/explosion.png'),
-      },
-      time: { value: 0 },
-      resolution: { value: 0.5 },
-      speed: { value: 3 },
-      opacity: { value: 1 },
-      lightPosition: { value: new three.Vector3(10, 10, 10) },
-
-      roughness: { value: 0.046 },
-      metalness: { value: 0.491 },
-      clearcoat: { value: 1 },
-
-      [`brightnessX_${pu}`]: { value: 1.0 },
-      [`permutations_${pu}`]: { value: 10 },
-      [`iterations_${pu}`]: { value: 1 },
-      [`uvScale_${pu}`]: { value: new three.Vector2(1, 1) },
-      [`color1_${pu}`]: { value: new three.Vector3(0.7, 0.3, 0.8) },
-      [`color2_${pu}`]: { value: new three.Vector3(0.1, 0.2, 0.9) },
-      [`color3_${pu}`]: { value: new three.Vector3(0.8, 0.3, 0.8) },
-
-      [`baseRadius_${fc}`]: { value: 1 },
-      [`colorVariation_${fc}`]: { value: 0.6 },
-      [`brightnessVariation_${fc}`]: { value: 0 },
-      [`variation_${fc}`]: { value: 8 },
-      [`backgroundColor_${fc}`]: { value: new three.Vector3(0.0, 0.0, 0.5) },
-
-      [`fireSpeed_${fs1}`]: { value: 0.6 },
-      [`fireSpeed_${fs2}`]: { value: 0.6 },
-      [`pulseHeight_${fs1}`]: { value: 0.1 },
-      [`pulseHeight_${fs2}`]: { value: 0.1 },
-      [`displacementHeight_${fs1}`]: { value: 0.6 },
-      [`displacementHeight_${fs2}`]: { value: 0.6 },
-      [`turbulenceDetail_${fs1}`]: { value: 0.8 },
-      [`turbulenceDetail_${fs2}`]: { value: 0.8 },
-      [`brightness`]: { value: 0.8 },
-
-      [`cel0_${edgeId}`]: { value: 1.0 },
-      [`cel1_${edgeId}`]: { value: 1.0 },
-      [`cel2_${edgeId}`]: { value: 1.0 },
-      [`cel3_${edgeId}`]: { value: 1.0 },
-      [`cel4_${edgeId}`]: { value: 1.0 },
-      [`celFade_${edgeId}`]: { value: 1.0 },
-      [`edgeSteepness_${edgeId}`]: { value: 0.1 },
-      [`edgeBorder_${edgeId}`]: { value: 0.1 },
-      [`color_${edgeId}`]: { value: 1.0 },
-    };
-    console.log('applying uniforms', uniforms);
-
-    // the before code
-    const newMat = new three.RawShaderMaterial({
-      name: 'ShaderFrog Phong Material',
-      lights: true,
-      uniforms,
-      vertexShader: vertexResult,
-      fragmentShader: fragmentResult,
-      // onBeforeCompile: () => {
-      //   console.log('raw shader precomp');
-      // },
-    });
-
-    // @ts-ignore
-    mesh.material = newMat;
-
-    setCompiling(false);
-    setFinalFragment(fragmentResult);
-    setVertex(vertexResult);
-    // Mutated from the processAst call for now
-    setPreprocessed(ctx.debuggingNonsense.fragmentPreprocessed);
-    setOriginal(ctx.debuggingNonsense.fragmentSource);
-    setOriginalVert(ctx.debuggingNonsense.vertexSource);
   }, [ctx, lighting]);
 
   useEffect(() => {
-    if (!ctx.runtime || !ctx.runtime.lGraph || lgNodesAdded) {
+    if (!ctx.runtime || !ctx.runtime.lGraph || !originalVert || lgNodesAdded) {
       return;
     }
     console.warn('creating lgraph nodes!');
@@ -762,7 +861,7 @@ total: ${(now - allStart).toFixed(3)}ms
     // StructuredUniform.prototype.setValue, because there's a
     // StructuredUniform.map.position/coneCos etc, but there's no
     // pointLights/spotLights present in the uniforms array maybe?
-  }, [ctx]);
+  }, [ctx, originalVert]);
 
   // TODO: You were here, trying to modify the edges in real time,
   // and it fails. Because of mutation of the AST?
@@ -786,11 +885,12 @@ total: ${(now - allStart).toFixed(3)}ms
           Save Graph
         </button>
 
-        <textarea
+        <CodeEditor
           className={styles.shader}
-          onChange={(event) => setShaderUnsaved(event.target.value)}
-          value={shaderUnsaved}
-        ></textarea>
+          onChange={(event: any) => setShaderUnsaved(event.target.value)}
+        >
+          {shaderUnsaved}
+        </CodeEditor>
         <button
           className={styles.button}
           onClick={() => {
@@ -810,7 +910,13 @@ total: ${(now - allStart).toFixed(3)}ms
         <Tabs onSelect={setTabIndex}>
           <TabGroup>
             <Tab>Scene</Tab>
-            <Tab>Final Shader Source</Tab>
+            <Tab
+              className={{
+                [styles.errored]: state.fragError || state.vertError,
+              }}
+            >
+              Final Shader Source
+            </Tab>
           </TabGroup>
           <TabPanels>
             <TabPanel className={styles.scene}>
@@ -820,6 +926,7 @@ total: ${(now - allStart).toFixed(3)}ms
               ></div>
               <div className={styles.sceneLabel}>
                 {compiling && 'Compiling...'}
+                {!compiling && `Complile took ${state.compileMs}ms`}
               </div>
               <div className={styles.sceneControls}>
                 Preview with:
@@ -842,47 +949,49 @@ total: ${(now - allStart).toFixed(3)}ms
             <TabPanel>
               <Tabs>
                 <TabGroup className={styles.secondary}>
-                  <Tab>Original 3Frag</Tab>
-                  <Tab>Original 3Vert</Tab>
-                  <Tab>Preprocessed 3Frag</Tab>
-                  <Tab>Vert</Tab>
-                  <Tab>Frag</Tab>
+                  <Tab>3Frag</Tab>
+                  <Tab>3Vert</Tab>
+                  <Tab>Pre 3Frag</Tab>
+                  <Tab>Pre 3Vert</Tab>
+                  <Tab className={{ [styles.errored]: state.vertError }}>
+                    Vert
+                  </Tab>
+                  <Tab className={{ [styles.errored]: state.fragError }}>
+                    Frag
+                  </Tab>
                 </TabGroup>
                 <TabPanels>
                   <TabPanel>
-                    <textarea
-                      className={styles.code}
-                      readOnly
-                      value={original}
-                    ></textarea>
+                    <CodeEditor className={styles.code} readOnly>
+                      {original}
+                    </CodeEditor>
                   </TabPanel>
                   <TabPanel>
-                    <textarea
-                      className={styles.code}
-                      readOnly
-                      value={originalVert}
-                    ></textarea>
+                    <CodeEditor className={styles.code} readOnly>
+                      {originalVert}
+                    </CodeEditor>
                   </TabPanel>
                   <TabPanel>
-                    <textarea
-                      className={styles.code}
-                      readOnly
-                      value={preprocessed}
-                    ></textarea>
+                    <CodeEditor className={styles.code} readOnly>
+                      {preprocessed}
+                    </CodeEditor>
                   </TabPanel>
                   <TabPanel>
-                    <textarea
-                      className={styles.code}
-                      readOnly
-                      value={vertex}
-                    ></textarea>
+                    <CodeEditor className={styles.code} readOnly>
+                      {preprocessedVert}
+                    </CodeEditor>
                   </TabPanel>
                   <TabPanel>
-                    <textarea
-                      className={styles.code}
-                      readOnly
-                      value={finalFragment}
-                    ></textarea>
+                    {state.vertError && (
+                      <div className={styles.codeError}>{state.vertError}</div>
+                    )}
+                    <CodeEditor readOnly>{vertex}</CodeEditor>
+                  </TabPanel>
+                  <TabPanel>
+                    {state.fragError && (
+                      <div className={styles.codeError}>{state.fragError}</div>
+                    )}
+                    <CodeEditor readOnly>{finalFragment}</CodeEditor>
                   </TabPanel>
                 </TabPanels>
               </Tabs>
@@ -893,5 +1002,21 @@ total: ${(now - allStart).toFixed(3)}ms
     </div>
   );
 };
+
+const CodeEditor = (props: any) => (
+  <div className={styles.editor}>
+    <div className={styles.sidebar}>
+      {props.children
+        .toString()
+        .split('\n')
+        .map((_: any, index: number) => `${index + 1}\n`)}
+    </div>
+    <textarea
+      className={styles.code}
+      {...props}
+      value={props.children}
+    ></textarea>
+  </div>
+);
 
 export default ThreeScene;

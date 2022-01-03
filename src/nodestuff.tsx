@@ -85,17 +85,84 @@ const findFn = (ast: ParserProgram, name: string): AstNode | undefined =>
       line.type === 'function' && line.prototype.header.name.identifier === name
   );
 
-export const testBlorfConvertGlPositionToReturnPosition = (
+export const doesLinkThruShader = (graph: Graph, node: Node): boolean => {
+  const edges = graph.edges.filter(
+    (edge) => edge.from === node.id && edge.input === 'position'
+  );
+  if (edges.length === 0) {
+    return false;
+  }
+  return edges.reduce<boolean>((foundShader, edge: Edge) => {
+    return (
+      foundShader ||
+      [ShaderType.toon, ShaderType.phong, ShaderType.shader].includes(
+        node.type
+      ) ||
+      doesLinkThruShader(
+        graph,
+        graph.nodes.find((node) => node.id === edge.to) as Node
+      )
+    );
+  }, false);
+};
+
+// three last in chain: return gl_position right vec4
+// three not last in chain: return returnRight
+
+// other last in chain: return gl_position right vec4
+// other not last in chain: return vec4(xxxxxxx, 1.0)
+
+export const returnGlPosition = (ast: ParserProgram): void =>
+  convertVertexMain(ast, 'vec4', (assign) => assign.expression.right);
+
+export const returnGlPositionHardCoded = (
   ast: ParserProgram,
-  hack: boolean
-): void => {
+  returnType: string,
+  hardCodedReturn: string
+): void =>
+  convertVertexMain(ast, returnType, () => makeExpression(hardCodedReturn));
+
+export const returnGlPositionVec3Right = (ast: ParserProgram): void =>
+  convertVertexMain(ast, 'vec3', (assign) => {
+    let found: AstNode | undefined;
+    visit(assign, {
+      function_call: {
+        enter: (path) => {
+          const { node } = path;
+          if (
+            node?.identifier?.specifier?.token === 'vec4' &&
+            node?.args?.[2]?.token?.includes('1.')
+          ) {
+            found = node.args[0];
+          }
+        },
+      },
+    });
+    if (!found) {
+      console.error(generate(ast));
+      throw new Error(
+        'Could not find position assignment to convert to return!'
+      );
+    }
+    return found;
+  });
+
+const convertVertexMain = (
+  ast: ParserProgram,
+  returnType: string,
+  generateRight: (positionAssign: AstNode) => AstNode
+) => {
   const mainReturnVar = `frogOut`;
 
   const main = findFn(ast, 'main');
   if (!main) {
     throw new Error(`No main fn found!`);
   }
-  main.prototype.header.returnType.specifier.specifier.token = 'vec4';
+
+  // Convert the main function to one that returns
+  main.prototype.header.returnType.specifier.specifier.token = returnType;
+
+  // Find the gl_position assignment line
   const assign = main.body.statements.find(
     (stmt: AstNode) =>
       stmt.type === 'expression_statement' &&
@@ -104,51 +171,13 @@ export const testBlorfConvertGlPositionToReturnPosition = (
   if (!assign) {
     throw new Error(`No gl position assign found in main fn!`);
   }
-  main.body.statements.splice(main.body.statements.indexOf(assign), 1, {
-    type: 'literal',
-    literal: `vec4 ${mainReturnVar} = ${generate(assign.expression.right)};\n`,
-  });
 
-  main.body.statements.push({
-    type: 'literal',
-    literal: hack
-      ? 'return vec4(newPosition, 1.0);\n'
-      : `return ${mainReturnVar};\n`,
-  });
+  const rtnStmt = makeFnStatement(`${returnType} ${mainReturnVar} = 1.0`);
+  console.log({ rtnStmt });
+  rtnStmt.declaration.declarations[0].initializer = generateRight(assign);
 
-  // todo can find this?
-  // ast.scopes[0].functions.main
-  // Find the output variable, as in "pc_fragColor" from  "out highp vec4 pc_fragColor;"
-  // const found = ast.program.find((line, index) => {
-  //   if (
-  //     line.type === 'declaration_statement' &&
-  //     line.declaration.declarations?.[0]?.identifier?.identifier === assignment
-  //   ) {
-  //     // Remove the out declaration
-  //     ast.program.splice(index, 1);
-  //     // outName = line.declaration.declarations[0].identifier.identifier;
-  //     return true;
-  //   }
-  // });
-  // if (!found) {
-  //   throw new Error(`No assignment to "${assignment}" found`);
-  // }
-
-  // todo do I really wan tto convert gl_position to return insetad?
-  // visit(ast, {
-  //   function: {
-  //     enter: (path) => {
-  //       if (path.node.prototype.header.name.identifier === 'main') {
-  //         path.node.prototype.header.returnType.specifier.specifier.token =
-  //           'vec3';
-  //         path.node.body.statements.push({
-  //           type: 'literal',
-  //           literal: `return ${assignment};\n`,
-  //         });
-  //       }
-  //     },
-  //   },
-  // });
+  main.body.statements.splice(main.body.statements.indexOf(assign), 1, rtnStmt);
+  main.body.statements.push(makeFnStatement(`return ${mainReturnVar}`));
 };
 
 export const convert300MainToReturn = (ast: ParserProgram): void => {
@@ -188,14 +217,12 @@ export const convert300MainToReturn = (ast: ParserProgram): void => {
         if (path.node.prototype.header.name.identifier === 'main') {
           path.node.prototype.header.returnType.specifier.specifier.token =
             'vec4';
-          path.node.body.statements.unshift({
-            type: 'literal',
-            literal: `vec4 ${mainReturnVar};\n`,
-          });
-          path.node.body.statements.push({
-            type: 'literal',
-            literal: `return ${mainReturnVar};\n`,
-          });
+          path.node.body.statements.unshift(
+            makeFnStatement(`vec4 ${mainReturnVar}`)
+          );
+          path.node.body.statements.push(
+            makeFnStatement(`return ${mainReturnVar}`)
+          );
         }
       },
     },

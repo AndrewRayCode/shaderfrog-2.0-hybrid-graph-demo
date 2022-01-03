@@ -5,62 +5,95 @@
 }
 
 .leftCol {
-  overflow:auto;
-  resize:horizontal;
-  border:1px solid #000;
+  overflow: auto;
+  resize: horizontal;
+  border: 1px solid #000;
 }
 
 .edges {
-  width:100%;
+  width: 100%;
   background: #010101;
   color: rgb(227, 252, 0);
 }
 
-.code {
-  width:100%;
-  min-height:360px;
-  background: #040404;
-  color: #fff;
-}
-
 .shader {
-  width:100%;
-  min-height:360px;
+  width: 100%;
+  min-height: 360px;
   background: #040404;
   color: #fff;
 }
 
 textarea.error {
-  border:1px inset red;
+  border: 1px inset red;
 }
 
 .button {
   align-items: center;
-  margin:1px;
-  cursor:pointer;
+  margin: 1px;
+  cursor: pointer;
   padding: 6px 14px;
   font-family: -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
   border-radius: 6px;
   border: none;
 
   color: #fff;
-  background: linear-gradient(180deg, #4B91F7 0%, #367AF6 100%);
+  background: linear-gradient(180deg, #4b91f7 0%, #367af6 100%);
   background-origin: border-box;
-  box-shadow: 0px 0.5px 1.5px rgba(54, 122, 246, 0.25), inset 0px 0.8px 0px -0.25px rgba(255, 255, 255, 0.2);
+  box-shadow: 0px 0.5px 1.5px rgba(54, 122, 246, 0.25),
+    inset 0px 0.8px 0px -0.25px rgba(255, 255, 255, 0.2);
   user-select: none;
   -webkit-user-select: none;
   touch-action: manipulation;
 }
 
 .button:disabled {
-  background: linear-gradient(0, #4B91F7 0%, #367AF6 100%);
+  background: linear-gradient(0, #4b91f7 0%, #367af6 100%);
   color: #111;
-  text-shadow:2px ​1px 2px #aaa;
+  text-shadow: 2px ​1px 2px #aaa;
 }
 
 .button:focus {
-  box-shadow: inset 0px 0.8px 0px -0.25px rgba(255, 255, 255, 0.2), 0px 0.5px 1.5px rgba(54, 122, 246, 0.25), 0px 0px 0px 3.5px rgba(58, 108, 217, 0.5);
+  box-shadow: inset 0px 0.8px 0px -0.25px rgba(255, 255, 255, 0.2),
+    0px 0.5px 1.5px rgba(54, 122, 246, 0.25),
+    0px 0px 0px 3.5px rgba(58, 108, 217, 0.5);
   outline: 0;
+}
+
+.editor {
+  display: grid;
+  grid-template-columns: 33px 1fr;
+  max-height: 400px;
+  overflow: scroll;
+}
+
+.sidebar {
+  white-space: pre;
+  font-family: monospace;
+  color: #666;
+  background: #000;
+  font-size: 14px;
+  user-select: none;
+  line-height: 1.2em;
+  padding: 0 7px;
+}
+
+.code {
+  border: 0;
+  font-size: 14px;
+  min-height: 360px;
+  background: #111;
+  color: #fff;
+  line-height: 1.2em;
+  overflow: hidden;
+  resize: none;
+}
+
+.codeError {
+  background: rgb(46, 0, 0);
+  color: rgb(255, 161, 161);
+  font-family: monospace;
+  white-space: break-spaces;
+  padding: 10px;
 }
 
 .tabs {
@@ -69,45 +102,58 @@ textarea.error {
   grid-auto-flow: column;
   color: #fff;
   grid-auto-columns: max-content;
-  border-top:1px solid #555;
-  border-bottom:1px solid #000;
+  border-top: 1px solid #555;
+  border-bottom: 1px solid #000;
 }
 
 .tab {
   background: #333;
-  border-right:1px solid #000;
-  padding:4px 8px;
-  cursor:pointer;
+  border-right: 1px solid #000;
+  padding: 4px 8px;
+  cursor: pointer;
 }
+
+.errored {
+  background: rgb(176, 0, 0);
+}
+
 .selected {
-  background:#000;
+  background: #000;
+}
+
+.selected.errored,
+.secondary .tab.selected.errored {
+  background: rgb(84, 0, 0);
 }
 
 .secondary {
   background: #555;
 }
 .secondary .tab {
-  background:#444;
+  background: #444;
 }
 .secondary .tab.selected {
-  background:#111;
+  background: #111;
+}
+.secondary .tab.errored {
+  background: rgb(176, 0, 0);
 }
 
 .scene {
-  position:relative;
-  background:#222;
+  position: relative;
+  background: #222;
 }
 
 .sceneControls {
-  position:absolute;
-  bottom:10px;
-  right:10px;
-  color:#fff;
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  color: #fff;
 }
 
 .sceneLabel {
-  position:absolute;
-  bottom:10px;
-  left:10px;
-  color:#fff;
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  color: #fff;
 }

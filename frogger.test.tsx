@@ -1,9 +1,10 @@
 import util from 'util';
 
 import { parser } from '@shaderfrog/glsl-parser';
+import { visit, AstNode } from '@shaderfrog/glsl-parser/dist/ast';
 import { generate } from '@shaderfrog/glsl-parser';
 
-import { compileGraph } from './src/graph';
+import { compileGraph, parsers } from './src/graph';
 
 import {
   ShaderType,
@@ -12,7 +13,7 @@ import {
   shaderSectionsToAst,
   addNode,
   sourceNode,
-  testBlorfConvertGlPositionToReturnPosition,
+  returnGlPositionVec3Right,
 } from './src/nodestuff';
 
 const inspect = (thing: any): void =>
@@ -128,16 +129,62 @@ void main() {
 
 test('horrible jesus help me', () => {
   const threeVertexMain = `
-  void main() {
-  x = texture2D(v,v);
+  in vec3 position, normal;
+  void main() 
+  {
+    vec3 x = 1.0;
+    vPosition = position;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
 
-  // TODO: Trying to extract gl_Position into return above
+  // Happens in produceAST step during compile
   const vertexAst = parser.parse(threeVertexMain);
   inspect(vertexAst);
-  testBlorfConvertGlPositionToReturnPosition(vertexAst, 'transformed');
-  expect(generate(vertexAst)).toBe('hi');
+  /**
+   * This takes the gl position right side vec4(____, 1.0) in our case
+   * "position" and builds a new line vec3 frogOut = **position**; and then when
+   * we call position() below it's based on the scope bindings of the shader in
+   * which we haven't updated the position
+   *
+   * If instead of generating a literal, we generated a real ast, we could visit
+   * it in the replace instead of using bindings.
+   *
+   * TODO: Wait why does this work out of the box after only updating the ASTs
+   * to remove literals? The binding shouldn't work LOL
+   * TODO: Also it's hard to tell but the fireball shader might make the light
+   * position off?
+   *
+   * In addition to the above, what I need to do now isn't technically a vertex
+   * transformation, it's simply to get the varyings set.
+   */
+  returnGlPositionVec3Right(vertexAst);
+
+  // Happens at replacing inputs during compile
+  parsers[ShaderType.shader]?.vertex
+    .findInputs(null, null, vertexAst)
+    .position({
+      type: 'literal',
+      literal: 'hi',
+    });
+  console.log(generate(vertexAst));
+  // inspect(vertexAst);
+
+  let found;
+  visit(vertexAst, {
+    function_call: {
+      enter: (path) => {
+        const { node } = path;
+        if (
+          node?.identifier?.specifier?.token === 'vec4' &&
+          node?.args?.[2]?.token?.includes('1.')
+        ) {
+          found = node.args[0];
+        }
+      },
+    },
+  });
+  expect(generate(found)).toBe('hi');
 });
 
 /*

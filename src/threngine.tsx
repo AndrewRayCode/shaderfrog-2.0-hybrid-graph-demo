@@ -10,12 +10,15 @@ import { Engine, nodeName, EngineContext } from './graph';
 import {
   ShaderType,
   convert300MainToReturn,
-  testBlorfConvertGlPositionToReturnPosition,
   makeExpression,
   from2To3,
   Node,
   Edge,
   ShaderStage,
+  doesLinkThruShader,
+  Graph,
+  returnGlPositionHardCoded,
+  returnGlPosition,
 } from './nodestuff';
 
 export type RuntimeContext = {
@@ -129,6 +132,7 @@ const megaShaderProduceVertexAst = (
   // todo: help
   engineContext: EngineContext<RuntimeContext>,
   engine: any,
+  graph: Graph,
   node: Node,
   inputEdges: Edge[]
 ) => {
@@ -143,29 +147,54 @@ const megaShaderProduceVertexAst = (
 
   engineContext.debuggingNonsense.vertexSource = vertex;
 
-  // console.log('Before preprocessing:', fragmentSource);
   const vertexPreprocessed = preprocess(vertex, {
     preserve: {
       version: () => true,
     },
   });
-  // console.log('after', vertexPreprocessed);
+
   const vertexAst = parser.parse(vertexPreprocessed);
+  engineContext.debuggingNonsense.vertexPreprocessed = vertexPreprocessed;
 
   // Do I need this? Is threejs shader already in 3.00 mode?
   // from2To3(vertexAst);
 
-  try {
-    testBlorfConvertGlPositionToReturnPosition(vertexAst, false);
-  } catch (err) {
-    console.error(err);
+  if (doesLinkThruShader(graph, node)) {
+    // TODO: Needs to be vec3 for this case, vec4 for final case
+    returnGlPosition(vertexAst);
+  } else {
+    returnGlPositionHardCoded(vertexAst, 'vec4', 'transformed');
   }
+
   renameBindings(vertexAst.scopes[0], threngine.preserve, node.id);
   renameFunctions(vertexAst.scopes[0], node.id, {
     main: nodeName(node),
   });
   return vertexAst;
 };
+
+const megaShaderFindPositionInputs = (
+  engineContext: EngineContext<RuntimeContext>,
+  node: Node,
+  ast: AstNode
+) => ({
+  position: (fillerAst: AstNode) => {
+    Object.entries(ast.scopes[0].bindings).forEach(
+      ([name, binding]: [string, any]) => {
+        binding.references.forEach((ref: AstNode) => {
+          if (ref.type === 'identifier' && ref.identifier === 'position') {
+            ref.identifier = generate(fillerAst);
+          } else if (
+            ref.type === 'parameter_declaration' &&
+            ref.declaration.identifier.identifier === 'position'
+          ) {
+            ref.declaration.identifier.identifier = generate(fillerAst);
+          }
+        });
+      }
+    );
+  },
+});
 
 export const threngine: Engine<RuntimeContext> = {
   // TODO: Get from uniform lib?
@@ -221,8 +250,6 @@ export const threngine: Engine<RuntimeContext> = {
     // TODO: These depend on the shaderlib, this might need to be a runtime
     // concern
     // Metalness
-    'permutations',
-    'iterations',
     'roughness',
     'metalness',
     'ior',
@@ -255,14 +282,10 @@ export const threngine: Engine<RuntimeContext> = {
           // todo: help
           engineContext,
           engine,
+          graph,
           node,
           inputEdges
         ) => {
-          console.log(
-            `produceAst "${node.name}" ${node.id} (${node.stage}) ${
-              node.nextStageNodeId || 'no next stage id'
-            }`
-          );
           const { fragment } = engineContext.runtime.cache.nodes[node.id];
 
           // console.log('Before preprocessing:', fragmentSource);
@@ -333,36 +356,7 @@ export const threngine: Engine<RuntimeContext> = {
       },
       vertex: {
         produceAst: megaShaderProduceVertexAst,
-        findInputs: (engineContext, node: Node, ast: AstNode) => {
-          return {
-            position: (fillerAst: AstNode) => {
-              Object.entries(ast.scopes[0].bindings).forEach(
-                ([name, binding]: [string, any]) => {
-                  binding.references.forEach((ref: AstNode) => {
-                    // if (ref.type === 'declaration') {
-                    //   // both are "in" vars expected in vertex shader
-                    //   if (ref.identifier.identifier === 'position') {
-                    //     ref.identifier.identifier = `glorf`;
-                    //   }
-                    // } else
-                    if (
-                      ref.type === 'identifier' &&
-                      ref.identifier === 'position'
-                    ) {
-                      ref.identifier = generate(fillerAst);
-                    } else if (
-                      ref.type === 'parameter_declaration' &&
-                      ref.declaration.identifier.identifier === 'position'
-                    ) {
-                      ref.declaration.identifier.identifier =
-                        generate(fillerAst);
-                    }
-                  });
-                }
-              );
-            },
-          };
-        },
+        findInputs: megaShaderFindPositionInputs,
         produceFiller: (node: Node, ast: AstNode) => {
           return makeExpression(`${nodeName(node)}()`);
         },
@@ -386,14 +380,10 @@ export const threngine: Engine<RuntimeContext> = {
           // todo: help
           engineContext,
           engine,
+          graph,
           node,
           inputEdges
         ) => {
-          console.log(
-            `produceAst "${node.name}" ${node.id} (${node.stage}) ${
-              node.nextStageNodeId || 'no next stage id'
-            }`
-          );
           console.log(
             `fragment toon produceAst (id: ${
               node.id
@@ -468,44 +458,7 @@ export const threngine: Engine<RuntimeContext> = {
       },
       vertex: {
         produceAst: megaShaderProduceVertexAst,
-        findInputs: (engineContext, node: Node, ast: AstNode) => {
-          // console.log(util.inspect(ast.program, false, null, true));
-
-          let texture2Dcalls: [AstNode, string][] = [];
-          const visitors: NodeVisitors = {
-            function_call: {
-              enter: (path) => {
-                if (
-                  // TODO: 100 vs 300
-                  (path.node.identifier?.specifier?.identifier ===
-                    'texture2D' ||
-                    path.node.identifier?.specifier?.identifier ===
-                      'texture') &&
-                  path.key
-                ) {
-                  if (!path.parent) {
-                    throw new Error(
-                      'This is impossible a function call always has a parent'
-                    );
-                  }
-                  texture2Dcalls.push([path.parent, path.key]);
-                }
-              },
-            },
-          };
-          visit(ast, visitors);
-          const inputs = texture2Dcalls.reduce(
-            (inputs, [parent, key], index) => ({
-              ...inputs,
-              [`texture2d_${index}`]: (fillerAst: AstNode) => {
-                parent[key] = fillerAst;
-              },
-            }),
-            {}
-          );
-
-          return inputs;
-        },
+        findInputs: megaShaderFindPositionInputs,
         produceFiller: (node, ast) => {
           return makeExpression(`${nodeName(node)}()`);
         },

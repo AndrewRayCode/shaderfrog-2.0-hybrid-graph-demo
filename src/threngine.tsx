@@ -11,7 +11,6 @@ import {
   ShaderType,
   convert300MainToReturn,
   makeExpression,
-  from2To3,
   Node,
   Edge,
   ShaderStage,
@@ -86,18 +85,8 @@ const onBeforeCompileMegaShader = (
   node: Node,
   newMat: any
 ) => {
-  console.log(
-    `"${node.name}"onbeforecompile  ${node.id} (${node.stage}) ${
-      node.nextStageNodeId || 'no next stage id'
-    }`
-  );
   const { nodes } = engineContext.runtime.cache;
   if (nodes[node.id] || (node.nextStageNodeId && nodes[node.nextStageNodeId])) {
-    console.log(
-      ` -- skipping phong onbeforecompile "${node.name}" ${node.id} (${
-        node.stage
-      }) ${node.nextStageNodeId || 'no next stage id'}`
-    );
     return;
   }
   const { renderer, mesh, scene, camera, material, threeTone, three } =
@@ -136,11 +125,6 @@ const megaShaderProduceVertexAst = (
   node: Node,
   inputEdges: Edge[]
 ) => {
-  console.log(
-    `produceAst "${node.name}" ${node.id} (${node.stage}) ${
-      node.nextStageNodeId || 'no next stage id'
-    }`
-  );
   const { nodes } = engineContext.runtime.cache;
   const { vertex } =
     nodes[node.id] || (node.nextStageNodeId && nodes[node.nextStageNodeId]);
@@ -288,13 +272,12 @@ export const threngine: Engine<RuntimeContext> = {
         ) => {
           const { fragment } = engineContext.runtime.cache.nodes[node.id];
 
-          // console.log('Before preprocessing:', fragmentSource);
           const fragmentPreprocessed = preprocess(fragment, {
             preserve: {
               version: () => true,
             },
           });
-          // console.log('after', fragmentPreprocessed);
+
           const fragmentAst = parser.parse(fragmentPreprocessed);
 
           // Used for the UI only right now
@@ -313,8 +296,6 @@ export const threngine: Engine<RuntimeContext> = {
           return fragmentAst;
         },
         findInputs: (engineContext, node, ast: AstNode) => {
-          // console.log(util.inspect(ast.program, false, null, true));
-
           let texture2Dcalls: [AstNode, string][] = [];
           const visitors: NodeVisitors = {
             function_call: {
@@ -384,19 +365,14 @@ export const threngine: Engine<RuntimeContext> = {
           node,
           inputEdges
         ) => {
-          console.log(
-            `fragment toon produceAst (id: ${
-              node.id
-            }) with cached [${Object.keys(engineContext.runtime.cache.nodes)}]`
-          );
           const { fragment } = engineContext.runtime.cache.nodes[node.id];
-          // console.log('Before preprocessing:', fragmentSource);
+
           const fragmentPreprocessed = preprocess(fragment, {
             preserve: {
               version: () => true,
             },
           });
-          // console.log('after', fragmentPreprocessed);
+
           const fragmentAst = parser.parse(fragmentPreprocessed);
 
           // Used for the UI only right now
@@ -415,8 +391,6 @@ export const threngine: Engine<RuntimeContext> = {
           return fragmentAst;
         },
         findInputs: (engineContext, node: Node, ast: AstNode) => {
-          // console.log(util.inspect(ast.program, false, null, true));
-
           let texture2Dcalls: [AstNode, string][] = [];
           const visitors: NodeVisitors = {
             function_call: {

@@ -5,7 +5,12 @@ import {
   renameFunctions,
 } from '@shaderfrog/glsl-parser/dist/parser/utils';
 import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
-import { visit, AstNode, NodeVisitors } from '@shaderfrog/glsl-parser/dist/ast';
+import {
+  visit,
+  AstNode,
+  NodeVisitors,
+  Path,
+} from '@shaderfrog/glsl-parser/dist/ast';
 
 import {
   ProgramAst,
@@ -33,6 +38,8 @@ export interface Engine<T> {
   // nodes: NodeParsers;
   parsers: Parser<T>;
 }
+
+const alphabet = 'abcdefghijklmnopqrstuvwxyz';
 
 export type NodeFiller = (node: Node, ast: AstNode) => AstNode | void;
 export const emptyFiller: NodeFiller = () => {};
@@ -75,7 +82,8 @@ export type ShaderParser<T> = {
     engineContext: EngineContext<T>,
     node: Node,
     ast: AstNode,
-    nodeContext: NodeContext
+    nodeContext: NodeContext,
+    inputEdges: Edge[]
   ) => NodeInputs;
   produceFiller: NodeFiller;
 };
@@ -98,6 +106,63 @@ export const nodeName = (node: Node): string =>
   'main_' + node.name.replace(/[^a-zA-Z0-9]/g, ' ').replace(/ +/g, '_');
 
 type Runtime = {};
+
+const binaryNode = <T>(operation: string): NodeParser<T> => ({
+  produceAst: (engineContext, engine, graph, node, inputEdges) => {
+    const fragmentAst: AstNode = {
+      type: 'program',
+      program: [
+        makeExpression(
+          inputEdges.length
+            ? inputEdges
+                .map((_, index) => alphabet.charAt(index))
+                .join(` ${operation} `)
+            : `a ${operation} b`
+        ),
+      ],
+      scopes: [],
+    };
+    return fragmentAst;
+  },
+  findInputs: (engineContext, node, ast, nodeContext, inputEdges) => {
+    return new Array(Math.max(inputEdges.length + 1, 2))
+      .fill(0)
+      .map((_, index) => alphabet.charAt(index))
+      .reduce(
+        (inputs, letter) => ({
+          ...inputs,
+          [letter]: (fillerAst: AstNode) => {
+            let foundPath: Path | undefined;
+            const visitors: NodeVisitors = {
+              identifier: {
+                enter: (path) => {
+                  if (path.node.identifier === letter) {
+                    foundPath = path;
+                  }
+                },
+              },
+            };
+            visit(nodeContext.ast, visitors);
+            if (!foundPath) {
+              throw new Error(
+                `Im drunk and I think this case is impossible, no "${letter}" found in binary node?`
+              );
+            }
+
+            if (foundPath.parent && foundPath.key) {
+              foundPath.parent[foundPath.key] = fillerAst;
+            } else {
+              nodeContext.ast = fillerAst;
+            }
+          },
+        }),
+        {}
+      );
+  },
+  produceFiller: (node: Node, ast: AstNode): AstNode => {
+    return ast.program;
+  },
+});
 
 export const parsers: Parser<Runtime> = {
   [ShaderType.output]: {
@@ -225,8 +290,11 @@ export const parsers: Parser<Runtime> = {
       findInputs: (engineContext, node, ast) => ({
         position: (fillerAst: AstNode) => {
           Object.entries(
-            ast.scopes[0].bindings?.position?.references || {}
-          )?.forEach(([_, ref]: [string, any]) => {
+            (ast.scopes[0].bindings?.position?.references || {}) as Record<
+              string,
+              AstNode
+            >
+          )?.forEach(([_, ref]) => {
             if (ref.type === 'identifier' && ref.identifier === 'position') {
               ref.identifier = generate(fillerAst);
             } else if (
@@ -243,94 +311,8 @@ export const parsers: Parser<Runtime> = {
       },
     },
   },
-  [ShaderType.add]: {
-    produceAst: (engineContext, engine, graph, node, inputEdges) => {
-      const alphabet = 'abcdefghijklmnopqrstuvwxyz';
-      const fragmentAst: AstNode = {
-        type: 'program',
-        program: [
-          makeExpression(
-            inputEdges.length
-              ? inputEdges.map((_, index) => alphabet.charAt(index)).join(' + ')
-              : 'a + b'
-          ),
-        ],
-        scopes: [],
-      };
-      return fragmentAst;
-    },
-    findInputs: (engineContext, node, ast, nodeContext) => {
-      let inputs: any[][] = [];
-      const visitors: NodeVisitors = {
-        identifier: {
-          enter: (path) => {
-            inputs.push([path.parent, path.key, path.node.identifier]);
-          },
-        },
-      };
-      visit(ast, visitors);
-      return inputs.reduce(
-        (inputs, [parent, key, identifier], index) => ({
-          ...inputs,
-          [identifier]: (fillerAst: AstNode) => {
-            if (parent) {
-              parent[key] = fillerAst;
-            } else {
-              nodeContext.ast = fillerAst;
-            }
-          },
-        }),
-        {}
-      );
-    },
-    produceFiller: (node: Node, ast: AstNode): AstNode => {
-      return ast.program;
-    },
-  },
-  [ShaderType.multiply]: {
-    produceAst: (engineContext, engine, graph, node, inputEdges) => {
-      const alphabet = 'abcdefghijklmnopqrstuvwxyz';
-      const fragmentAst: AstNode = {
-        type: 'program',
-        program: [
-          makeExpression(
-            inputEdges.length
-              ? inputEdges.map((_, index) => alphabet.charAt(index)).join(' * ')
-              : 'a * b'
-          ),
-        ],
-        scopes: [],
-      };
-      return fragmentAst;
-    },
-    findInputs: (engineContext, node, ast, nodeContext) => {
-      let inputs: any[][] = [];
-      const visitors: NodeVisitors = {
-        identifier: {
-          enter: (path) => {
-            inputs.push([path.parent, path.key, path.node.identifier]);
-          },
-        },
-      };
-      visit(ast, visitors);
-      return inputs.reduce(
-        (inputs, [parent, key, identifier], index) => ({
-          ...inputs,
-          [identifier]: (fillerAst: AstNode) => {
-            if (parent) {
-              parent[key] = fillerAst;
-            } else {
-              nodeContext.ast = fillerAst;
-            }
-          },
-        }),
-        {}
-      );
-    },
-    produceFiller: (node: Node, ast: AstNode): AstNode => {
-      return ast.program;
-    },
-  },
+  [ShaderType.add]: binaryNode('+'),
+  [ShaderType.multiply]: binaryNode('*'),
 };
 
 const findVec4Constructor = (ast: AstNode): AstNode | undefined => {
@@ -488,7 +470,8 @@ const computeSideContext = <T>(
       engineContext,
       node,
       ast,
-      nodeContext
+      nodeContext,
+      inputEdges
     );
 
   return nodeContext;

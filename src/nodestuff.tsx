@@ -173,7 +173,6 @@ const convertVertexMain = (
   }
 
   const rtnStmt = makeFnStatement(`${returnType} ${mainReturnVar} = 1.0`);
-  console.log({ rtnStmt });
   rtnStmt.declaration.declarations[0].initializer = generateRight(assign);
 
   main.body.statements.splice(main.body.statements.indexOf(assign), 1, rtnStmt);

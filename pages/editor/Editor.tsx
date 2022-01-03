@@ -32,7 +32,7 @@ import {
   heatShaderVertexNode,
 } from '../../src/heatmapShaderNode';
 import { fireFrag, fireVert } from '../../src/fireNode';
-import triplanarNode from '../../src/triplanarNode';
+import { outlineShaderF, outlineShaderV } from '../../src/outlineShader';
 
 import contrastNoise from '..';
 import { useAsyncExtendedState } from '../../src/useAsyncExtendedState';
@@ -55,7 +55,8 @@ const fireF = fireFrag(id());
 const fireV = fireVert(id());
 const add = addNode(id(), {});
 const multiply = multiplyNode(id(), {});
-const triplanar = triplanarNode(id());
+const outlineF = outlineShaderF(id());
+const outlineV = outlineShaderV(id());
 
 const width = 600;
 const height = 600;
@@ -76,7 +77,8 @@ const graph: Graph = {
     fireV,
     add,
     multiply,
-    triplanar,
+    outlineF,
+    outlineV,
   ],
   edges: [
     // { from: '2', to: '1', output: 'main', input: 'color' },
@@ -188,7 +190,7 @@ class LAddNode extends LiteGraph.LGraphNode {
 }
 LiteGraph.LiteGraph.registerNodeType('basic/add', LAddNode);
 
-const compileTheBlorf = async (
+const compileGraphAsync = async (
   ctx: EngineContext<RuntimeContext>,
   lGraph: any
 ): Promise<{
@@ -199,7 +201,7 @@ const compileTheBlorf = async (
   new Promise((resolve, reject) => {
     setTimeout(() => {
       console.warn(
-        'compiling!',
+        'Compiling!',
         graph,
         'from lGraph',
         lGraph,
@@ -257,6 +259,12 @@ total: ${(now - allStart).toFixed(3)}ms
 
       console.log('oh hai birfday boi boi boiiiii');
 
+      const os1: any = graph.nodes.find(
+        (node) => node.name === 'Outline Shader F'
+      )?.id;
+      const os2: any = graph.nodes.find(
+        (node) => node.name === 'Outline Shader V'
+      )?.id;
       const fs1: any = graph.nodes.find(
         (node) => node.name === 'Fireball F'
       )?.id;
@@ -344,6 +352,15 @@ total: ${(now - allStart).toFixed(3)}ms
         [`edgeSteepness_${edgeId}`]: { value: 0.1 },
         [`edgeBorder_${edgeId}`]: { value: 0.1 },
         [`color_${edgeId}`]: { value: 1.0 },
+
+        [`color_${os1}`]: { value: new three.Vector3(1, 1, 1) },
+        [`color_${os2}`]: { value: new three.Vector3(1, 1, 1) },
+        [`start_${os1}`]: { value: 0 },
+        [`start_${os2}`]: { value: 0 },
+        [`end_${os1}`]: { value: 1 },
+        [`end_${os2}`]: { value: 1 },
+        [`alpha_${os1}`]: { value: 1 },
+        [`alpha_${os2}`]: { value: 1 },
       };
       console.log('applying uniforms', uniforms);
 
@@ -497,7 +514,6 @@ const ThreeScene: React.FC = () => {
     vertError: null,
     compileMs: null,
   });
-  // const [_, doCompile] = usePromise(compileTheBlorf);
 
   const [ctx, setCtx] = useState<EngineContext<RuntimeContext>>({
     debuggingNonsense: {},
@@ -737,8 +753,8 @@ const ThreeScene: React.FC = () => {
           } else {
             console.warn(
               `For link {from: ${link.origin_id.toString()}, to: ${link.target_id.toString()}} there is no input ${
-                link.target_id
-              } in target id ${link.target_slot}. Nodes:`,
+                link.target_slot
+              } in target id ${link.target_id}. Nodes:`,
               ctx.nodes,
               'Links: ',
               lGraph.links
@@ -750,7 +766,7 @@ const ThreeScene: React.FC = () => {
       );
     }
 
-    compileTheBlorf(ctx, lGraph).then(
+    compileGraphAsync(ctx, lGraph).then(
       ({ compileMs, vertexResult, fragmentResult }) => {
         sceneRef.current.shadersUpdated = true;
         setCompiling(false);
@@ -844,17 +860,6 @@ const ThreeScene: React.FC = () => {
 
     console.log(lGraph);
 
-    // const node_const = LiteGraph.LiteGraph.createNode('basic/const');
-    // node_const.pos = [200, 200];
-    // lGraph.add(node_const);
-    // node_const.setValue(4.5);
-
-    // const node_watch = LiteGraph.LiteGraph.createNode('basic/watch');
-    // node_watch.pos = [700, 200];
-    // lGraph.add(node_watch);
-
-    // node_const.connect(0, node_watch, 0);
-
     // Note that after changing the lighting, a recompile needs to happen before
     // the next render, or what seems to happen is the shader has either the
     // spotLights or pointLights uniform, and three tries to "upload" them in
@@ -863,8 +868,6 @@ const ThreeScene: React.FC = () => {
     // pointLights/spotLights present in the uniforms array maybe?
   }, [ctx, originalVert]);
 
-  // TODO: You were here, trying to modify the edges in real time,
-  // and it fails. Because of mutation of the AST?
   return (
     <div className={styles.container}>
       <div className={styles.leftCol}>

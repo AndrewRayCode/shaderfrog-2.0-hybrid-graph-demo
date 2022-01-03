@@ -61,7 +61,7 @@ textarea.error {
 
 .editor {
   display: grid;
-  grid-template-columns: 33px 1fr;
+  grid-template-columns: 43px 1fr;
   max-height: 400px;
   overflow: scroll;
 }
@@ -146,14 +146,14 @@ textarea.error {
 
 .sceneControls {
   position: absolute;
-  bottom: 10px;
+  top: 10px;
   right: 10px;
   color: #fff;
 }
 
 .sceneLabel {
   position: absolute;
-  bottom: 10px;
+  top: 10px;
   left: 10px;
   color: #fff;
 }

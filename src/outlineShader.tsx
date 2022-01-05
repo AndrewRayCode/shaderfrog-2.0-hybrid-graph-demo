@@ -27,10 +27,10 @@ void main()
     'fragment'
   );
 
-const outlineShaderV = (id: string) =>
+const outlineShaderV = (id: string, nextStageNodeId: string) =>
   sourceNode(
     id,
-    'Outline Shader F',
+    'Outline Shader V',
     {},
     `
 precision highp float;
@@ -57,7 +57,8 @@ void main()
     gl_Position = projectionMatrix * pos;
 }
 `,
-    'vertex'
+    'vertex',
+    nextStageNodeId
   );
 
 // TODO: The outline shader above doesn't work because it doesn't find the

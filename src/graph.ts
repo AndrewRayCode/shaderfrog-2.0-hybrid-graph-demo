@@ -30,6 +30,7 @@ import {
   ShaderStage,
   returnGlPosition,
   doesLinkThruShader,
+  makeFnStatement,
 } from './nodestuff';
 
 export interface Engine<T> {
@@ -44,9 +45,8 @@ const alphabet = 'abcdefghijklmnopqrstuvwxyz';
 export type NodeFiller = (node: Node, ast: AstNode) => AstNode | void;
 export const emptyFiller: NodeFiller = () => {};
 
-export type NodeInputs = {
-  [inputName: string]: (a: AstNode) => void;
-};
+export type NodeInputs = Record<string, (a: AstNode) => void>;
+
 export type NodeContext = {
   ast: AstNode | ParserProgram;
   source?: string;
@@ -60,7 +60,7 @@ export type NodeContext = {
 // The context an engine builds as it evaluates. It can manage its own state
 // as the generic "RuntimeContext" which is passed to implemented engine methods
 export type EngineContext<RuntimeContext> = {
-  nodes: { [id: string]: NodeContext };
+  nodes: Record<string, NodeContext>;
   runtime: RuntimeContext;
   debuggingNonsense: {
     vertexSource?: string;
@@ -205,6 +205,11 @@ export const parsers: Parser<Runtime> = {
           throw new Error(`Impossible error, no assign node in output`);
         }
         return {
+          mainStmts: (fillerAst: AstNode) => {
+            ast.program
+              .find((stmt: AstNode) => stmt.type === 'function')
+              .body.statements.unshift(makeFnStatement(generate(fillerAst)));
+          },
           position: (fillerAst: AstNode) => {
             assignNode.expression.right = fillerAst;
           },
@@ -350,22 +355,54 @@ export const findAssignmentTo = (
   return assign;
 };
 
-export type CompileNodeResult = [ShaderSections, AstNode | void];
+export const collectConnectedNodes = (
+  graph: Graph,
+  edges: Edge[],
+  node: Node,
+  ids: NodeIds
+): NodeIds => {
+  let compiledIds = ids;
+
+  const inputEdges = edges.filter((edge) => edge.to === node.id);
+  if (inputEdges.length) {
+    inputEdges.forEach((edge) => {
+      const fromNode = graph.nodes.find((node) => edge.from === node.id);
+      if (!fromNode) {
+        throw new Error(`Node for edge ${edge.from} not found`);
+      }
+
+      const childIds = collectConnectedNodes(graph, edges, fromNode, ids);
+      compiledIds = { ...compiledIds, ...childIds };
+    });
+
+    return { ...compiledIds, [node.id]: true };
+  } else {
+    return { ...compiledIds, [node.id]: true };
+  }
+};
+
+type NodeIds = Record<string, boolean>;
+export type CompileNodeResult = [ShaderSections, AstNode | void, NodeIds];
 
 export const compileNode = <T>(
   engine: Engine<T>,
   graph: Graph,
+  edges: Edge[],
   engineContext: EngineContext<T>,
   // graphContext: GraphContext,
   node: Node,
-  stage: ShaderStage
+  stage: ShaderStage,
+  ids: NodeIds
 ): CompileNodeResult => {
   const parser = engine.parsers[node.type] || parsers[node.type];
 
   // Will I one day get good enough at typescript to be able to remove this
   // check? Or will I learn that I need it?
   if (!parser) {
-    throw new Error(`No parser found for ${node.type}`);
+    console.error(node);
+    throw new Error(
+      `No parser found for ${node.name} (${node.type}, id ${node.id})`
+    );
   }
 
   const nodeContext = engineContext.nodes[node.id];
@@ -375,8 +412,9 @@ export const compileNode = <T>(
     );
   }
   const { ast, inputs } = nodeContext;
+  let compiledIds = ids;
 
-  const inputEdges = graph.edges.filter((edge) => edge.to === node.id);
+  const inputEdges = edges.filter((edge) => edge.to === node.id);
   if (inputEdges.length) {
     let continuation = emptyShaderSections();
     inputEdges.forEach((edge) => {
@@ -385,13 +423,15 @@ export const compileNode = <T>(
         throw new Error(`Node for edge ${edge.from} not found`);
       }
 
-      const [inputSections, fillerAst] = compileNode(
+      const [inputSections, fillerAst, childIds] = compileNode(
         engine,
         graph,
+        edges,
         engineContext,
         // graphContext,
         fromNode,
-        stage
+        stage,
+        ids
       );
       if (!fillerAst) {
         throw new Error(
@@ -400,6 +440,7 @@ export const compileNode = <T>(
       }
 
       continuation = mergeShaderSections(continuation, inputSections);
+      compiledIds = { ...compiledIds, ...childIds };
 
       if (!inputs) {
         throw new Error("I'm drunk and I think this case should be impossible");
@@ -425,6 +466,7 @@ export const compileNode = <T>(
       sections,
       // @ts-ignore
       (stage in parser ? parser[stage] : parser).produceFiller(node, ast),
+      { ...compiledIds, [node.id]: true },
     ];
   } else {
     const sections = node.expressionOnly
@@ -435,6 +477,7 @@ export const compileNode = <T>(
       sections,
       // @ts-ignore
       (stage in parser ? parser[stage] : parser).produceFiller(node, ast),
+      { ...compiledIds, [node.id]: true },
     ];
   }
 };
@@ -489,6 +532,7 @@ const computeGraphContext = <T>(
       let parser;
       let nodeContext;
 
+      console.log('computing context for', node.name);
       // User parser
       if ((parser = engine.parsers[node.type])) {
         nodeContext = computeSideContext(
@@ -539,28 +583,50 @@ export const compileGraph = <T>(
     throw new Error('No fragment output in graph');
   }
   computeGraphContext(engineContext, engine, graph, 'fragment');
-  const fragment = compileNode(
+  const [fragment, , fragmentIds] = compileNode(
     engine,
     graph,
+    graph.edges,
     engineContext,
     outputFrag,
-    'fragment'
-  )[0];
+    'fragment',
+    {}
+  );
 
-  const ouputVert = graph.nodes.find(
+  const outputVert = graph.nodes.find(
     (node) => node.type === 'output' && node.stage === 'vertex'
   );
-  if (!ouputVert) {
+  if (!outputVert) {
     throw new Error('No vertex output in graph');
   }
   computeGraphContext(engineContext, engine, graph, 'vertex');
-  const vertex = compileNode(
+
+  const vertexIds = collectConnectedNodes(graph, graph.edges, outputVert, {});
+  const orphanEdges: Edge[] = graph.nodes
+    .filter(
+      (node) =>
+        node.stage === 'vertex' &&
+        node.nextStageNodeId &&
+        fragmentIds[node.nextStageNodeId] &&
+        !vertexIds[node.id]
+    )
+    .map((node) => ({
+      from: node.id,
+      to: outputVert.id,
+      output: 'main',
+      input: 'mainStmts',
+      type: 'vertex',
+    }));
+
+  const [vertex, ,] = compileNode(
     engine,
     graph,
+    [...graph.edges, ...orphanEdges],
     engineContext,
-    ouputVert,
-    'vertex'
-  )[0];
+    outputVert,
+    'vertex',
+    {}
+  );
 
   // Every compileNode returns the AST so far, as well as the filler for the
   // next node with inputs. On the final step, we discard the filler

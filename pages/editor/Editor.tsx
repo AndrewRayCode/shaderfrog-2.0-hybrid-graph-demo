@@ -54,9 +54,10 @@ const heatShaderV = heatShaderVertexNode(id());
 const fireF = fireFrag(id());
 const fireV = fireVert(id());
 const add = addNode(id(), {});
+const add2 = addNode(id(), {});
 const multiply = multiplyNode(id(), {});
 const outlineF = outlineShaderF(id());
-const outlineV = outlineShaderV(id());
+const outlineV = outlineShaderV(id(), outlineF.id);
 
 const width = 600;
 const height = 600;
@@ -76,6 +77,7 @@ const graph: Graph = {
     fireF,
     fireV,
     add,
+    add2,
     multiply,
     outlineF,
     outlineV,
@@ -161,6 +163,13 @@ const graph: Graph = {
       output: 'position',
       input: 'position',
       type: 'vertex',
+    },
+    {
+      from: outlineF.id,
+      to: add.id,
+      output: 'main',
+      input: 'c',
+      type: 'fragment',
     },
   ],
 };

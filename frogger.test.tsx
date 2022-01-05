@@ -129,12 +129,10 @@ void main() {
 
 test('horrible jesus help me', () => {
   const threeVertexMain = `
-  in vec3 position, normal;
-  void main() 
-  {
-    vec3 x = 1.0;
-    vPosition = position;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  #version 300 es
+  out vec4 frogFragOut;
+  void main() {
+    frogFragOut = vec4(1.0);
   }
 `;
 

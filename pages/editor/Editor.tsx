@@ -1,10 +1,20 @@
 import styles from './editor.module.css';
 import 'litegraph.js/css/litegraph.css';
+
+import throttle from 'lodash.throttle';
+import { SplitPane } from 'react-multi-split-pane';
 import cx from 'classnames';
 import LiteGraph from 'litegraph.js';
 import { generate } from '@shaderfrog/glsl-parser';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import React, { ReactNode, useEffect, useRef, useState } from 'react';
+import React, {
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import * as three from 'three';
 import {
   outputNode,
@@ -38,6 +48,15 @@ import contrastNoise from '..';
 import { useAsyncExtendedState } from '../../src/useAsyncExtendedState';
 import { usePromise } from '../../src/usePromise';
 
+import ReactFlow, {
+  Background,
+  BackgroundVariant,
+  Handle,
+  Position,
+} from 'react-flow-renderer';
+
+const flowStyles = { height: 500 };
+
 let counter = 0;
 const id = () => '' + counter++;
 const outputF = outputNode(id(), 'Output F', {}, 'fragment');
@@ -59,8 +78,6 @@ const multiply = multiplyNode(id(), {});
 const outlineF = outlineShaderF(id());
 const outlineV = outlineShaderV(id(), outlineF.id);
 
-const width = 600;
-const height = 600;
 const graph: Graph = {
   nodes: [
     outputF,
@@ -174,6 +191,33 @@ const graph: Graph = {
   ],
 };
 
+let engines = 0;
+let maths = 0;
+let outputs = 0;
+let shaders = 0;
+const spacing = 200;
+
+const elements = [
+  ...graph.nodes.map((node, index) => ({
+    id: node.id,
+    data: { label: node.name, inputs: node.inputs },
+    type: 'special',
+    position:
+      node.type === ShaderType.output
+        ? { x: spacing * 2, y: outputs++ * 100 }
+        : node.type === ShaderType.phong || node.type === ShaderType.toon
+        ? { x: spacing, y: engines++ * 100 }
+        : node.type === ShaderType.add || node.type === ShaderType.multiply
+        ? { x: 0, y: maths++ * 100 }
+        : { x: -spacing, y: shaders++ * 100 },
+  })),
+  ...graph.edges.map((edge) => ({
+    id: `${edge.to}-${edge.from}`,
+    source: edge.from,
+    target: edge.to,
+  })),
+];
+
 class LOutputNode extends LiteGraph.LGraphNode {
   constructor() {
     super();
@@ -198,6 +242,38 @@ class LAddNode extends LiteGraph.LGraphNode {
   }
 }
 LiteGraph.LiteGraph.registerNodeType('basic/add', LAddNode);
+
+const customNodeStyles = {
+  background: '#9CA8B3',
+  color: '#FFF',
+  padding: 10,
+};
+const CustomNodeComponent = ({ data }: { data: any }) => {
+  console.log('data.inputs', data.inputs);
+  return (
+    <div style={customNodeStyles}>
+      {Object.keys(data.inputs).map((name) => (
+        <Handle
+          key={name}
+          type="target"
+          position={Position.Left}
+          style={{ borderRadius: 0 }}
+        />
+      ))}
+      <div>{data.label}</div>
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="a"
+        style={{ top: '30%', borderRadius: 0 }}
+      />
+    </div>
+  );
+};
+
+const nodeTypes = {
+  special: CustomNodeComponent,
+};
 
 const compileGraphAsync = async (
   ctx: EngineContext<RuntimeContext>,
@@ -493,17 +569,32 @@ const TabPanel = ({ children, ...props }: TabPanelProps) => {
   return <div {...props}>{children}</div>;
 };
 
+type AnyFn = (...args: any) => any;
+function useThrottle(callback: AnyFn, delay: number) {
+  const cbRef = useRef<AnyFn>(callback);
+
+  // use mutable ref to make useCallback/throttle not depend on `cb` dep
+  useEffect(() => {
+    cbRef.current = callback;
+  }, [callback]);
+
+  return useCallback(
+    throttle((...args) => cbRef.current(...args), delay),
+    [delay]
+  );
+}
+
 const ThreeScene: React.FC = () => {
   const graphRef = useRef<HTMLCanvasElement>(null);
-  const domRef = useRef<HTMLDivElement>(null);
+  const threeDomRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<{ [key: string]: any }>({});
+  const rightSplit = useRef<HTMLDivElement>(null);
 
   const [lgInitted, setLgInitted] = useState<boolean>(false);
   const [lgNodesAdded, setLgNodesAdded] = useState<boolean>(false);
   const [lighting, setLighting] = useState<string>('a');
   const [tabIndex, setTabIndex] = useState<number>(0);
   const [compiling, setCompiling] = useState<boolean>(true);
-  const [controls, setControls] = useState<OrbitControls | undefined>();
 
   const [activeShader, setActiveShader] = useState<Node>(graph.nodes[0]);
   const [shaderUnsaved, setShaderUnsaved] = useState<string>(
@@ -522,6 +613,8 @@ const ThreeScene: React.FC = () => {
     fragError: null,
     vertError: null,
     compileMs: null,
+    width: 0,
+    height: 0,
   });
 
   const [ctx, setCtx] = useState<EngineContext<RuntimeContext>>({
@@ -543,10 +636,11 @@ const ThreeScene: React.FC = () => {
 
   // Setup?
   useEffect(() => {
-    if (!graphRef.current) {
-      return;
-    }
+    // if (!graphRef.current) {
+    //   return;
+    // }
 
+    /*
     let lGraph = ctx.runtime.lGraph;
     if (!lgInitted) {
       console.warn('----- LGraph Initting!!! -----');
@@ -558,6 +652,7 @@ const ThreeScene: React.FC = () => {
       new LiteGraph.LGraphCanvas(graphRef.current, lGraph);
       lGraph.start();
     }
+    */
 
     const scene = new three.Scene();
     const camera = new three.PerspectiveCamera(75, 1 / 1, 0.1, 1000);
@@ -588,11 +683,10 @@ const ThreeScene: React.FC = () => {
     scene.add(ambientLight);
 
     const renderer = new three.WebGLRenderer();
-    renderer.setSize(width, height);
 
     setCtx({
       runtime: {
-        lGraph,
+        lGraph: null,
         three,
         renderer,
         material: null,
@@ -615,8 +709,8 @@ const ThreeScene: React.FC = () => {
     const { renderer, scene, camera, mesh } = ctx.runtime;
     let controls: OrbitControls;
 
-    if (domRef.current) {
-      domRef.current.appendChild(renderer.domElement);
+    if (threeDomRef.current) {
+      threeDomRef.current.appendChild(renderer.domElement);
       controls = new OrbitControls(camera, renderer.domElement);
       controls.update();
       sceneRef.current.controls = controls;
@@ -681,7 +775,7 @@ const ThreeScene: React.FC = () => {
     animate(0);
 
     return () => {
-      // const { current } = domRef;
+      // const { current } = threeDomRef;
       // console.log('unmounting');
       // if (current) {
       //   current.removeChild(renderer.domElement);
@@ -695,6 +789,9 @@ const ThreeScene: React.FC = () => {
   }, [ctx, tabIndex]);
 
   useEffect(() => {
+    if (!sceneRef.current.scene) {
+      return;
+    }
     const { lights, scene } = sceneRef.current;
     (lights || []).forEach((light: any) => {
       scene.remove(light);
@@ -791,226 +888,251 @@ const ThreeScene: React.FC = () => {
     );
   }, [ctx, lighting]);
 
-  useEffect(() => {
-    if (!ctx.runtime || !ctx.runtime.lGraph || !originalVert || lgNodesAdded) {
-      return;
+  // useEffect(() => {
+  //   if (!ctx.runtime || !ctx.runtime.lGraph || !originalVert || lgNodesAdded) {
+  //     return;
+  //   }
+  //   console.warn('creating lgraph nodes!');
+  //   const { lGraph } = ctx.runtime;
+  //   lGraph.clear();
+  //   let engines = 0;
+  //   let maths = 0;
+  //   let outputs = 0;
+  //   let shaders = 0;
+  //   const spacing = 200;
+  //   const lNodes: { [key: string]: LiteGraph.LGraphNode } = {};
+  //   graph.nodes.forEach((node) => {
+  //     let x = 0;
+  //     let y = 0;
+  //     let lNode: LiteGraph.LGraphNode;
+  //     if (node.type === ShaderType.output) {
+  //       x = spacing * 2;
+  //       y = outputs * 100;
+  //       lNode = LiteGraph.LiteGraph.createNode('basic/output');
+  //       outputs++;
+  //     } else if (
+  //       node.type === ShaderType.phong ||
+  //       node.type === ShaderType.toon
+  //     ) {
+  //       x = spacing;
+  //       y = engines * 100;
+  //       lNode = LiteGraph.LiteGraph.createNode('basic/shader');
+  //       engines++;
+  //     } else if (
+  //       node.type === ShaderType.add ||
+  //       node.type === ShaderType.multiply
+  //     ) {
+  //       x = 0;
+  //       y = maths * 100;
+  //       lNode = LiteGraph.LiteGraph.createNode('basic/add');
+  //       maths++;
+  //     } else {
+  //       x = -spacing;
+  //       y = shaders * 100;
+  //       lNode = LiteGraph.LiteGraph.createNode('basic/shader');
+  //       shaders++;
+  //     }
+  //     lNode.pos = [x, y];
+  //     lNode.title = node.name;
+  //     // lNode.properties = { id: node.id };
+  //     if (ctx.nodes[node.id]) {
+  //       Object.keys(ctx.nodes[node.id].inputs || {}).forEach((input) => {
+  //         lNode.addInput(input, 'string');
+  //       });
+  //     }
+  //     lNode.id = parseInt(node.id, 10);
+  //     lGraph.add(lNode);
+  //     lNode.onSelected = () => {
+  //       setActiveShader(node);
+  //       setShaderUnsaved(node.source);
+  //     };
+  //     // lNode.onConnectionsChange = (
+  //     //   type,
+  //     //   slotIndex,
+  //     //   isConnected,
+  //     //   link,
+  //     //   ioSlot
+  //     // ) => {
+  //     //   console.log({ type, slotIndex, isConnected, link, ioSlot });
+  //     // };
+  //     // lNode.setValue(4.5);
+  //     lNodes[node.id] = lNode;
+  //   });
+
+  //   graph.edges.forEach((edge) => {
+  //     lNodes[edge.from].connect(0, lNodes[edge.to], edge.input);
+  //   });
+  //   setLgNodesAdded(true);
+
+  //   console.log(lGraph);
+
+  //   // Note that after changing the lighting, a recompile needs to happen before
+  //   // the next render, or what seems to happen is the shader has either the
+  //   // spotLights or pointLights uniform, and three tries to "upload" them in
+  //   // StructuredUniform.prototype.setValue, because there's a
+  //   // StructuredUniform.map.position/coneCos etc, but there's no
+  //   // pointLights/spotLights present in the uniforms array maybe?
+  // }, [ctx, originalVert]);
+
+  const resizeThree = useThrottle(() => {
+    // useCallback(() => {
+    console.log('throttle called', rightSplit, ctx.runtime);
+    if (rightSplit.current && ctx.runtime?.camera) {
+      console.log('doing the thing');
+      const { camera, renderer } = ctx.runtime;
+      const { width, height } = rightSplit.current.getBoundingClientRect();
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+      extendState({ width, height });
     }
-    console.warn('creating lgraph nodes!');
-    const { lGraph } = ctx.runtime;
-    lGraph.clear();
-    let engines = 0;
-    let maths = 0;
-    let outputs = 0;
-    let shaders = 0;
-    const spacing = 200;
-    const lNodes: { [key: string]: LiteGraph.LGraphNode } = {};
-    graph.nodes.forEach((node) => {
-      let x = 0;
-      let y = 0;
-      let lNode: LiteGraph.LGraphNode;
-      if (node.type === ShaderType.output) {
-        x = spacing * 2;
-        y = outputs * 100;
-        lNode = LiteGraph.LiteGraph.createNode('basic/output');
-        outputs++;
-      } else if (
-        node.type === ShaderType.phong ||
-        node.type === ShaderType.toon
-      ) {
-        x = spacing;
-        y = engines * 100;
-        lNode = LiteGraph.LiteGraph.createNode('basic/shader');
-        engines++;
-      } else if (
-        node.type === ShaderType.add ||
-        node.type === ShaderType.multiply
-      ) {
-        x = 0;
-        y = maths * 100;
-        lNode = LiteGraph.LiteGraph.createNode('basic/add');
-        maths++;
-      } else {
-        x = -spacing;
-        y = shaders * 100;
-        lNode = LiteGraph.LiteGraph.createNode('basic/shader');
-        shaders++;
-      }
-      lNode.pos = [x, y];
-      lNode.title = node.name;
-      // lNode.properties = { id: node.id };
-      if (ctx.nodes[node.id]) {
-        Object.keys(ctx.nodes[node.id].inputs || {}).forEach((input) => {
-          lNode.addInput(input, 'string');
-        });
-      }
-      lNode.id = parseInt(node.id, 10);
-      lGraph.add(lNode);
-      lNode.onSelected = () => {
-        setActiveShader(node);
-        setShaderUnsaved(node.source);
-      };
-      // lNode.onConnectionsChange = (
-      //   type,
-      //   slotIndex,
-      //   isConnected,
-      //   link,
-      //   ioSlot
-      // ) => {
-      //   console.log({ type, slotIndex, isConnected, link, ioSlot });
-      // };
-      // lNode.setValue(4.5);
-      lNodes[node.id] = lNode;
-    });
+    // }, [ctx, extendState]),
+  }, 100);
 
-    graph.edges.forEach((edge) => {
-      lNodes[edge.from].connect(0, lNodes[edge.to], edge.input);
-    });
-    setLgNodesAdded(true);
-
-    console.log(lGraph);
-
-    // Note that after changing the lighting, a recompile needs to happen before
-    // the next render, or what seems to happen is the shader has either the
-    // spotLights or pointLights uniform, and three tries to "upload" them in
-    // StructuredUniform.prototype.setValue, because there's a
-    // StructuredUniform.map.position/coneCos etc, but there's no
-    // pointLights/spotLights present in the uniforms array maybe?
-  }, [ctx, originalVert]);
+  useEffect(resizeThree, [ctx.runtime?.camera]);
 
   return (
     <div className={styles.container}>
-      <div className={styles.leftCol}>
-        <canvas
-          id="mycanvas"
-          width={width}
-          height={200}
-          ref={graphRef}
-        ></canvas>
-        <button
-          className={styles.button}
-          onClick={() => {
-            setCompiling(true);
-            // @ts-ignore
-            setCtx({ ...ctx, index: ctx.index + 1 });
-          }}
-        >
-          Save Graph
-        </button>
-
-        <CodeEditor
-          className={styles.shader}
-          onChange={(event: any) => setShaderUnsaved(event.target.value)}
-        >
-          {shaderUnsaved}
-        </CodeEditor>
-        <button
-          className={styles.button}
-          onClick={() => {
-            const found = graph.nodes.find(({ id }) => activeShader.id === id);
-            if (found) {
+      <SplitPane split="vertical" onChange={resizeThree}>
+        <div className={styles.splitInner}>
+          {/* <canvas ref={graphRef}></canvas> */}
+          <ReactFlow
+            elements={elements}
+            style={flowStyles}
+            nodeTypes={nodeTypes}
+          >
+            <Background variant={BackgroundVariant.Lines} gap={25} size={0.5} />
+          </ReactFlow>
+          <button
+            className={styles.button}
+            onClick={() => {
               setCompiling(true);
-              found.source = shaderUnsaved;
               // @ts-ignore
               setCtx({ ...ctx, index: ctx.index + 1 });
-            }
-          }}
-        >
-          Save Shader
-        </button>
-      </div>
-      <div>
-        <Tabs onSelect={setTabIndex}>
-          <TabGroup>
-            <Tab>Scene</Tab>
-            <Tab
-              className={{
-                [styles.errored]: state.fragError || state.vertError,
-              }}
-            >
-              Final Shader Source
-            </Tab>
-          </TabGroup>
-          <TabPanels>
-            <TabPanel className={styles.scene}>
-              <div
-                style={{ width: `${width}px`, height: `${height}px` }}
-                ref={domRef}
-              ></div>
-              <div className={styles.sceneLabel}>
-                {compiling && 'Compiling...'}
-                {!compiling && `Complile took ${state.compileMs}ms`}
-              </div>
-              <div className={styles.sceneControls}>
-                Preview with:
-                <button
-                  className={styles.button}
-                  onClick={() => setLighting('a')}
-                  disabled={lighting === 'a'}
-                >
-                  Point Light
-                </button>
-                <button
-                  className={styles.button}
-                  onClick={() => setLighting('b')}
-                  disabled={lighting === 'b'}
-                >
-                  Spot Lights
-                </button>
-              </div>
-            </TabPanel>
-            <TabPanel>
-              <Tabs>
-                <TabGroup className={styles.secondary}>
-                  <Tab>3Frag</Tab>
-                  <Tab>3Vert</Tab>
-                  <Tab>Pre 3Frag</Tab>
-                  <Tab>Pre 3Vert</Tab>
-                  <Tab className={{ [styles.errored]: state.vertError }}>
-                    Vert
-                  </Tab>
-                  <Tab className={{ [styles.errored]: state.fragError }}>
-                    Frag
-                  </Tab>
-                </TabGroup>
-                <TabPanels>
-                  <TabPanel>
-                    <CodeEditor className={styles.code} readOnly>
-                      {original}
-                    </CodeEditor>
-                  </TabPanel>
-                  <TabPanel>
-                    <CodeEditor className={styles.code} readOnly>
-                      {originalVert}
-                    </CodeEditor>
-                  </TabPanel>
-                  <TabPanel>
-                    <CodeEditor className={styles.code} readOnly>
-                      {preprocessed}
-                    </CodeEditor>
-                  </TabPanel>
-                  <TabPanel>
-                    <CodeEditor className={styles.code} readOnly>
-                      {preprocessedVert}
-                    </CodeEditor>
-                  </TabPanel>
-                  <TabPanel>
-                    {state.vertError && (
-                      <div className={styles.codeError}>{state.vertError}</div>
-                    )}
-                    <CodeEditor readOnly>{vertex}</CodeEditor>
-                  </TabPanel>
-                  <TabPanel>
-                    {state.fragError && (
-                      <div className={styles.codeError}>{state.fragError}</div>
-                    )}
-                    <CodeEditor readOnly>{finalFragment}</CodeEditor>
-                  </TabPanel>
-                </TabPanels>
-              </Tabs>
-            </TabPanel>
-          </TabPanels>
-        </Tabs>
-      </div>
+            }}
+          >
+            Save Graph
+          </button>
+
+          <CodeEditor
+            className={styles.shader}
+            onChange={(event: any) => setShaderUnsaved(event.target.value)}
+          >
+            {shaderUnsaved}
+          </CodeEditor>
+          <button
+            className={styles.button}
+            onClick={() => {
+              const found = graph.nodes.find(
+                ({ id }) => activeShader.id === id
+              );
+              if (found) {
+                setCompiling(true);
+                found.source = shaderUnsaved;
+                // @ts-ignore
+                setCtx({ ...ctx, index: ctx.index + 1 });
+              }
+            }}
+          >
+            Save Shader
+          </button>
+        </div>
+        {/* other pane */}
+        <div ref={rightSplit} className={styles.splitInner}>
+          <Tabs onSelect={setTabIndex}>
+            <TabGroup>
+              <Tab>Scene</Tab>
+              <Tab
+                className={{
+                  [styles.errored]: state.fragError || state.vertError,
+                }}
+              >
+                Final Shader Source
+              </Tab>
+            </TabGroup>
+            <TabPanels>
+              <TabPanel className={styles.scene}>
+                <div ref={threeDomRef}></div>
+                <div className={styles.sceneLabel}>
+                  {compiling && 'Compiling...'}
+                  {!compiling && `Complile took ${state.compileMs}ms`}
+                </div>
+                <div className={styles.sceneControls}>
+                  Preview with:
+                  <button
+                    className={styles.button}
+                    onClick={() => setLighting('a')}
+                    disabled={lighting === 'a'}
+                  >
+                    Point Light
+                  </button>
+                  <button
+                    className={styles.button}
+                    onClick={() => setLighting('b')}
+                    disabled={lighting === 'b'}
+                  >
+                    Spot Lights
+                  </button>
+                </div>
+              </TabPanel>
+              <TabPanel>
+                <Tabs>
+                  <TabGroup className={styles.secondary}>
+                    <Tab>3Frag</Tab>
+                    <Tab>3Vert</Tab>
+                    <Tab>Pre 3Frag</Tab>
+                    <Tab>Pre 3Vert</Tab>
+                    <Tab className={{ [styles.errored]: state.vertError }}>
+                      Vert
+                    </Tab>
+                    <Tab className={{ [styles.errored]: state.fragError }}>
+                      Frag
+                    </Tab>
+                  </TabGroup>
+                  <TabPanels>
+                    <TabPanel>
+                      <CodeEditor className={styles.code} readOnly>
+                        {original}
+                      </CodeEditor>
+                    </TabPanel>
+                    <TabPanel>
+                      <CodeEditor className={styles.code} readOnly>
+                        {originalVert}
+                      </CodeEditor>
+                    </TabPanel>
+                    <TabPanel>
+                      <CodeEditor className={styles.code} readOnly>
+                        {preprocessed}
+                      </CodeEditor>
+                    </TabPanel>
+                    <TabPanel>
+                      <CodeEditor className={styles.code} readOnly>
+                        {preprocessedVert}
+                      </CodeEditor>
+                    </TabPanel>
+                    <TabPanel>
+                      {state.vertError && (
+                        <div className={styles.codeError}>
+                          {state.vertError}
+                        </div>
+                      )}
+                      <CodeEditor readOnly>{vertex}</CodeEditor>
+                    </TabPanel>
+                    <TabPanel>
+                      {state.fragError && (
+                        <div className={styles.codeError}>
+                          {state.fragError}
+                        </div>
+                      )}
+                      <CodeEditor readOnly>{finalFragment}</CodeEditor>
+                    </TabPanel>
+                  </TabPanels>
+                </Tabs>
+              </TabPanel>
+            </TabPanels>
+          </Tabs>
+        </div>
+      </SplitPane>
     </div>
   );
 };

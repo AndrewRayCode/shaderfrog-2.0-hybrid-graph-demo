@@ -482,7 +482,7 @@ export const compileNode = <T>(
   }
 };
 
-const computeSideContext = <T>(
+const computeNodeContext = <T>(
   engineContext: EngineContext<T>,
   engine: Engine<T>,
   graph: Graph,
@@ -520,7 +520,7 @@ const computeSideContext = <T>(
   return nodeContext;
 };
 
-const computeGraphContext = <T>(
+const computeSideContext = <T>(
   engineContext: EngineContext<T>,
   engine: Engine<T>,
   graph: Graph,
@@ -535,7 +535,7 @@ const computeGraphContext = <T>(
       console.log('computing context for', node.name);
       // User parser
       if ((parser = engine.parsers[node.type])) {
-        nodeContext = computeSideContext(
+        nodeContext = computeNodeContext(
           engineContext,
           engine,
           graph,
@@ -545,7 +545,7 @@ const computeGraphContext = <T>(
         );
         // Internal parser
       } else if ((parser = parsers[node.type])) {
-        nodeContext = computeSideContext(
+        nodeContext = computeNodeContext(
           engineContext,
           engine as unknown as Engine<Runtime>,
           graph,
@@ -569,11 +569,23 @@ export type CompileGraphResult = {
   vertex: ShaderSections;
 };
 
+export const computeGraphContext = <T>(
+  engineContext: EngineContext<T>,
+  engine: Engine<T>,
+  graph: Graph
+) => {
+  computeSideContext(engineContext, engine, graph);
+  computeSideContext(engineContext, engine, graph, 'fragment');
+  computeSideContext(engineContext, engine, graph, 'vertex');
+};
+
 export const compileGraph = <T>(
   engineContext: EngineContext<T>,
   engine: Engine<T>,
   graph: Graph
 ): CompileGraphResult => {
+  // TODO: Do I need this line??
+  // computeSideContext(engineContext, engine, graph);
   computeGraphContext(engineContext, engine, graph);
 
   const outputFrag = graph.nodes.find(
@@ -582,7 +594,9 @@ export const compileGraph = <T>(
   if (!outputFrag) {
     throw new Error('No fragment output in graph');
   }
-  computeGraphContext(engineContext, engine, graph, 'fragment');
+
+  // TODO: Adding this line removes struct Pointlight from the output
+  // computeSideContext(engineContext, engine, graph, 'fragment');
   const [fragment, , fragmentIds] = compileNode(
     engine,
     graph,
@@ -599,7 +613,7 @@ export const compileGraph = <T>(
   if (!outputVert) {
     throw new Error('No vertex output in graph');
   }
-  computeGraphContext(engineContext, engine, graph, 'vertex');
+  // computeSideContext(engineContext, engine, graph, 'vertex');
 
   const vertexIds = collectConnectedNodes(graph, graph.edges, outputVert, {});
   const orphanEdges: Edge[] = graph.nodes

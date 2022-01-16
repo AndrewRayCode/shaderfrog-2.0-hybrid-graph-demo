@@ -93,6 +93,7 @@ const onBeforeCompileMegaShader = (
     engineContext.runtime;
 
   mesh.material = newMat;
+  console.log('scene', JSON.parse(JSON.stringify(scene)));
   renderer.compile(scene, camera);
 
   // The references to the compiled shaders in WebGL

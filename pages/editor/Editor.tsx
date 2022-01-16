@@ -26,7 +26,12 @@ import {
   ShaderType,
   Edge,
 } from '../../src/nodestuff';
-import { compileGraph, EngineContext, NodeInputs } from '../../src/graph';
+import {
+  compileGraph,
+  computeGraphContext,
+  EngineContext,
+  NodeInputs,
+} from '../../src/graph';
 
 import {
   phongNode,
@@ -37,6 +42,7 @@ import {
 import purpleNoiseNode from '../../src/purpleNoiseNode';
 import colorShaderNode from '../../src/colorShaderNode';
 import fluidCirclesNode from '../../src/fluidCirclesNode';
+import solidColorNode from '../../src/solidColorNode';
 import {
   heatShaderFragmentNode,
   heatShaderVertexNode,
@@ -54,6 +60,7 @@ import ReactFlow, {
   Handle,
   Position,
 } from 'react-flow-renderer';
+import { useThree } from './hork';
 
 const flowStyles = { height: 500 };
 
@@ -77,6 +84,7 @@ const add2 = addNode(id(), {});
 const multiply = multiplyNode(id(), {});
 const outlineF = outlineShaderF(id());
 const outlineV = outlineShaderV(id(), outlineF.id);
+const solidColorF = solidColorNode(id());
 
 const graph: Graph = {
   nodes: [
@@ -98,6 +106,7 @@ const graph: Graph = {
     multiply,
     outlineF,
     outlineV,
+    solidColorF,
   ],
   edges: [
     // { from: '2', to: '1', output: 'main', input: 'color' },
@@ -147,76 +156,56 @@ const graph: Graph = {
       type: 'fragment',
     },
     {
-      from: add.id,
+      from: solidColorF.id,
       to: phongF.id,
-      output: 'color',
+      output: 'main',
       input: 'texture2d_0',
       type: 'fragment',
     },
-    {
-      from: purpleNoise.id,
-      to: add.id,
-      output: 'color',
-      input: 'a',
-      type: 'fragment',
-    },
-    {
-      from: heatShaderF.id,
-      to: add.id,
-      output: 'color',
-      input: 'b',
-      type: 'fragment',
-    },
-    {
-      from: heatShaderV.id,
-      to: phongV.id,
-      output: 'position',
-      input: 'position',
-      type: 'vertex',
-    },
-    {
-      from: fireV.id,
-      to: heatShaderV.id,
-      output: 'position',
-      input: 'position',
-      type: 'vertex',
-    },
-    {
-      from: outlineF.id,
-      to: add.id,
-      output: 'main',
-      input: 'c',
-      type: 'fragment',
-    },
+    // {
+    //   from: add.id,
+    //   to: phongF.id,
+    //   output: 'color',
+    //   input: 'texture2d_0',
+    //   type: 'fragment',
+    // },
+    // {
+    //   from: purpleNoise.id,
+    //   to: add.id,
+    //   output: 'color',
+    //   input: 'a',
+    //   type: 'fragment',
+    // },
+    // {
+    //   from: heatShaderF.id,
+    //   to: add.id,
+    //   output: 'color',
+    //   input: 'b',
+    //   type: 'fragment',
+    // },
+    // {
+    //   from: heatShaderV.id,
+    //   to: phongV.id,
+    //   output: 'position',
+    //   input: 'position',
+    //   type: 'vertex',
+    // },
+    // {
+    //   from: fireV.id,
+    //   to: heatShaderV.id,
+    //   output: 'position',
+    //   input: 'position',
+    //   type: 'vertex',
+    // },
+    // {
+    //   from: outlineF.id,
+    //   to: add.id,
+    //   output: 'main',
+    //   input: 'c',
+    //   type: 'fragment',
+    // },
   ],
 };
-
-let engines = 0;
-let maths = 0;
-let outputs = 0;
-let shaders = 0;
-const spacing = 200;
-
-const elements = [
-  ...graph.nodes.map((node, index) => ({
-    id: node.id,
-    data: { label: node.name, inputs: node.inputs },
-    type: 'special',
-    position:
-      node.type === ShaderType.output
-        ? { x: spacing * 2, y: outputs++ * 100 }
-        : node.type === ShaderType.phong || node.type === ShaderType.toon
-        ? { x: spacing, y: engines++ * 100 }
-        : node.type === ShaderType.add || node.type === ShaderType.multiply
-        ? { x: 0, y: maths++ * 100 }
-        : { x: -spacing, y: shaders++ * 100 },
-  })),
-  ...graph.edges.map((edge) => ({
-    id: `${edge.to}-${edge.from}`,
-    source: edge.from,
-    target: edge.to,
-  })),
-];
 
 class LOutputNode extends LiteGraph.LGraphNode {
   constructor() {
@@ -246,19 +235,27 @@ LiteGraph.LiteGraph.registerNodeType('basic/add', LAddNode);
 const customNodeStyles = {
   background: '#9CA8B3',
   color: '#FFF',
-  padding: 10,
+  padding: '10px 20px',
 };
 const CustomNodeComponent = ({ data }: { data: any }) => {
-  console.log('data.inputs', data.inputs);
+  // TODO: Populate inputs (and eventually outputs) after the graph compiles!
+  // console.log('data.inputs', data.inputs);
   return (
     <div style={customNodeStyles}>
-      {Object.keys(data.inputs).map((name) => (
-        <Handle
-          key={name}
-          type="target"
-          position={Position.Left}
-          style={{ borderRadius: 0 }}
-        />
+      {Object.keys(data.inputs).map((name, index) => (
+        <React.Fragment key={name}>
+          <div
+            style={{ top: `${index * 20}px`, left: 5, position: 'absolute' }}
+          >
+            {name}
+          </div>
+          <Handle
+            id={name}
+            type="target"
+            position={Position.Left}
+            style={{ top: `${index * 20}px`, borderRadius: 0 }}
+          />
+        </React.Fragment>
       ))}
       <div>{data.label}</div>
       <Handle
@@ -586,13 +583,14 @@ function useThrottle(callback: AnyFn, delay: number) {
 
 const ThreeScene: React.FC = () => {
   const graphRef = useRef<HTMLCanvasElement>(null);
-  const threeDomRef = useRef<HTMLDivElement>(null);
+  // const threeDomRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<{ [key: string]: any }>({});
   const rightSplit = useRef<HTMLDivElement>(null);
+  // const [mesh, setMesh] = useState<three.Mesh | undefined>();
 
   const [lgInitted, setLgInitted] = useState<boolean>(false);
   const [lgNodesAdded, setLgNodesAdded] = useState<boolean>(false);
-  const [lighting, setLighting] = useState<string>('a');
+  // const [lighting, setLighting] = useState<string>('a');
   const [tabIndex, setTabIndex] = useState<number>(0);
   const [compiling, setCompiling] = useState<boolean>(true);
 
@@ -615,6 +613,7 @@ const ThreeScene: React.FC = () => {
     compileMs: null,
     width: 0,
     height: 0,
+    elements: [],
   });
 
   const [ctx, setCtx] = useState<EngineContext<RuntimeContext>>({
@@ -633,6 +632,77 @@ const ThreeScene: React.FC = () => {
       cache: { nodes: {} },
     },
   });
+
+  const { scene, camera, threeDomRef, renderer } = useThree((time) => {
+    const { current: mesh } = meshRef;
+    if (!mesh) {
+      return;
+    }
+    // renderer.render(scene, camera);
+    if (sceneRef.current.shadersUpdated) {
+      const gl = renderer.getContext();
+
+      const fragmentRef = renderer.properties
+        .get(mesh.material)
+        .programs.values()
+        .next().value.fragmentShader;
+      const vertexRef = renderer.properties
+        .get(mesh.material)
+        .programs.values()
+        .next().value.vertexShader;
+
+      extendState({
+        fragError: gl.getShaderInfoLog(fragmentRef).trim(),
+        vertError: gl.getShaderInfoLog(vertexRef).trim(),
+      });
+
+      sceneRef.current.shadersUpdated = false;
+    }
+    // mesh.rotation.x = time * 0.0003;
+    // mesh.rotation.y = time * -0.0003;
+    // mesh.rotation.z = time * 0.0003;
+    if (sceneRef.current?.lights) {
+      const light = sceneRef.current.lights[0];
+      light.position.x = 1.2 * Math.sin(time * 0.001);
+      light.position.y = 1.2 * Math.cos(time * 0.001);
+      light.lookAt(
+        new three.Vector3(Math.cos(time * 0.0015), Math.sin(time * 0.0015), 0)
+      );
+
+      if (sceneRef.current.lights.length > 2) {
+        const light = sceneRef.current.lights[1];
+        light.position.x = 1.3 * Math.cos(time * 0.0015);
+        light.position.y = 1.3 * Math.sin(time * 0.0015);
+
+        light.lookAt(
+          new three.Vector3(Math.cos(time * 0.0025), Math.sin(time * 0.0025), 0)
+        );
+      }
+    }
+    // @ts-ignore
+    if (mesh.material?.uniforms?.time) {
+      mesh.material.uniforms.time.value = time * 0.001;
+    }
+  });
+
+  const [previewObject, setPreviewObject] = useState('torusknot');
+  const meshRef = useRef<three.Mesh>();
+  useMemo(() => {
+    if (meshRef.current) {
+      scene.remove(meshRef.current);
+    }
+    if (previewObject === 'torusknot') {
+      const geometry = new three.TorusKnotGeometry(0.6, 0.25, 100, 16);
+      meshRef.current = new three.Mesh(geometry);
+      scene.add(meshRef.current);
+    }
+  }, [previewObject, scene]);
+
+  const threeTone = useMemo(() => {
+    const image = new three.TextureLoader().load('/2/3tone.jpg');
+    image.minFilter = three.NearestFilter;
+    image.magFilter = three.NearestFilter;
+  }, []);
 
   // Setup?
   useEffect(() => {
@@ -654,15 +724,15 @@ const ThreeScene: React.FC = () => {
     }
     */
 
-    const scene = new three.Scene();
-    const camera = new three.PerspectiveCamera(75, 1 / 1, 0.1, 1000);
-    camera.position.set(0, 0, 3);
-    camera.lookAt(0, 0, 0);
-    scene.add(camera);
+    // const scene = new three.Scene();
+    // const camera = new three.PerspectiveCamera(75, 1 / 1, 0.1, 1000);
+    // camera.position.set(0, 0, 3);
+    // camera.lookAt(0, 0, 0);
+    // scene.add(camera);
 
-    const threeTone = new three.TextureLoader().load('/2/3tone.jpg');
-    threeTone.minFilter = three.NearestFilter;
-    threeTone.magFilter = three.NearestFilter;
+    // const threeTone = new three.TextureLoader().load('/2/3tone.jpg');
+    // threeTone.minFilter = three.NearestFilter;
+    // threeTone.magFilter = three.NearestFilter;
 
     // const material = new three.MeshToonMaterial({
     // const material = new three.MeshPhongMaterial({
@@ -671,20 +741,20 @@ const ThreeScene: React.FC = () => {
     //   gradientMap: threeTone,
     // });
     // const geometry = new three.SphereBufferGeometry(1, 32, 32);
-    const geometry = new three.TorusKnotGeometry(0.6, 0.25, 100, 16);
-    // const mesh = new three.Mesh(geometry, material);
-    const mesh = new three.Mesh(geometry);
-    scene.add(mesh);
+    // const geometry = new three.TorusKnotGeometry(0.6, 0.25, 100, 16);
+    // // const mesh = new three.Mesh(geometry, material);
+    // const mesh = new three.Mesh(geometry);
+    // scene.add(mesh);
 
-    sceneRef.current.scene = scene;
-    sceneRef.current.mesh = mesh;
+    // sceneRef.current.scene = scene;
+    // sceneRef.current.mesh = mesh;
 
     const ambientLight = new three.AmbientLight(0x020202);
     scene.add(ambientLight);
 
-    const renderer = new three.WebGLRenderer();
+    // const renderer = new three.WebGLRenderer();
 
-    setCtx({
+    const ctx = {
       runtime: {
         lGraph: null,
         three,
@@ -699,105 +769,18 @@ const ThreeScene: React.FC = () => {
       },
       nodes: {},
       debuggingNonsense: {},
-    });
+    };
+    setCtx(ctx);
+
+    console.log('Object.values(ctx.nodes)', Object.values(ctx.nodes));
   }, []);
 
-  useEffect(() => {
-    if (!ctx.runtime.renderer) {
-      return;
-    }
-    const { renderer, scene, camera, mesh } = ctx.runtime;
-    let controls: OrbitControls;
+  const [lights, setlights] = useState<string>('point');
+  const lightsRef = useRef<three.Light[]>([]);
+  useMemo(() => {
+    lightsRef.current.forEach((light) => scene.remove(light));
 
-    if (threeDomRef.current) {
-      threeDomRef.current.appendChild(renderer.domElement);
-      controls = new OrbitControls(camera, renderer.domElement);
-      controls.update();
-      sceneRef.current.controls = controls;
-      // setControls(controls);
-    }
-
-    const animate = (time: number) => {
-      if (controls) {
-        controls.update();
-      }
-      renderer.render(scene, camera);
-      if (sceneRef.current.shadersUpdated) {
-        const gl = renderer.getContext();
-
-        const fragmentRef = renderer.properties
-          .get(mesh.material)
-          .programs.values()
-          .next().value.fragmentShader;
-        const vertexRef = renderer.properties
-          .get(mesh.material)
-          .programs.values()
-          .next().value.vertexShader;
-
-        extendState({
-          fragError: gl.getShaderInfoLog(fragmentRef).trim(),
-          vertError: gl.getShaderInfoLog(vertexRef).trim(),
-        });
-
-        sceneRef.current.shadersUpdated = false;
-      }
-      // mesh.rotation.x = time * 0.0003;
-      // mesh.rotation.y = time * -0.0003;
-      // mesh.rotation.z = time * 0.0003;
-      if (sceneRef.current?.lights) {
-        const light = sceneRef.current.lights[0];
-        light.position.x = 1.2 * Math.sin(time * 0.001);
-        light.position.y = 1.2 * Math.cos(time * 0.001);
-        light.lookAt(
-          new three.Vector3(Math.cos(time * 0.0015), Math.sin(time * 0.0015), 0)
-        );
-
-        if (sceneRef.current.lights.length > 2) {
-          const light = sceneRef.current.lights[1];
-          light.position.x = 1.3 * Math.cos(time * 0.0015);
-          light.position.y = 1.3 * Math.sin(time * 0.0015);
-
-          light.lookAt(
-            new three.Vector3(
-              Math.cos(time * 0.0025),
-              Math.sin(time * 0.0025),
-              0
-            )
-          );
-        }
-      }
-      // @ts-ignore
-      if (mesh.material?.uniforms?.time) {
-        mesh.material.uniforms.time.value = time * 0.001;
-      }
-      sceneRef.current.frame = requestAnimationFrame(animate);
-    };
-    animate(0);
-
-    return () => {
-      // const { current } = threeDomRef;
-      // console.log('unmounting');
-      // if (current) {
-      //   current.removeChild(renderer.domElement);
-      // }
-      if (sceneRef.current) {
-        sceneRef.current.controls.dispose();
-        console.log('cancel');
-        cancelAnimationFrame(sceneRef.current.frame);
-      }
-    };
-  }, [ctx, tabIndex]);
-
-  useEffect(() => {
-    if (!sceneRef.current.scene) {
-      return;
-    }
-    const { lights, scene } = sceneRef.current;
-    (lights || []).forEach((light: any) => {
-      scene.remove(light);
-    });
-
-    if (lighting === 'a') {
+    if (lights === 'point') {
       const pointLight = new three.PointLight(0xffffff, 1);
       pointLight.position.set(0, 0, 1);
       scene.add(pointLight);
@@ -827,9 +810,80 @@ const ThreeScene: React.FC = () => {
 
       sceneRef.current.lights = [light, light2, helper, helper2];
     }
-    // TODO: Exploring changing lighting issue
-    sceneRef.current.mesh.material.needsUpdate = true;
-  }, [lighting]);
+  }, [lights, scene]);
+
+  useEffect(() => {
+    if (!ctx.runtime) {
+      return;
+    }
+    computeGraphContext(ctx, threngine, graph);
+
+    let engines = 0;
+    let maths = 0;
+    let outputs = 0;
+    let shaders = 0;
+    const spacing = 200;
+
+    extendState({
+      elements: [
+        ...graph.nodes.map((node: any, index) => ({
+          id: node.id,
+          // @ts-ignore
+          data: { label: node.name, inputs: ctx.nodes[node.id]?.inputs || [] },
+          type: 'special',
+          position:
+            node.type === ShaderType.output
+              ? { x: spacing * 2, y: outputs++ * 100 }
+              : node.type === ShaderType.phong || node.type === ShaderType.toon
+              ? { x: spacing, y: engines++ * 100 }
+              : node.type === ShaderType.add ||
+                node.type === ShaderType.multiply
+              ? { x: 0, y: maths++ * 100 }
+              : { x: -spacing, y: shaders++ * 100 },
+        })),
+        ...graph.edges.map((edge) => ({
+          id: `${edge.to}-${edge.from}`,
+          source: edge.from,
+          targetHandle: edge.input,
+          target: edge.to,
+        })),
+      ],
+    });
+  }, [ctx]);
+
+  // useEffect(() => {
+  //   if (!ctx.runtime.renderer) {
+  //     return;
+  //   }
+  //   const { renderer, scene, camera, mesh } = ctx.runtime;
+  //   let controls: OrbitControls;
+
+  //   if (threeDomRef.current) {
+  //     threeDomRef.current.appendChild(renderer.domElement);
+  //     controls = new OrbitControls(camera, renderer.domElement);
+  //     controls.update();
+  //     sceneRef.current.controls = controls;
+  //     // setControls(controls);
+  //   }
+
+  //   // const animate = (time: number) => {
+  //   //   // sceneRef.current.frame = requestAnimationFrame(animate);
+  //   // };
+  //   // animate(0);
+
+  //   // return () => {
+  //   //   // const { current } = threeDomRef;
+  //   //   // console.log('unmounting');
+  //   //   // if (current) {
+  //   //   //   current.removeChild(renderer.domElement);
+  //   //   // }
+  //   //   if (sceneRef.current) {
+  //   //     sceneRef.current.controls.dispose();
+  //   //     console.log('cancel');
+  //   //     cancelAnimationFrame(sceneRef.current.frame);
+  //   //   }
+  //   // };
+  // }, [ctx, tabIndex]);
 
   // Compile
   useEffect(() => {
@@ -975,10 +1029,7 @@ const ThreeScene: React.FC = () => {
   // }, [ctx, originalVert]);
 
   const resizeThree = useThrottle(() => {
-    // useCallback(() => {
-    console.log('throttle called', rightSplit, ctx.runtime);
     if (rightSplit.current && ctx.runtime?.camera) {
-      console.log('doing the thing');
       const { camera, renderer } = ctx.runtime;
       const { width, height } = rightSplit.current.getBoundingClientRect();
       camera.aspect = width / height;
@@ -986,7 +1037,6 @@ const ThreeScene: React.FC = () => {
       renderer.setSize(width, height);
       extendState({ width, height });
     }
-    // }, [ctx, extendState]),
   }, 100);
 
   useEffect(resizeThree, [ctx.runtime?.camera]);
@@ -997,7 +1047,7 @@ const ThreeScene: React.FC = () => {
         <div className={styles.splitInner}>
           {/* <canvas ref={graphRef}></canvas> */}
           <ReactFlow
-            elements={elements}
+            elements={state.elements}
             style={flowStyles}
             nodeTypes={nodeTypes}
           >

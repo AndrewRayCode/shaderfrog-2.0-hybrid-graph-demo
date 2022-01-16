@@ -28,11 +28,13 @@ export const useThree = (callback: (time: number) => void) => {
 
   const animate = useCallback(
     (time: number) => {
-      callback(time);
       if (controlsRef.current) {
         controlsRef.current.update();
       }
       renderer.render(scene, camera);
+      callback(time);
+
+      frameRef.current = requestAnimationFrame(animate);
     },
     [callback, renderer, scene, camera]
   );

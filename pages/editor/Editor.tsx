@@ -273,8 +273,7 @@ const nodeTypes = {
 };
 
 const compileGraphAsync = async (
-  ctx: EngineContext<RuntimeContext>,
-  lGraph: any
+  ctx: EngineContext<RuntimeContext>
 ): Promise<{
   compileMs: string;
   fragmentResult: string;
@@ -282,14 +281,7 @@ const compileGraphAsync = async (
 }> =>
   new Promise((resolve, reject) => {
     setTimeout(() => {
-      console.warn(
-        'Compiling!',
-        graph,
-        'from lGraph',
-        lGraph,
-        'for nodes',
-        ctx.nodes
-      );
+      console.warn('Compiling!', graph, 'for nodes', ctx.nodes);
 
       // const engineContext: EngineContext = {
       //   renderer,
@@ -588,9 +580,11 @@ const ThreeScene: React.FC = () => {
   const rightSplit = useRef<HTMLDivElement>(null);
   // const [mesh, setMesh] = useState<three.Mesh | undefined>();
 
-  const [lgInitted, setLgInitted] = useState<boolean>(false);
-  const [lgNodesAdded, setLgNodesAdded] = useState<boolean>(false);
+  // const [lgInitted, setLgInitted] = useState<boolean>(false);
+  // const [lgNodesAdded, setLgNodesAdded] = useState<boolean>(false);
   // const [lighting, setLighting] = useState<string>('a');
+
+  // tabIndex may still be needed to pause rendering
   const [tabIndex, setTabIndex] = useState<number>(0);
   const [compiling, setCompiling] = useState<boolean>(true);
 
@@ -760,7 +754,10 @@ const ThreeScene: React.FC = () => {
         three,
         renderer,
         material: null,
-        mesh,
+        // I'm refactoring the hooks, is this an issue, where meshRef won't
+        // be set? I put previewObject in the deps array to try to ensure this
+        // hook is called when that's changed
+        mesh: meshRef.current,
         scene,
         camera,
         index: 0,
@@ -773,9 +770,9 @@ const ThreeScene: React.FC = () => {
     setCtx(ctx);
 
     console.log('Object.values(ctx.nodes)', Object.values(ctx.nodes));
-  }, []);
+  }, [previewObject, camera, renderer, scene, threeTone]);
 
-  const [lights, setlights] = useState<string>('point');
+  const [lights, setLights] = useState<string>('point');
   const lightsRef = useRef<three.Light[]>([]);
   useMemo(() => {
     lightsRef.current.forEach((light) => scene.remove(light));
@@ -813,10 +810,9 @@ const ThreeScene: React.FC = () => {
   }, [lights, scene]);
 
   useEffect(() => {
-    if (!ctx.runtime) {
+    if (!Object.keys(ctx.nodes)) {
       return;
     }
-    computeGraphContext(ctx, threngine, graph);
 
     let engines = 0;
     let maths = 0;
@@ -849,7 +845,7 @@ const ThreeScene: React.FC = () => {
         })),
       ],
     });
-  }, [ctx]);
+  }, [ctx.nodes, extendState]);
 
   // useEffect(() => {
   //   if (!ctx.runtime.renderer) {
@@ -890,43 +886,10 @@ const ThreeScene: React.FC = () => {
     if (!ctx.runtime.renderer) {
       return;
     }
-    const { mesh, renderer, threeTone, lGraph } = ctx.runtime;
 
     setCompiling(true);
-    if (lgNodesAdded) {
-      graph.edges = Object.values(lGraph.links).reduce<Edge[]>(
-        (edges: any, link: any) => {
-          const input = Object.keys(ctx.nodes[link.target_id]?.inputs || {})[
-            link.target_slot
-          ];
-          if (input) {
-            return [
-              ...edges,
-              {
-                from: link.origin_id.toString(),
-                to: link.target_id.toString(),
-                output: 'main',
-                input,
-                type: 'fragment',
-              },
-            ];
-          } else {
-            console.warn(
-              `For link {from: ${link.origin_id.toString()}, to: ${link.target_id.toString()}} there is no input ${
-                link.target_slot
-              } in target id ${link.target_id}. Nodes:`,
-              ctx.nodes,
-              'Links: ',
-              lGraph.links
-            );
-            return edges;
-          }
-        },
-        []
-      );
-    }
 
-    compileGraphAsync(ctx, lGraph).then(
+    compileGraphAsync(ctx).then(
       ({ compileMs, vertexResult, fragmentResult }) => {
         sceneRef.current.shadersUpdated = true;
         setCompiling(false);
@@ -940,7 +903,7 @@ const ThreeScene: React.FC = () => {
         extendState({ compileMs });
       }
     );
-  }, [ctx, lighting]);
+  }, [ctx, lights, extendState]);
 
   // useEffect(() => {
   //   if (!ctx.runtime || !ctx.runtime.lGraph || !originalVert || lgNodesAdded) {
@@ -1039,7 +1002,7 @@ const ThreeScene: React.FC = () => {
     }
   }, 100);
 
-  useEffect(resizeThree, [ctx.runtime?.camera]);
+  useEffect(resizeThree, [ctx.runtime?.camera, resizeThree]);
 
   return (
     <div className={styles.container}>
@@ -1111,15 +1074,15 @@ const ThreeScene: React.FC = () => {
                   Preview with:
                   <button
                     className={styles.button}
-                    onClick={() => setLighting('a')}
-                    disabled={lighting === 'a'}
+                    onClick={() => setLights('point')}
+                    disabled={lights === 'point'}
                   >
                     Point Light
                   </button>
                   <button
                     className={styles.button}
-                    onClick={() => setLighting('b')}
-                    disabled={lighting === 'b'}
+                    onClick={() => setLights('spot')}
+                    disabled={lights === 'spot'}
                   >
                     Spot Lights
                   </button>

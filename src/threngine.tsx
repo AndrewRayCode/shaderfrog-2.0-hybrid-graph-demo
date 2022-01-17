@@ -27,7 +27,6 @@ export type RuntimeContext = {
   mesh: any;
   three: any;
   material: any;
-  lGraph: any;
   index: number;
   threeTone: any;
   cache: {

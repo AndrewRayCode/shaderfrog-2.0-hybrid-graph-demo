@@ -15,6 +15,7 @@ import React, {
 } from 'react';
 import * as three from 'three';
 import ReactFlow, {
+  addEdge,
   Background,
   BackgroundVariant,
   Handle,
@@ -161,18 +162,18 @@ const graph: Graph = {
     //   input: 'texture2d_0',
     //   type: 'fragment',
     // },
+    // {
+    //   from: add.id,
+    //   to: phongF.id,
+    //   output: 'color',
+    //   input: 'texture2d_0',
+    //   type: 'fragment',
+    // },
     {
-      from: add.id,
+      from: purpleNoise.id,
       to: phongF.id,
       output: 'color',
       input: 'texture2d_0',
-      type: 'fragment',
-    },
-    {
-      from: purpleNoise.id,
-      to: add.id,
-      output: 'color',
-      input: 'a',
       type: 'fragment',
     },
     {
@@ -212,15 +213,22 @@ const CustomNodeComponent = ({ data }: { data: any }) => {
   // TODO: Populate inputs (and eventually outputs) after the graph compiles!
   // console.log('data.inputs', data.inputs);
   return (
-    <div style={{ height: `${60 + Object.keys(data.inputs).length * 20}px` }}>
+    <div
+      style={{
+        height: `${
+          handleTop + Math.max(Object.keys(data.inputs).length, 1) * 20
+        }px`,
+      }}
+    >
       <div className="flowlabel">{data.label}</div>
       <div className="flowInputs">
         {Object.keys(data.inputs).map((name, index) => (
           <React.Fragment key={name}>
             <div
+              className="react-flow_handle_label"
               style={{
                 top: `${handleTop - textHeight + index * 20}px`,
-                left: 10,
+                left: 15,
                 position: 'absolute',
               }}
             >
@@ -234,14 +242,21 @@ const CustomNodeComponent = ({ data }: { data: any }) => {
             />
           </React.Fragment>
         ))}
-        <div style={{ top: `${handleTop}px`, right: 10, position: 'absolute' }}>
+        <div
+          style={{
+            top: `${handleTop - textHeight}px`,
+            right: 15,
+            position: 'absolute',
+          }}
+          className="react-flow_handle_label"
+        >
           out
         </div>
         <Handle
           type="source"
           position={Position.Right}
           id="a"
-          style={{ top: `${handleTop - textHeight}px` }}
+          style={{ top: `${handleTop}px` }}
         />
       </div>
     </div>
@@ -558,6 +573,7 @@ const ThreeScene: React.FC = () => {
   // const threeDomRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<{ [key: string]: any }>({});
   const rightSplit = useRef<HTMLDivElement>(null);
+  const [pauseCompile, setPauseCompile] = useState(false);
   // const [mesh, setMesh] = useState<three.Mesh | undefined>();
 
   // const [lgInitted, setLgInitted] = useState<boolean>(false);
@@ -589,23 +605,6 @@ const ThreeScene: React.FC = () => {
     width: 0,
     height: 0,
     elements: [],
-  });
-
-  const [ctx, setCtx] = useState<EngineContext<RuntimeContext>>({
-    debuggingNonsense: {},
-    nodes: {},
-    runtime: {
-      lGraph: null,
-      three: null,
-      renderer: null,
-      material: null,
-      mesh: null,
-      scene: null,
-      camera: null,
-      index: 0,
-      threeTone: null,
-      cache: { nodes: {} },
-    },
   });
 
   const { scene, camera, threeDomRef, renderer } = useThree((time) => {
@@ -674,6 +673,10 @@ const ThreeScene: React.FC = () => {
       const geometry = new three.TorusKnotGeometry(0.6, 0.25, 100, 16);
       meshRef.current = new three.Mesh(geometry);
       scene.add(meshRef.current);
+    } else if (previewObject === 'sphere') {
+      const geometry = new three.SphereBufferGeometry(1, 32, 32);
+      meshRef.current = new three.Mesh(geometry);
+      scene.add(meshRef.current);
     }
   }, [previewObject, scene]);
 
@@ -684,78 +687,11 @@ const ThreeScene: React.FC = () => {
   }, []);
 
   // Setup?
-  useEffect(() => {
-    // if (!graphRef.current) {
-    //   return;
-    // }
-
-    /*
-    let lGraph = ctx.runtime.lGraph;
-    if (!lgInitted) {
-      console.warn('----- LGraph Initting!!! -----');
-      setLgInitted(true);
-      lGraph = new LiteGraph.LGraph();
-      lGraph.onAction = (action: any, params: any) => {
-        console.log({ action, params });
-      };
-      new LiteGraph.LGraphCanvas(graphRef.current, lGraph);
-      lGraph.start();
-    }
-    */
-
-    // const scene = new three.Scene();
-    // const camera = new three.PerspectiveCamera(75, 1 / 1, 0.1, 1000);
-    // camera.position.set(0, 0, 3);
-    // camera.lookAt(0, 0, 0);
-    // scene.add(camera);
-
-    // const threeTone = new three.TextureLoader().load('/2/3tone.jpg');
-    // threeTone.minFilter = three.NearestFilter;
-    // threeTone.magFilter = three.NearestFilter;
-
-    // const material = new three.MeshToonMaterial({
-    // const material = new three.MeshPhongMaterial({
-    //   color: 0x00ff00,
-    //   map: new three.Texture(),
-    //   gradientMap: threeTone,
-    // });
-    // const geometry = new three.SphereBufferGeometry(1, 32, 32);
-    // const geometry = new three.TorusKnotGeometry(0.6, 0.25, 100, 16);
-    // // const mesh = new three.Mesh(geometry, material);
-    // const mesh = new three.Mesh(geometry);
-    // scene.add(mesh);
-
-    // sceneRef.current.scene = scene;
-    // sceneRef.current.mesh = mesh;
-
-    const ambientLight = new three.AmbientLight(0x020202);
-    scene.add(ambientLight);
-
-    // const renderer = new three.WebGLRenderer();
-
-    const ctx = {
-      runtime: {
-        lGraph: null,
-        three,
-        renderer,
-        material: null,
-        // I'm refactoring the hooks, is this an issue, where meshRef won't
-        // be set? I put previewObject in the deps array to try to ensure this
-        // hook is called when that's changed
-        mesh: meshRef.current,
-        scene,
-        camera,
-        index: 0,
-        threeTone,
-        cache: { nodes: {} },
-      },
-      nodes: {},
-      debuggingNonsense: {},
-    };
-    setCtx(ctx);
-
-    console.log('Object.values(ctx.nodes)', Object.values(ctx.nodes));
-  }, [previewObject, camera, renderer, scene, threeTone]);
+  // useEffect(() => {
+  //   // const ambientLight = new three.AmbientLight(0x020202);
+  //   // scene.add(ambientLight);
+  //   console.log('Object.values(ctx.nodes)', Object.values(ctx.nodes));
+  // }, [previewObject, camera, renderer, scene, threeTone]);
 
   const [lights, setLights] = useState<string>('point');
   const lightsRef = useRef<three.Light[]>([]);
@@ -794,13 +730,33 @@ const ThreeScene: React.FC = () => {
     }
   }, [lights, scene]);
 
+  const [ctx, setCtx] = useState<EngineContext<RuntimeContext>>({
+    runtime: {
+      three,
+      renderer,
+      material: null,
+      // I'm refactoring the hooks, is this an issue, where meshRef won't
+      // be set? I put previewObject in the deps array to try to ensure this
+      // hook is called when that's changed
+      mesh: meshRef.current,
+      scene,
+      camera,
+      index: 0,
+      threeTone,
+      cache: { nodes: {} },
+    },
+    nodes: {},
+    debuggingNonsense: {},
+  });
+
   // Temporary: compute initial context so we can get the node inputs to then
   // compute the graph
   useEffect(() => {
     if (
       !Object.keys(ctx.nodes) ||
       !ctx.runtime.three ||
-      state.elements.length
+      state.elements.length ||
+      pauseCompile
     ) {
       return;
     }
@@ -834,16 +790,29 @@ const ThreeScene: React.FC = () => {
           source: edge.from,
           targetHandle: edge.input,
           target: edge.to,
+          style: { strokeWidth: 2 },
+          data: { type: edge.type },
         })),
       ],
     });
-  }, [state.elements, ctx, extendState]);
+  }, [state.elements, ctx, extendState, pauseCompile]);
 
   // Compile
   useEffect(() => {
-    if (!ctx.runtime.renderer) {
+    if (!ctx.runtime.renderer || pauseCompile || !state.elements.length) {
       return;
     }
+
+    graph.edges = state.elements
+      .filter((element: any) => element.source)
+      .map((element: any) => ({
+        from: element.source,
+        to: element.target,
+        output: 'out',
+        input: element.targetHandle,
+        type: element.data.type,
+      }));
+    console.log('edges are now', graph.edges);
 
     setCompiling(true);
 
@@ -861,7 +830,7 @@ const ThreeScene: React.FC = () => {
         extendState({ compileMs });
       }
     );
-  }, [ctx, lights, extendState]);
+  }, [ctx, lights, extendState, pauseCompile, state.elements]);
 
   const resizeThree = useThrottle(() => {
     if (rightSplit.current && ctx.runtime?.camera) {
@@ -876,6 +845,26 @@ const ThreeScene: React.FC = () => {
 
   useLayoutEffect(resizeThree, [ctx.runtime?.camera, resizeThree]);
 
+  const onConnect = (params: any) => {
+    extendState({
+      elements: [
+        ...state.elements.filter(
+          (element: any) =>
+            !(
+              element.targetHandle === params.targetHandle &&
+              element.target === params.target
+            )
+        ),
+        {
+          ...params,
+          id: `${params.source}-${params.target}`,
+          style: { strokeWidth: 2 },
+          data: { type: graph.nodes[params.source].type },
+        },
+      ],
+    });
+  };
+
   return (
     <div className={styles.container}>
       <SplitPane split="vertical" onChange={resizeThree}>
@@ -885,6 +874,7 @@ const ThreeScene: React.FC = () => {
             elements={state.elements}
             style={flowStyles}
             nodeTypes={nodeTypes}
+            onConnect={onConnect}
           >
             <Background
               variant={BackgroundVariant.Lines}
@@ -962,6 +952,22 @@ const ThreeScene: React.FC = () => {
                     disabled={lights === 'spot'}
                   >
                     Spot Lights
+                  </button>
+                  <button
+                    className={styles.button}
+                    onClick={() =>
+                      setPreviewObject(
+                        previewObject === 'sphere' ? 'torusknot' : 'sphere'
+                      )
+                    }
+                  >
+                    {previewObject}
+                  </button>
+                  <button
+                    className={styles.button}
+                    onClick={() => setPauseCompile(!pauseCompile)}
+                  >
+                    {pauseCompile ? 'Unpause' : 'Pause'}
                   </button>
                 </div>
               </TabPanel>

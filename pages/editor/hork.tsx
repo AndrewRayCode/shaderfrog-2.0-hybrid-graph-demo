@@ -1,9 +1,12 @@
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as three from 'three';
 
-export const useThree = (callback: (time: number) => void) => {
-  const threeDomRef = useRef<HTMLDivElement>(null);
+type Callback = (time: number) => void;
+export const useThree = (callback: Callback) => {
+  const [threeDom, setThreeDom] = useState<HTMLDivElement | null>(null);
+  const threeDomRef = useCallback((node) => setThreeDom(node), []);
+
   const frameRef = useRef<number>(0);
   const controlsRef = useRef<OrbitControls>();
   const scene = useMemo(() => new three.Scene(), []);
@@ -17,30 +20,44 @@ export const useThree = (callback: (time: number) => void) => {
 
   const renderer = useMemo(() => new three.WebGLRenderer(), []);
 
+  const savedCallback = useRef<Callback>(callback);
+  // Remember the latest callback.
   useEffect(() => {
-    if (threeDomRef.current) {
-      threeDomRef.current.appendChild(renderer.domElement);
+    savedCallback.current = callback;
+  }, [callback]);
+
+  useEffect(() => {
+    if (threeDom) {
+      console.log('Re-attaching three.js DOM and instantiate OrbitControls');
+      threeDom.appendChild(renderer.domElement);
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.update();
       controlsRef.current = controls;
     }
-  }, [camera, renderer]);
+  }, [camera, renderer, threeDom]);
 
+  // TODO: This is clearly wrong because the cleanup effect gets called
+  // way too often. It should onlmcay get called when - when the dom ref is
+  // unmounted? Also was initially thinking of a way to pause this renderer
+  // but I think it's solved by the
   const animate = useCallback(
     (time: number) => {
       if (controlsRef.current) {
         controlsRef.current.update();
       }
       renderer.render(scene, camera);
-      callback(time);
+      savedCallback.current(time);
 
       frameRef.current = requestAnimationFrame(animate);
     },
-    [callback, renderer, scene, camera]
+    [camera, renderer, scene]
   );
 
   useEffect(() => {
-    frameRef.current = requestAnimationFrame(animate);
+    if (threeDom) {
+      console.log('🎬 Starting requestAnimationFrame');
+      frameRef.current = requestAnimationFrame(animate);
+    }
 
     return () => {
       console.log('🛑 Cleaning up Three animationframe');
@@ -51,7 +68,7 @@ export const useThree = (callback: (time: number) => void) => {
         cancelAnimationFrame(frameRef.current);
       }
     };
-  }, [animate]);
+  }, [animate, threeDom]);
 
   return { threeDomRef, scene, camera, renderer };
 };

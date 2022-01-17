@@ -21,3 +21,36 @@ button[disabled] {
   background-color: #999;
   color: #222;
 }
+
+/* grorph */
+.react-flow__node {
+  border-radius: 10px;
+  background: #111;
+  color: #fff;
+  border: 1px solid #666;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+  position: relative;
+  min-width: 150px;
+}
+
+.react-flow__node.selected {
+  border: 1px solid #d4ff00;
+}
+
+.flowlabel {
+  border-radius: 10px 10px 0 0;
+  padding: 2px 8px;
+  background: linear-gradient(to right, #091a09, #3b4508);
+  border-bottom: 1px solid #666;
+}
+.flowInputs {
+  position: absolute;
+  top: 0;
+  width: 100%;
+}
+
+.react-flow__node .react-flow__handle {
+  width: 12px;
+  height: 12px;
+}
+/* selected selectable */

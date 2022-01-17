@@ -1,21 +1,26 @@
 import styles from './editor.module.css';
-import 'litegraph.js/css/litegraph.css';
 
 import throttle from 'lodash.throttle';
 import { SplitPane } from 'react-multi-split-pane';
 import cx from 'classnames';
-import LiteGraph from 'litegraph.js';
 import { generate } from '@shaderfrog/glsl-parser';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import React, {
   ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
 import * as three from 'three';
+import ReactFlow, {
+  Background,
+  BackgroundVariant,
+  Handle,
+  Position,
+} from 'react-flow-renderer';
+
 import {
   outputNode,
   Graph,
@@ -54,15 +59,9 @@ import contrastNoise from '..';
 import { useAsyncExtendedState } from '../../src/useAsyncExtendedState';
 import { usePromise } from '../../src/usePromise';
 
-import ReactFlow, {
-  Background,
-  BackgroundVariant,
-  Handle,
-  Position,
-} from 'react-flow-renderer';
 import { useThree } from './hork';
 
-const flowStyles = { height: 500 };
+const flowStyles = { height: 500, background: '#111' };
 
 let counter = 0;
 const id = () => '' + counter++;
@@ -155,34 +154,34 @@ const graph: Graph = {
       input: 'color',
       type: 'fragment',
     },
-    {
-      from: solidColorF.id,
-      to: phongF.id,
-      output: 'main',
-      input: 'texture2d_0',
-      type: 'fragment',
-    },
     // {
-    //   from: add.id,
+    //   from: solidColorF.id,
     //   to: phongF.id,
-    //   output: 'color',
+    //   output: 'main',
     //   input: 'texture2d_0',
     //   type: 'fragment',
     // },
-    // {
-    //   from: purpleNoise.id,
-    //   to: add.id,
-    //   output: 'color',
-    //   input: 'a',
-    //   type: 'fragment',
-    // },
-    // {
-    //   from: heatShaderF.id,
-    //   to: add.id,
-    //   output: 'color',
-    //   input: 'b',
-    //   type: 'fragment',
-    // },
+    {
+      from: add.id,
+      to: phongF.id,
+      output: 'color',
+      input: 'texture2d_0',
+      type: 'fragment',
+    },
+    {
+      from: purpleNoise.id,
+      to: add.id,
+      output: 'color',
+      input: 'a',
+      type: 'fragment',
+    },
+    {
+      from: heatShaderF.id,
+      to: add.id,
+      output: 'color',
+      input: 'b',
+      type: 'fragment',
+    },
     // {
     //   from: heatShaderV.id,
     //   to: phongV.id,
@@ -207,63 +206,44 @@ const graph: Graph = {
   ],
 };
 
-class LOutputNode extends LiteGraph.LGraphNode {
-  constructor() {
-    super();
-  }
-}
-LiteGraph.LiteGraph.registerNodeType('basic/output', LOutputNode);
-
-class LShaderNode extends LiteGraph.LGraphNode {
-  constructor() {
-    super();
-    this.addOutput('main', 'string');
-    this.color = '#fff';
-  }
-  bgcolor = '#000';
-}
-LiteGraph.LiteGraph.registerNodeType('basic/shader', LShaderNode);
-
-class LAddNode extends LiteGraph.LGraphNode {
-  constructor() {
-    super();
-    this.addOutput('output', 'string');
-  }
-}
-LiteGraph.LiteGraph.registerNodeType('basic/add', LAddNode);
-
-const customNodeStyles = {
-  background: '#9CA8B3',
-  color: '#FFF',
-  padding: '10px 20px',
-};
+const handleTop = 40;
+const textHeight = 10;
 const CustomNodeComponent = ({ data }: { data: any }) => {
   // TODO: Populate inputs (and eventually outputs) after the graph compiles!
   // console.log('data.inputs', data.inputs);
   return (
-    <div style={customNodeStyles}>
-      {Object.keys(data.inputs).map((name, index) => (
-        <React.Fragment key={name}>
-          <div
-            style={{ top: `${index * 20}px`, left: 5, position: 'absolute' }}
-          >
-            {name}
-          </div>
-          <Handle
-            id={name}
-            type="target"
-            position={Position.Left}
-            style={{ top: `${index * 20}px`, borderRadius: 0 }}
-          />
-        </React.Fragment>
-      ))}
-      <div>{data.label}</div>
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="a"
-        style={{ top: '30%', borderRadius: 0 }}
-      />
+    <div style={{ height: `${60 + Object.keys(data.inputs).length * 20}px` }}>
+      <div className="flowlabel">{data.label}</div>
+      <div className="flowInputs">
+        {Object.keys(data.inputs).map((name, index) => (
+          <React.Fragment key={name}>
+            <div
+              style={{
+                top: `${handleTop - textHeight + index * 20}px`,
+                left: 10,
+                position: 'absolute',
+              }}
+            >
+              {name}
+            </div>
+            <Handle
+              id={name}
+              type="target"
+              position={Position.Left}
+              style={{ top: `${handleTop + index * 20}px` }}
+            />
+          </React.Fragment>
+        ))}
+        <div style={{ top: `${handleTop}px`, right: 10, position: 'absolute' }}>
+          out
+        </div>
+        <Handle
+          type="source"
+          position={Position.Right}
+          id="a"
+          style={{ top: `${handleTop - textHeight}px` }}
+        />
+      </div>
     </div>
   );
 };
@@ -604,6 +584,7 @@ const ThreeScene: React.FC = () => {
   const [state, setState, extendState] = useAsyncExtendedState<any>({
     fragError: null,
     vertError: null,
+    programError: null,
     compileMs: null,
     width: 0,
     height: 0,
@@ -636,19 +617,21 @@ const ThreeScene: React.FC = () => {
     if (sceneRef.current.shadersUpdated) {
       const gl = renderer.getContext();
 
-      const fragmentRef = renderer.properties
+      const { fragmentShader, vertexShader, program } = renderer.properties
         .get(mesh.material)
         .programs.values()
-        .next().value.fragmentShader;
-      const vertexRef = renderer.properties
-        .get(mesh.material)
-        .programs.values()
-        .next().value.vertexShader;
+        .next().value;
 
-      extendState({
-        fragError: gl.getShaderInfoLog(fragmentRef).trim(),
-        vertError: gl.getShaderInfoLog(vertexRef).trim(),
-      });
+      const compiled = gl.getProgramParameter(program, gl.LINK_STATUS);
+      if (!compiled) {
+        const log = gl.getProgramInfoLog(program)?.trim();
+
+        extendState({
+          fragError: gl.getShaderInfoLog(fragmentShader)?.trim() || log,
+          vertError: gl.getShaderInfoLog(vertexShader)?.trim() || log,
+          programError: log,
+        });
+      }
 
       sceneRef.current.shadersUpdated = false;
     }
@@ -673,8 +656,10 @@ const ThreeScene: React.FC = () => {
         );
       }
     }
+
     // @ts-ignore
-    if (mesh.material?.uniforms?.time) {
+    if (mesh.material?.uniforms?.time && !Array.isArray(mesh.material)) {
+      // @ts-ignore
       mesh.material.uniforms.time.value = time * 0.001;
     }
   });
@@ -809,10 +794,18 @@ const ThreeScene: React.FC = () => {
     }
   }, [lights, scene]);
 
+  // Temporary: compute initial context so we can get the node inputs to then
+  // compute the graph
   useEffect(() => {
-    if (!Object.keys(ctx.nodes)) {
+    if (
+      !Object.keys(ctx.nodes) ||
+      !ctx.runtime.three ||
+      state.elements.length
+    ) {
       return;
     }
+
+    computeGraphContext(ctx, threngine, graph);
 
     let engines = 0;
     let maths = 0;
@@ -824,7 +817,6 @@ const ThreeScene: React.FC = () => {
       elements: [
         ...graph.nodes.map((node: any, index) => ({
           id: node.id,
-          // @ts-ignore
           data: { label: node.name, inputs: ctx.nodes[node.id]?.inputs || [] },
           type: 'special',
           position:
@@ -845,41 +837,7 @@ const ThreeScene: React.FC = () => {
         })),
       ],
     });
-  }, [ctx.nodes, extendState]);
-
-  // useEffect(() => {
-  //   if (!ctx.runtime.renderer) {
-  //     return;
-  //   }
-  //   const { renderer, scene, camera, mesh } = ctx.runtime;
-  //   let controls: OrbitControls;
-
-  //   if (threeDomRef.current) {
-  //     threeDomRef.current.appendChild(renderer.domElement);
-  //     controls = new OrbitControls(camera, renderer.domElement);
-  //     controls.update();
-  //     sceneRef.current.controls = controls;
-  //     // setControls(controls);
-  //   }
-
-  //   // const animate = (time: number) => {
-  //   //   // sceneRef.current.frame = requestAnimationFrame(animate);
-  //   // };
-  //   // animate(0);
-
-  //   // return () => {
-  //   //   // const { current } = threeDomRef;
-  //   //   // console.log('unmounting');
-  //   //   // if (current) {
-  //   //   //   current.removeChild(renderer.domElement);
-  //   //   // }
-  //   //   if (sceneRef.current) {
-  //   //     sceneRef.current.controls.dispose();
-  //   //     console.log('cancel');
-  //   //     cancelAnimationFrame(sceneRef.current.frame);
-  //   //   }
-  //   // };
-  // }, [ctx, tabIndex]);
+  }, [state.elements, ctx, extendState]);
 
   // Compile
   useEffect(() => {
@@ -905,92 +863,6 @@ const ThreeScene: React.FC = () => {
     );
   }, [ctx, lights, extendState]);
 
-  // useEffect(() => {
-  //   if (!ctx.runtime || !ctx.runtime.lGraph || !originalVert || lgNodesAdded) {
-  //     return;
-  //   }
-  //   console.warn('creating lgraph nodes!');
-  //   const { lGraph } = ctx.runtime;
-  //   lGraph.clear();
-  //   let engines = 0;
-  //   let maths = 0;
-  //   let outputs = 0;
-  //   let shaders = 0;
-  //   const spacing = 200;
-  //   const lNodes: { [key: string]: LiteGraph.LGraphNode } = {};
-  //   graph.nodes.forEach((node) => {
-  //     let x = 0;
-  //     let y = 0;
-  //     let lNode: LiteGraph.LGraphNode;
-  //     if (node.type === ShaderType.output) {
-  //       x = spacing * 2;
-  //       y = outputs * 100;
-  //       lNode = LiteGraph.LiteGraph.createNode('basic/output');
-  //       outputs++;
-  //     } else if (
-  //       node.type === ShaderType.phong ||
-  //       node.type === ShaderType.toon
-  //     ) {
-  //       x = spacing;
-  //       y = engines * 100;
-  //       lNode = LiteGraph.LiteGraph.createNode('basic/shader');
-  //       engines++;
-  //     } else if (
-  //       node.type === ShaderType.add ||
-  //       node.type === ShaderType.multiply
-  //     ) {
-  //       x = 0;
-  //       y = maths * 100;
-  //       lNode = LiteGraph.LiteGraph.createNode('basic/add');
-  //       maths++;
-  //     } else {
-  //       x = -spacing;
-  //       y = shaders * 100;
-  //       lNode = LiteGraph.LiteGraph.createNode('basic/shader');
-  //       shaders++;
-  //     }
-  //     lNode.pos = [x, y];
-  //     lNode.title = node.name;
-  //     // lNode.properties = { id: node.id };
-  //     if (ctx.nodes[node.id]) {
-  //       Object.keys(ctx.nodes[node.id].inputs || {}).forEach((input) => {
-  //         lNode.addInput(input, 'string');
-  //       });
-  //     }
-  //     lNode.id = parseInt(node.id, 10);
-  //     lGraph.add(lNode);
-  //     lNode.onSelected = () => {
-  //       setActiveShader(node);
-  //       setShaderUnsaved(node.source);
-  //     };
-  //     // lNode.onConnectionsChange = (
-  //     //   type,
-  //     //   slotIndex,
-  //     //   isConnected,
-  //     //   link,
-  //     //   ioSlot
-  //     // ) => {
-  //     //   console.log({ type, slotIndex, isConnected, link, ioSlot });
-  //     // };
-  //     // lNode.setValue(4.5);
-  //     lNodes[node.id] = lNode;
-  //   });
-
-  //   graph.edges.forEach((edge) => {
-  //     lNodes[edge.from].connect(0, lNodes[edge.to], edge.input);
-  //   });
-  //   setLgNodesAdded(true);
-
-  //   console.log(lGraph);
-
-  //   // Note that after changing the lighting, a recompile needs to happen before
-  //   // the next render, or what seems to happen is the shader has either the
-  //   // spotLights or pointLights uniform, and three tries to "upload" them in
-  //   // StructuredUniform.prototype.setValue, because there's a
-  //   // StructuredUniform.map.position/coneCos etc, but there's no
-  //   // pointLights/spotLights present in the uniforms array maybe?
-  // }, [ctx, originalVert]);
-
   const resizeThree = useThrottle(() => {
     if (rightSplit.current && ctx.runtime?.camera) {
       const { camera, renderer } = ctx.runtime;
@@ -1002,7 +874,7 @@ const ThreeScene: React.FC = () => {
     }
   }, 100);
 
-  useEffect(resizeThree, [ctx.runtime?.camera, resizeThree]);
+  useLayoutEffect(resizeThree, [ctx.runtime?.camera, resizeThree]);
 
   return (
     <div className={styles.container}>
@@ -1014,7 +886,12 @@ const ThreeScene: React.FC = () => {
             style={flowStyles}
             nodeTypes={nodeTypes}
           >
-            <Background variant={BackgroundVariant.Lines} gap={25} size={0.5} />
+            <Background
+              variant={BackgroundVariant.Lines}
+              gap={25}
+              size={0.5}
+              color="#444444"
+            />
           </ReactFlow>
           <button
             className={styles.button}

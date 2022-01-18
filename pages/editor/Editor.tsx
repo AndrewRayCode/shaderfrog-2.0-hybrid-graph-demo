@@ -8,14 +8,12 @@ import React, {
   ReactNode,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
 import * as three from 'three';
 import ReactFlow, {
-  addEdge,
   Background,
   BackgroundVariant,
   Handle,
@@ -59,8 +57,7 @@ import { outlineShaderF, outlineShaderV } from '../../src/outlineShader';
 import contrastNoise from '..';
 import { useAsyncExtendedState } from '../../src/useAsyncExtendedState';
 import { usePromise } from '../../src/usePromise';
-
-import { useThree } from './hork';
+import { useThree } from '../../src/useThree';
 
 const flowStyles = { height: 500, background: '#111' };
 

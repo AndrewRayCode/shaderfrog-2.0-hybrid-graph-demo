@@ -162,18 +162,18 @@ const graph: Graph = {
     //   input: 'texture2d_0',
     //   type: 'fragment',
     // },
-    // {
-    //   from: add.id,
-    //   to: phongF.id,
-    //   output: 'color',
-    //   input: 'texture2d_0',
-    //   type: 'fragment',
-    // },
     {
-      from: purpleNoise.id,
+      from: add.id,
       to: phongF.id,
       output: 'color',
       input: 'texture2d_0',
+      type: 'fragment',
+    },
+    {
+      from: purpleNoise.id,
+      to: add.id,
+      output: 'color',
+      input: 'a',
       type: 'fragment',
     },
     {
@@ -183,13 +183,13 @@ const graph: Graph = {
       input: 'b',
       type: 'fragment',
     },
-    // {
-    //   from: heatShaderV.id,
-    //   to: phongV.id,
-    //   output: 'position',
-    //   input: 'position',
-    //   type: 'vertex',
-    // },
+    {
+      from: heatShaderV.id,
+      to: phongV.id,
+      output: 'position',
+      input: 'position',
+      type: 'vertex',
+    },
     // {
     //   from: fireV.id,
     //   to: heatShaderV.id,
@@ -667,6 +667,7 @@ const ThreeScene: React.FC = () => {
 
   /// TODO:
   // - Consolidate todos in this file
+  // - Fix add nodes only having 2 inputs, not 3?
   // - Fix lighting change
   // - Look into why the linked vertex node is no longer found
   // - Related to above - highlight nodes in use by graph, maybe edges too

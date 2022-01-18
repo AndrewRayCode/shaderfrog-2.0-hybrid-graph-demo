@@ -29,35 +29,30 @@ import {
   multiplyNode,
   ShaderType,
   Edge,
-} from '../../src/nodestuff';
+} from './nodestuff';
 import {
   compileGraph,
   computeGraphContext,
   EngineContext,
   NodeInputs,
-} from '../../src/graph';
+} from './graph';
 
-import {
-  phongNode,
-  toonNode,
-  threngine,
-  RuntimeContext,
-} from '../../src/threngine';
-import purpleNoiseNode from '../../src/purpleNoiseNode';
-import colorShaderNode from '../../src/colorShaderNode';
-import fluidCirclesNode from '../../src/fluidCirclesNode';
-import solidColorNode from '../../src/solidColorNode';
+import { phongNode, toonNode, threngine, RuntimeContext } from './threngine';
+import purpleNoiseNode from './purpleNoiseNode';
+import colorShaderNode from './colorShaderNode';
+import fluidCirclesNode from './fluidCirclesNode';
+import solidColorNode from './solidColorNode';
 import {
   heatShaderFragmentNode,
   heatShaderVertexNode,
-} from '../../src/heatmapShaderNode';
-import { fireFrag, fireVert } from '../../src/fireNode';
-import { outlineShaderF, outlineShaderV } from '../../src/outlineShader';
+} from './heatmapShaderNode';
+import { fireFrag, fireVert } from './fireNode';
+import { outlineShaderF, outlineShaderV } from './outlineShader';
 
-import contrastNoise from '..';
-import { useAsyncExtendedState } from '../../src/useAsyncExtendedState';
-import { usePromise } from '../../src/usePromise';
-import { useThree } from '../../src/useThree';
+// import contrastNoise from '..';
+import { useAsyncExtendedState } from './useAsyncExtendedState';
+import { usePromise } from './usePromise';
+import { useThree } from './useThree';
 
 const flowStyles = { height: 500, background: '#111' };
 

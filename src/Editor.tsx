@@ -1,4 +1,4 @@
-import styles from './editor.module.css';
+import styles from '../pages/editor/editor.module.css';
 
 import throttle from 'lodash.throttle';
 import { SplitPane } from 'react-multi-split-pane';
@@ -331,13 +331,13 @@ total: ${(now - allStart).toFixed(3)}ms
         gradientMap: { value: threeTone },
         // map: { value: new three.TextureLoader().load('/contrast-noise.png') },
         image: {
-          value: new three.TextureLoader().load('/2/contrast-noise.png'),
+          value: new three.TextureLoader().load('/contrast-noise.png'),
         },
         [`tExplosion_${fs1}`]: {
-          value: new three.TextureLoader().load('/2/explosion.png'),
+          value: new three.TextureLoader().load('/explosion.png'),
         },
         [`tExplosion_${fs2}`]: {
-          value: new three.TextureLoader().load('/2/explosion.png'),
+          value: new three.TextureLoader().load('/explosion.png'),
         },
         time: { value: 0 },
         resolution: { value: 0.5 },
@@ -652,7 +652,7 @@ const ThreeScene: React.FC = () => {
   }, [previewObject, scene]);
 
   const threeTone = useMemo(() => {
-    const image = new three.TextureLoader().load('/2/3tone.jpg');
+    const image = new three.TextureLoader().load('/3tone.jpg');
     image.minFilter = three.NearestFilter;
     image.magFilter = three.NearestFilter;
   }, []);

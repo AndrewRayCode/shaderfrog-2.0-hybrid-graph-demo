@@ -278,25 +278,8 @@ const compileGraphAsync = async (
     setTimeout(() => {
       console.warn('Compiling!', graph, 'for nodes', ctx.nodes);
 
-      // const engineContext: EngineContext = {
-      //   renderer,
-      //   nodes: {},
-      // };
-
       const allStart = performance.now();
 
-      // mesh.material = material;
-      // renderer.compile(scene, camera);
-
-      // const compileStart = performance.now();
-      // engineContext.nodes['2'] = {
-      //   fragment: renderer.properties.get(mesh.material).programs.values().next()
-      //     .value.fragmentShader,
-      //   vertex: renderer.properties.get(mesh.material).programs.values().next()
-      //     .value.vertexShader,
-      //   // console.log('vertexProgram', vertexProgram);
-      // };
-      // console.log('engineContext', engineContext);
       const result = compileGraph(ctx, threngine, graph);
       const fragmentResult = generate(
         shaderSectionsToAst(result.fragment).program
@@ -316,16 +299,7 @@ total: ${(now - allStart).toFixed(3)}ms
       // TODO: Right now the three shader doesn't output vPosition, and it's not
       // supported by shaderfrog to merge outputs in vertex shaders yet
 
-      const { renderer, threeTone, mesh } = ctx.runtime;
-      const vertex = renderer
-        .getContext()
-        .getShaderSource(ctx.runtime.cache.nodes['2'].vertexRef)
-        ?.replace(
-          'attribute vec3 position;',
-          'attribute vec3 position; varying vec3 vPosition;'
-        )
-        .replace('void main() {', 'void main() {\nvPosition = position;\n');
-
+      const { renderer, threeTone, meshRef } = ctx.runtime;
       console.log('oh hai birfday boi boi boiiiii');
 
       const os1: any = graph.nodes.find(
@@ -445,8 +419,7 @@ total: ${(now - allStart).toFixed(3)}ms
         // },
       });
 
-      // @ts-ignore
-      mesh.material = newMat;
+      meshRef.current.material = newMat;
 
       resolve({
         compileMs: (now - allStart).toFixed(3),
@@ -569,16 +542,9 @@ function useThrottle(callback: AnyFn, delay: number) {
 }
 
 const ThreeScene: React.FC = () => {
-  const graphRef = useRef<HTMLCanvasElement>(null);
-  // const threeDomRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<{ [key: string]: any }>({});
   const rightSplit = useRef<HTMLDivElement>(null);
   const [pauseCompile, setPauseCompile] = useState(false);
-  // const [mesh, setMesh] = useState<three.Mesh | undefined>();
-
-  // const [lgInitted, setLgInitted] = useState<boolean>(false);
-  // const [lgNodesAdded, setLgNodesAdded] = useState<boolean>(false);
-  // const [lighting, setLighting] = useState<string>('a');
 
   // tabIndex may still be needed to pause rendering
   const [tabIndex, setTabIndex] = useState<number>(0);
@@ -630,6 +596,12 @@ const ThreeScene: React.FC = () => {
           vertError: gl.getShaderInfoLog(vertexShader)?.trim() || log,
           programError: log,
         });
+      } else {
+        extendState({
+          fragError: null,
+          vertError: null,
+          programError: null,
+        });
       }
 
       sceneRef.current.shadersUpdated = false;
@@ -669,15 +641,22 @@ const ThreeScene: React.FC = () => {
     if (meshRef.current) {
       scene.remove(meshRef.current);
     }
+
+    let mesh;
     if (previewObject === 'torusknot') {
       const geometry = new three.TorusKnotGeometry(0.6, 0.25, 100, 16);
-      meshRef.current = new three.Mesh(geometry);
-      scene.add(meshRef.current);
+      mesh = new three.Mesh(geometry);
     } else if (previewObject === 'sphere') {
       const geometry = new three.SphereBufferGeometry(1, 32, 32);
-      meshRef.current = new three.Mesh(geometry);
-      scene.add(meshRef.current);
+      mesh = new three.Mesh(geometry);
+    } else {
+      throw new Error('fffffff');
     }
+    if (meshRef.current) {
+      mesh.material = meshRef.current.material;
+    }
+    meshRef.current = mesh;
+    scene.add(mesh);
   }, [previewObject, scene]);
 
   const threeTone = useMemo(() => {
@@ -686,12 +665,11 @@ const ThreeScene: React.FC = () => {
     image.magFilter = three.NearestFilter;
   }, []);
 
-  // Setup?
-  // useEffect(() => {
-  //   // const ambientLight = new three.AmbientLight(0x020202);
-  //   // scene.add(ambientLight);
-  //   console.log('Object.values(ctx.nodes)', Object.values(ctx.nodes));
-  // }, [previewObject, camera, renderer, scene, threeTone]);
+  /// TODO:
+  // - Consolidate todos in this file
+  // - Fix lighting change
+  // - Look into why the linked vertex node is no longer found
+  // - Related to above - highlight nodes in use by graph, maybe edges too
 
   const [lights, setLights] = useState<string>('point');
   const lightsRef = useRef<three.Light[]>([]);
@@ -738,7 +716,7 @@ const ThreeScene: React.FC = () => {
       // I'm refactoring the hooks, is this an issue, where meshRef won't
       // be set? I put previewObject in the deps array to try to ensure this
       // hook is called when that's changed
-      mesh: meshRef.current,
+      meshRef: meshRef,
       scene,
       camera,
       index: 0,
@@ -768,12 +746,16 @@ const ThreeScene: React.FC = () => {
     let outputs = 0;
     let shaders = 0;
     const spacing = 200;
+    const maxHeight = 4;
 
     extendState({
       elements: [
         ...graph.nodes.map((node: any, index) => ({
           id: node.id,
-          data: { label: node.name, inputs: ctx.nodes[node.id]?.inputs || [] },
+          data: {
+            label: node.name,
+            inputs: ctx.nodes[node.id]?.inputs || [],
+          },
           type: 'special',
           position:
             node.type === ShaderType.output
@@ -783,7 +765,10 @@ const ThreeScene: React.FC = () => {
               : node.type === ShaderType.add ||
                 node.type === ShaderType.multiply
               ? { x: 0, y: maths++ * 100 }
-              : { x: -spacing, y: shaders++ * 100 },
+              : {
+                  x: -Math.floor(index / maxHeight) * spacing,
+                  y: (shaders++ % maxHeight) * 100,
+                },
         })),
         ...graph.edges.map((edge) => ({
           id: `${edge.to}-${edge.from}`,
@@ -843,7 +828,7 @@ const ThreeScene: React.FC = () => {
     }
   }, 100);
 
-  useLayoutEffect(resizeThree, [ctx.runtime?.camera, resizeThree]);
+  useEffect(resizeThree, [ctx.runtime?.camera, resizeThree]);
 
   const onConnect = (params: any) => {
     extendState({

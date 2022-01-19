@@ -527,6 +527,7 @@ function useThrottle(callback: AnyFn, delay: number) {
     cbRef.current = callback;
   }, [callback]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   return useCallback(
     throttle((...args) => cbRef.current(...args), delay),
     [delay]
@@ -540,7 +541,7 @@ const ThreeScene: React.FC = () => {
 
   // tabIndex may still be needed to pause rendering
   const [tabIndex, setTabIndex] = useState<number>(0);
-  const [compiling, setCompiling] = useState<boolean>(true);
+  const [compiling, setCompiling] = useState<boolean>(false);
 
   const [activeShader, setActiveShader] = useState<Node>(graph.nodes[0]);
   const [shaderUnsaved, setShaderUnsaved] = useState<string>(
@@ -570,7 +571,7 @@ const ThreeScene: React.FC = () => {
     if (!mesh) {
       return;
     }
-    // renderer.render(scene, camera);
+
     if (sceneRef.current.shadersUpdated) {
       const gl = renderer.getContext();
 
@@ -598,19 +599,17 @@ const ThreeScene: React.FC = () => {
 
       sceneRef.current.shadersUpdated = false;
     }
-    // mesh.rotation.x = time * 0.0003;
-    // mesh.rotation.y = time * -0.0003;
-    // mesh.rotation.z = time * 0.0003;
-    if (sceneRef.current?.lights) {
-      const light = sceneRef.current.lights[0];
+
+    if (lightsRef.current) {
+      const light = lightsRef.current[0];
       light.position.x = 1.2 * Math.sin(time * 0.001);
       light.position.y = 1.2 * Math.cos(time * 0.001);
       light.lookAt(
         new three.Vector3(Math.cos(time * 0.0015), Math.sin(time * 0.0015), 0)
       );
 
-      if (sceneRef.current.lights.length > 2) {
-        const light = sceneRef.current.lights[1];
+      if (lightsRef.current.length > 2) {
+        const light = lightsRef.current[1];
         light.position.x = 1.3 * Math.cos(time * 0.0015);
         light.position.y = 1.3 * Math.sin(time * 0.0015);
 
@@ -663,10 +662,94 @@ const ThreeScene: React.FC = () => {
   // - Fix lighting change
   // - Look into why the linked vertex node is no longer found
   // - Related to above - highlight nodes in use by graph, maybe edges too
+  // - Switching to spotlights causes a frame of scene.render() to error
+
+  const [ctx, setCtx] = useState<EngineContext<RuntimeContext>>({
+    runtime: {
+      three,
+      renderer,
+      material: null,
+      // I'm refactoring the hooks, is this an issue, where meshRef won't
+      // be set? I put previewObject in the deps array to try to ensure this
+      // hook is called when that's changed
+      meshRef: meshRef,
+      scene,
+      camera,
+      index: 0,
+      threeTone,
+      cache: { nodes: {} },
+    },
+    nodes: {},
+    debuggingNonsense: {},
+  });
+
+  // Compile function, meant to be called manually in places where we want to
+  // trigger a compile. I tried making this a useEffect, however this function
+  // needs to update "elements" at the end, which leads to an infinite loop
+  const compile = useCallback(
+    (
+      ctx: EngineContext<RuntimeContext>,
+      pauseCompile: boolean,
+      elements: any[]
+    ) => {
+      if (!ctx.runtime.renderer || pauseCompile || !elements.length) {
+        return;
+      }
+
+      graph.edges = elements
+        .filter((element: any) => element.source)
+        .map((element: any) => ({
+          from: element.source,
+          to: element.target,
+          output: 'out',
+          input: element.targetHandle,
+          type: element.data.type,
+        }));
+
+      setCompiling(true);
+
+      compileGraphAsync(ctx).then(
+        ({ compileMs, vertexResult, fragmentResult }) => {
+          sceneRef.current.shadersUpdated = true;
+          setCompiling(false);
+          setFinalFragment(fragmentResult);
+          setVertex(vertexResult);
+          // Mutated from the processAst call for now
+          setPreprocessed(ctx.debuggingNonsense.fragmentPreprocessed);
+          setPreprocessedVert(ctx.debuggingNonsense.vertexPreprocessed);
+          setOriginal(ctx.debuggingNonsense.fragmentSource);
+          setOriginalVert(ctx.debuggingNonsense.vertexSource);
+          extendState(({ elements }) => ({
+            compileMs,
+            elements: [
+              ...elements.map((node: any) =>
+                node?.data?.inputs
+                  ? {
+                      ...node,
+                      data: {
+                        ...node.data,
+                        inputs: ctx.nodes[node.id]?.inputs || [],
+                      },
+                    }
+                  : node
+              ),
+            ],
+          }));
+        }
+      );
+    },
+    [extendState]
+  );
 
   const [lights, setLights] = useState<string>('point');
-  const lightsRef = useRef<three.Light[]>([]);
+  const lightsRef = useRef<three.Object3D[]>([]);
   useMemo(() => {
+    // Hack to let this hook get the latest state like ctx, but only update
+    // if a certain dependency has changed
+    // @ts-ignore
+    if (scene.lights === lights) {
+      return;
+    }
     lightsRef.current.forEach((light) => scene.remove(light));
 
     if (lights === 'point') {
@@ -675,7 +758,7 @@ const ThreeScene: React.FC = () => {
       scene.add(pointLight);
       const helper = new three.PointLightHelper(pointLight, 0.1);
       scene.add(helper);
-      sceneRef.current.lights = [pointLight, helper];
+      lightsRef.current = [pointLight, helper];
     } else {
       const light = new three.SpotLight(0x00ff00, 1, 3, 0.4, 1);
       light.position.set(0, 0, 2);
@@ -697,37 +780,23 @@ const ThreeScene: React.FC = () => {
       );
       scene.add(helper2);
 
-      sceneRef.current.lights = [light, light2, helper, helper2];
+      lightsRef.current = [light, light2, helper, helper2];
     }
-  }, [lights, scene]);
 
-  const [ctx, setCtx] = useState<EngineContext<RuntimeContext>>({
-    runtime: {
-      three,
-      renderer,
-      material: null,
-      // I'm refactoring the hooks, is this an issue, where meshRef won't
-      // be set? I put previewObject in the deps array to try to ensure this
-      // hook is called when that's changed
-      meshRef: meshRef,
-      scene,
-      camera,
-      index: 0,
-      threeTone,
-      cache: { nodes: {} },
-    },
-    nodes: {},
-    debuggingNonsense: {},
-  });
+    // @ts-ignore
+    if (scene.lights) {
+      compile(ctx, pauseCompile, state.elements);
+    }
+    // @ts-ignore
+    scene.lights = lights;
+  }, [ctx, pauseCompile, state.elements, compile, lights, scene]);
 
-  // Temporary: compute initial context so we can get the node inputs to then
-  // compute the graph
+  // Create the graph
   useEffect(() => {
     if (
       !Object.keys(ctx.nodes) ||
       !ctx.runtime.three ||
-      state.elements.length ||
-      pauseCompile
+      state.elements.length
     ) {
       return;
     }
@@ -741,74 +810,38 @@ const ThreeScene: React.FC = () => {
     const spacing = 200;
     const maxHeight = 4;
 
-    extendState({
-      elements: [
-        ...graph.nodes.map((node: any, index) => ({
-          id: node.id,
-          data: {
-            label: node.name,
-            inputs: ctx.nodes[node.id]?.inputs || [],
-          },
-          type: 'special',
-          position:
-            node.type === ShaderType.output
-              ? { x: spacing * 2, y: outputs++ * 100 }
-              : node.type === ShaderType.phong || node.type === ShaderType.toon
-              ? { x: spacing, y: engines++ * 100 }
-              : node.type === ShaderType.add ||
-                node.type === ShaderType.multiply
-              ? { x: 0, y: maths++ * 100 }
-              : {
-                  x: -Math.floor(index / maxHeight) * spacing,
-                  y: (shaders++ % maxHeight) * 100,
-                },
-        })),
-        ...graph.edges.map((edge) => ({
-          id: `${edge.to}-${edge.from}`,
-          source: edge.from,
-          targetHandle: edge.input,
-          target: edge.to,
-          style: { strokeWidth: 2 },
-          data: { type: edge.type },
-        })),
-      ],
-    });
-  }, [state.elements, ctx, extendState, pauseCompile]);
-
-  // Compile
-  useEffect(() => {
-    if (!ctx.runtime.renderer || pauseCompile || !state.elements.length) {
-      return;
-    }
-
-    graph.edges = state.elements
-      .filter((element: any) => element.source)
-      .map((element: any) => ({
-        from: element.source,
-        to: element.target,
-        output: 'out',
-        input: element.targetHandle,
-        type: element.data.type,
-      }));
-    console.log('edges are now', graph.edges);
-
-    setCompiling(true);
-
-    compileGraphAsync(ctx).then(
-      ({ compileMs, vertexResult, fragmentResult }) => {
-        sceneRef.current.shadersUpdated = true;
-        setCompiling(false);
-        setFinalFragment(fragmentResult);
-        setVertex(vertexResult);
-        // Mutated from the processAst call for now
-        setPreprocessed(ctx.debuggingNonsense.fragmentPreprocessed);
-        setPreprocessedVert(ctx.debuggingNonsense.vertexPreprocessed);
-        setOriginal(ctx.debuggingNonsense.fragmentSource);
-        setOriginalVert(ctx.debuggingNonsense.vertexSource);
-        extendState({ compileMs });
-      }
-    );
-  }, [ctx, lights, extendState, pauseCompile, state.elements]);
+    const elements = [
+      ...graph.nodes.map((node: any, index) => ({
+        id: node.id,
+        data: {
+          label: node.name,
+          inputs: ctx.nodes[node.id]?.inputs || [],
+        },
+        type: 'special',
+        position:
+          node.type === ShaderType.output
+            ? { x: spacing * 2, y: outputs++ * 100 }
+            : node.type === ShaderType.phong || node.type === ShaderType.toon
+            ? { x: spacing, y: engines++ * 100 }
+            : node.type === ShaderType.add || node.type === ShaderType.multiply
+            ? { x: 0, y: maths++ * 100 }
+            : {
+                x: -Math.floor(index / maxHeight) * spacing,
+                y: (shaders++ % maxHeight) * 100,
+              },
+      })),
+      ...graph.edges.map((edge) => ({
+        id: `${edge.to}-${edge.from}`,
+        source: edge.from,
+        targetHandle: edge.input,
+        target: edge.to,
+        style: { strokeWidth: 2 },
+        data: { type: edge.type },
+      })),
+    ];
+    compile(ctx, pauseCompile, elements);
+    extendState({ elements });
+  }, [ctx, extendState, pauseCompile, compile, state.elements.length]);
 
   const resizeThree = useThrottle(() => {
     if (rightSplit.current && ctx.runtime?.camera) {
@@ -824,23 +857,23 @@ const ThreeScene: React.FC = () => {
   useEffect(resizeThree, [ctx.runtime?.camera, resizeThree]);
 
   const onConnect = (params: any) => {
-    extendState({
-      elements: [
-        ...state.elements.filter(
-          (element: any) =>
-            !(
-              element.targetHandle === params.targetHandle &&
-              element.target === params.target
-            )
-        ),
-        {
-          ...params,
-          id: `${params.source}-${params.target}`,
-          style: { strokeWidth: 2 },
-          data: { type: graph.nodes[params.source].type },
-        },
-      ],
-    });
+    const elements = [
+      ...state.elements.filter(
+        (element: any) =>
+          !(
+            element.targetHandle === params.targetHandle &&
+            element.target === params.target
+          )
+      ),
+      {
+        ...params,
+        id: `${params.source}-${params.target}`,
+        style: { strokeWidth: 2 },
+        data: { type: graph.nodes[params.source].type },
+      },
+    ];
+    compile(ctx, pauseCompile, elements);
+    extendState({ elements });
   };
 
   return (
@@ -864,7 +897,6 @@ const ThreeScene: React.FC = () => {
           <button
             className={styles.button}
             onClick={() => {
-              setCompiling(true);
               // @ts-ignore
               setCtx({ ...ctx, index: ctx.index + 1 });
             }}
@@ -885,7 +917,6 @@ const ThreeScene: React.FC = () => {
                 ({ id }) => activeShader.id === id
               );
               if (found) {
-                setCompiling(true);
                 found.source = shaderUnsaved;
                 // @ts-ignore
                 setCtx({ ...ctx, index: ctx.index + 1 });
@@ -913,7 +944,9 @@ const ThreeScene: React.FC = () => {
                 <div ref={threeDomRef}></div>
                 <div className={styles.sceneLabel}>
                   {compiling && 'Compiling...'}
-                  {!compiling && `Complile took ${state.compileMs}ms`}
+                  {!compiling &&
+                    state.compileMs &&
+                    `Complile took ${state.compileMs}ms`}
                 </div>
                 <div className={styles.sceneControls}>
                   Preview with:
@@ -939,7 +972,7 @@ const ThreeScene: React.FC = () => {
                       )
                     }
                   >
-                    {previewObject}
+                    {previewObject === 'sphere' ? 'Torus Knot' : 'Sphere'}
                   </button>
                   <button
                     className={styles.button}

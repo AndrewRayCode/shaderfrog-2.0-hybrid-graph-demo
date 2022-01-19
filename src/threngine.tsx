@@ -85,9 +85,10 @@ const onBeforeCompileMegaShader = (
   newMat: any
 ) => {
   const { nodes } = engineContext.runtime.cache;
-  if (nodes[node.id] || (node.nextStageNodeId && nodes[node.nextStageNodeId])) {
-    return;
-  }
+  // TODO: Update cache based on lights (or other, like mesh + lights?)
+  // if (nodes[node.id] || (node.nextStageNodeId && nodes[node.nextStageNodeId])) {
+  //   return;
+  // }
   const { renderer, meshRef, scene, camera, material, threeTone, three } =
     engineContext.runtime;
   const mesh = meshRef.current;

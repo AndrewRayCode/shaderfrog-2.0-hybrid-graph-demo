@@ -109,13 +109,14 @@ const graph: Graph = {
     // TODO: Put other images in the graphf like the toon step shader
     // TODO: Could be cool to try outline shader https://shaderfrog.com/app/view/4876
     // TODO: Try pbr node demo from threejs
-    // TODO: Support vertex :O
     // TODO: Have uniforms added per shader in the graph
     // TODO: Fix hot reloading breaking the graph
     // TODO: Try plugging into normal map
     // TODO: AnyCode node to try manipulating above shader for normal map
     // TODO: Make uniforms like map: change the uniforms
     // TODO: Add 1.00 / 3.00 switch
+    // TODO: Here we hardcode "out" for the inputs which needs to line up with
+    //       the custom handles.
     {
       from: phongV.id,
       to: outputV.id,
@@ -133,21 +134,21 @@ const graph: Graph = {
     {
       from: add.id,
       to: phongF.id,
-      output: 'color',
+      output: 'out',
       input: 'texture2d_0',
       type: 'fragment',
     },
     {
       from: purpleNoise.id,
       to: add.id,
-      output: 'color',
+      output: 'out',
       input: 'a',
       type: 'fragment',
     },
     {
       from: heatShaderF.id,
       to: add.id,
-      output: 'color',
+      output: 'out',
       input: 'b',
       type: 'fragment',
     },
@@ -217,7 +218,7 @@ const CustomNodeComponent = ({ data }: NodeProps) => {
         <Handle
           type="source"
           position={Position.Right}
-          id="a"
+          id="out"
           style={{ top: `${handleTop}px` }}
         />
       </div>
@@ -633,8 +634,6 @@ const ThreeScene: React.FC = () => {
 
   /// TODO:
   // - Consolidate todos in this file
-  // - Fix add nodes only having 2 inputs, not 3?
-  // - Fix lighting change
   // - Look into why the linked vertex node is no longer found
   // - Related to above - highlight nodes in use by graph, maybe edges too
   // - Switching to spotlights causes a frame of scene.render() to error
@@ -813,6 +812,7 @@ const ThreeScene: React.FC = () => {
       ...graph.edges.map((edge) => ({
         id: `${edge.to}-${edge.from}`,
         source: edge.from,
+        sourceHandle: edge.output,
         targetHandle: edge.input,
         target: edge.to,
         data: { type: edge.type },
@@ -838,13 +838,23 @@ const ThreeScene: React.FC = () => {
   useEffect(resizeThree, [ctx.runtime?.camera, resizeThree]);
 
   const onConnect = (params: any) => {
-    const { stage } = graph.nodes[params.source];
+    const node = graph.nodes.find(({ id }) => id === params.source) as Node;
+    const { stage } = node;
+    console.log('params', params, 'and source node', node);
     const elements = [
       ...state.elements.filter(
         (element: any) =>
+          // Prevent one input handle from having multiple inputs
           !(
-            element.targetHandle === params.targetHandle &&
-            element.target === params.target
+            (
+              element.targetHandle === params.targetHandle &&
+              element.target === params.target
+            )
+            // Prevent one output handle from having multiple lines out
+          ) &&
+          !(
+            element.sourceHandle === params.sourceHandle &&
+            element.source === params.source
           )
       ),
       {

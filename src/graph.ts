@@ -584,8 +584,6 @@ export const compileGraph = <T>(
   engine: Engine<T>,
   graph: Graph
 ): CompileGraphResult => {
-  // TODO: Do I need this line??
-  // computeSideContext(engineContext, engine, graph);
   computeGraphContext(engineContext, engine, graph);
 
   const outputFrag = graph.nodes.find(
@@ -595,8 +593,6 @@ export const compileGraph = <T>(
     throw new Error('No fragment output in graph');
   }
 
-  // TODO: Adding this line removes struct Pointlight from the output
-  // computeSideContext(engineContext, engine, graph, 'fragment');
   const [fragment, , fragmentIds] = compileNode(
     engine,
     graph,
@@ -613,7 +609,6 @@ export const compileGraph = <T>(
   if (!outputVert) {
     throw new Error('No vertex output in graph');
   }
-  // computeSideContext(engineContext, engine, graph, 'vertex');
 
   const vertexIds = collectConnectedNodes(graph, graph.edges, outputVert, {});
   const orphanEdges: Edge[] = graph.nodes

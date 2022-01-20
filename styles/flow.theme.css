@@ -1,0 +1,139 @@
+.flownode {
+  border-radius: 10px;
+  background: #111;
+  color: #fff;
+  border: 1px solid #666;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+  position: relative;
+  min-width: 150px;
+}
+
+.flowlabel {
+  border-radius: 10px 10px 0 0;
+  padding: 2px 8px;
+  border-bottom: 1px solid #666;
+}
+
+.flowInputs {
+  position: absolute;
+  top: 0;
+  width: 100%;
+}
+
+.flownode .react-flow__handle {
+  width: 12px;
+  height: 12px;
+}
+
+.react-flow__edgeupdater {
+  opacity: 0.5;
+  r: 4;
+}
+
+.react-flow__edge-path-selector:hover {
+  cursor: pointer;
+}
+.react-flow__edge-path-selector:hover + .react-flow__edge-path,
+.react-flow__edge-path:hover {
+  stroke: #555;
+  cursor: pointer;
+}
+
+.react-flow__edge-path-selector {
+  fill: transparent;
+  stroke-linecap: round;
+  stroke-width: 10;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke-width: 3;
+}
+
+/* Fragment theme */
+
+.fragment .react-flow_handle_label {
+  color: rgb(176, 228, 156);
+}
+
+.selected .fragment.flownode {
+  border: 1px solid #d4ff00;
+  box-shadow: 0 0 10px #d4ff0080;
+}
+
+.fragment .flowlabel {
+  background: linear-gradient(to right, #091a09, #3b4508);
+}
+
+.react-flow__edge.fragment .react-flow__edge-path {
+  stroke: #d4ff00;
+}
+
+.react-flow__edge.fragment.updating .react-flow__edge-path {
+  stroke: #7bff00;
+}
+
+/* selected edge */
+.react-flow__edge.fragment.selected .react-flow__edge-path {
+  stroke: #d4ff00;
+}
+
+/* selectable edge path */
+.fragment .react-flow__edge-path-selector {
+  stroke: rgba(0, 255, 0, 0.1);
+}
+
+/* updateable drag handle */
+.fragment .react-flow__edgeupdater {
+  fill: #333d00;
+  stroke: #d4ff00;
+}
+
+.vertex.flownode .react-flow__handle {
+  border-color: #fa5b5b;
+  background: #3a1919;
+}
+
+/* Vertex theme */
+
+.vertex .react-flow_handle_label {
+  color: #f86464;
+}
+
+.selected .vertex.flownode {
+  border: 1px solid #fa5b5b;
+  box-shadow: 0 0 10px #fa5b5b84;
+}
+
+.vertex .flowlabel {
+  background-color: #ffe53b;
+  background-image: linear-gradient(147deg, #5e081b 0%, #640909 74%);
+}
+
+.react-flow__edge.vertex .react-flow__edge-path {
+  stroke: #fa5b5b;
+}
+
+.react-flow__edge.vertex.updating .react-flow__edge-path {
+  stroke: #ff0000;
+}
+
+/* selected edge */
+.react-flow__edge.vertex.selected .react-flow__edge-path {
+  stroke: #ff0000;
+}
+
+/* selectable edge path */
+.vertex .react-flow__edge-path-selector {
+  stroke: rgba(255, 0, 0, 0.1);
+}
+
+/* updateable drag handle */
+.vertex .react-flow__edgeupdater {
+  fill: #3a1919;
+  stroke: #992424;
+}
+
+.vertex.flownode .react-flow__handle {
+  border-color: #fa5b5b;
+  background: #3a1919;
+}

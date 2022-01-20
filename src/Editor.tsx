@@ -29,6 +29,7 @@ import {
   multiplyNode,
   ShaderType,
   Edge,
+  ShaderStage,
 } from './nodestuff';
 import {
   compileGraph,
@@ -53,6 +54,7 @@ import { outlineShaderF, outlineShaderV } from './outlineShader';
 import { useAsyncExtendedState } from './useAsyncExtendedState';
 import { usePromise } from './usePromise';
 import { useThree } from './useThree';
+import FlowEdge from './FlowEdge';
 
 const flowStyles = { height: 500, background: '#111' };
 
@@ -77,6 +79,8 @@ const multiply = multiplyNode(id(), {});
 const outlineF = outlineShaderF(id());
 const outlineV = outlineShaderV(id(), outlineF.id);
 const solidColorF = solidColorNode(id());
+
+const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
 
 const graph: Graph = {
   nodes: [
@@ -112,33 +116,12 @@ const graph: Graph = {
     // TODO: AnyCode node to try manipulating above shader for normal map
     // TODO: Make uniforms like map: change the uniforms
     // TODO: Add 1.00 / 3.00 switch
-    // {
-    //   from: '7',
-    //   to: '2',
-    //   output: 'main',
-    //   input: 'texture2d_0',
-    //   type: 'fragment',
-    // },
-    // {
-    //   from: '4',
-    //   to: '7',
-    //   output: 'main',
-    //   input: 'a',
-    //   type: 'fragment',
-    // },
-    // {
-    //   from: '5',
-    //   to: '7',
-    //   output: 'main',
-    //   input: 'b',
-    //   type: 'fragment',
-    // },
     {
       from: phongV.id,
       to: outputV.id,
       output: 'main',
       input: 'position',
-      type: 'fragment',
+      type: 'vertex',
     },
     {
       from: phongF.id,
@@ -147,13 +130,6 @@ const graph: Graph = {
       input: 'color',
       type: 'fragment',
     },
-    // {
-    //   from: solidColorF.id,
-    //   to: phongF.id,
-    //   output: 'main',
-    //   input: 'texture2d_0',
-    //   type: 'fragment',
-    // },
     {
       from: add.id,
       to: phongF.id,
@@ -182,30 +158,24 @@ const graph: Graph = {
       input: 'position',
       type: 'vertex',
     },
-    // {
-    //   from: fireV.id,
-    //   to: heatShaderV.id,
-    //   output: 'position',
-    //   input: 'position',
-    //   type: 'vertex',
-    // },
-    // {
-    //   from: outlineF.id,
-    //   to: add.id,
-    //   output: 'main',
-    //   input: 'c',
-    //   type: 'fragment',
-    // },
   ],
 };
 
 const handleTop = 40;
 const textHeight = 10;
-const CustomNodeComponent = ({ data }: { data: any }) => {
+type NodeProps = {
+  data: {
+    label: string;
+    stage: ShaderStage;
+    inputs: NodeInputs[];
+  };
+};
+const CustomNodeComponent = ({ data }: NodeProps) => {
   // TODO: Populate inputs (and eventually outputs) after the graph compiles!
   // console.log('data.inputs', data.inputs);
   return (
     <div
+      className={'flownode ' + data.stage}
       style={{
         height: `${
           handleTop + Math.max(Object.keys(data.inputs).length, 1) * 20
@@ -257,6 +227,11 @@ const CustomNodeComponent = ({ data }: { data: any }) => {
 
 const nodeTypes = {
   special: CustomNodeComponent,
+};
+
+// Not currently used but keeping around in case I want to try it again
+const edgeTypes = {
+  special: FlowEdge,
 };
 
 const compileGraphAsync = async (
@@ -783,6 +758,10 @@ const ThreeScene: React.FC = () => {
       lightsRef.current = [light, light2, helper, helper2];
     }
 
+    if (meshRef.current) {
+      meshRef.current.material = loadingMaterial;
+    }
+
     // @ts-ignore
     if (scene.lights) {
       compile(ctx, pauseCompile, state.elements);
@@ -815,6 +794,7 @@ const ThreeScene: React.FC = () => {
         id: node.id,
         data: {
           label: node.name,
+          stage: node.stage,
           inputs: ctx.nodes[node.id]?.inputs || [],
         },
         type: 'special',
@@ -835,8 +815,9 @@ const ThreeScene: React.FC = () => {
         source: edge.from,
         targetHandle: edge.input,
         target: edge.to,
-        style: { strokeWidth: 2 },
         data: { type: edge.type },
+        className: edge.type,
+        type: 'special',
       })),
     ];
     compile(ctx, pauseCompile, elements);
@@ -857,6 +838,7 @@ const ThreeScene: React.FC = () => {
   useEffect(resizeThree, [ctx.runtime?.camera, resizeThree]);
 
   const onConnect = (params: any) => {
+    const { stage } = graph.nodes[params.source];
     const elements = [
       ...state.elements.filter(
         (element: any) =>
@@ -868,12 +850,26 @@ const ThreeScene: React.FC = () => {
       {
         ...params,
         id: `${params.source}-${params.target}`,
-        style: { strokeWidth: 2 },
-        data: { type: graph.nodes[params.source].type },
+        data: { type: stage },
+        className: stage,
+        type: 'special',
       },
     ];
-    compile(ctx, pauseCompile, elements);
     extendState({ elements });
+    compile(ctx, pauseCompile, elements);
+  };
+
+  const onEdgeUpdate = (params: any) => {
+    console.log('onEdgeUpdate', params);
+  };
+  const onElementsRemove = (params: any) => {
+    const ids = new Set(params.map(({ id }: any) => id));
+
+    const elements: any = [
+      ...state.elements.filter(({ id }: any) => !ids.has(id)),
+    ];
+    extendState({ elements });
+    compile(ctx, pauseCompile, elements);
   };
 
   return (
@@ -886,6 +882,9 @@ const ThreeScene: React.FC = () => {
             style={flowStyles}
             nodeTypes={nodeTypes}
             onConnect={onConnect}
+            onEdgeUpdate={onEdgeUpdate}
+            onElementsRemove={onElementsRemove}
+            edgeTypes={edgeTypes}
           >
             <Background
               variant={BackgroundVariant.Lines}

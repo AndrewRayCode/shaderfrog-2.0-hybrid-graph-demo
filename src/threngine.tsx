@@ -146,10 +146,9 @@ const megaShaderProduceVertexAst = (
   // from2To3(vertexAst);
 
   if (doesLinkThruShader(graph, node)) {
-    // TODO: Needs to be vec3 for this case, vec4 for final case
-    returnGlPosition(vertexAst);
+    returnGlPositionHardCoded(vertexAst, 'vec3', 'transformed');
   } else {
-    returnGlPositionHardCoded(vertexAst, 'vec4', 'transformed');
+    returnGlPosition(vertexAst);
   }
 
   renameBindings(vertexAst.scopes[0], threngine.preserve, node.id);

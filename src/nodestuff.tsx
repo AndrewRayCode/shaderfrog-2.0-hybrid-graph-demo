@@ -86,22 +86,20 @@ const findFn = (ast: ParserProgram, name: string): AstNode | undefined =>
   );
 
 export const doesLinkThruShader = (graph: Graph, node: Node): boolean => {
-  const edges = graph.edges.filter(
-    (edge) => edge.from === node.id && edge.input === 'position'
-  );
+  const edges = graph.edges.filter((edge) => edge.from === node.id);
   if (edges.length === 0) {
     return false;
   }
   return edges.reduce<boolean>((foundShader, edge: Edge) => {
+    const upstreamNode = graph.nodes.find(
+      (node) => node.id === edge.to
+    ) as Node;
     return (
       foundShader ||
       [ShaderType.toon, ShaderType.phong, ShaderType.shader].includes(
-        node.type
+        upstreamNode.type
       ) ||
-      doesLinkThruShader(
-        graph,
-        graph.nodes.find((node) => node.id === edge.to) as Node
-      )
+      doesLinkThruShader(graph, upstreamNode)
     );
   }, false);
 };

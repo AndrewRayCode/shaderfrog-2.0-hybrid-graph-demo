@@ -1,5 +1,6 @@
 import styles from '../pages/editor/editor.module.css';
 
+import Editor from '@monaco-editor/react';
 import throttle from 'lodash.throttle';
 import { SplitPane } from 'react-multi-split-pane';
 import cx from 'classnames';
@@ -397,9 +398,12 @@ total: ${(now - allStart).toFixed(3)}ms
     }, 0);
   });
 
-type ChildProps = { children?: React.ReactNode; onSelect?: Function };
-const Tabs = ({ children, onSelect }: ChildProps) => {
-  const [selected, setSelected] = useState<number>(0);
+type ChildProps = {
+  children?: React.ReactNode;
+  onSelect?: Function;
+  selected?: number;
+};
+const Tabs = ({ children, selected, onSelect }: ChildProps) => {
   return (
     <>
       {React.Children.map<ReactNode, ReactNode>(
@@ -408,7 +412,6 @@ const Tabs = ({ children, onSelect }: ChildProps) => {
           React.isValidElement(child) &&
           React.cloneElement(child, {
             selected,
-            setSelected,
             onSelect,
           })
       )}
@@ -420,13 +423,11 @@ type TabGroupProps = {
   children?: React.ReactNode;
   selected?: number;
   className?: string;
-  setSelected?: Function;
   onSelect?: Function;
 };
 const TabGroup = ({
   children,
   selected,
-  setSelected,
   onSelect,
   ...props
 }: TabGroupProps) => {
@@ -438,7 +439,6 @@ const TabGroup = ({
           React.isValidElement(child) &&
           React.cloneElement(child, {
             selected,
-            setSelected,
             onSelect,
             index,
           })
@@ -451,14 +451,12 @@ type TabProps = {
   children?: React.ReactNode;
   selected?: number;
   className?: any;
-  setSelected?: Function;
   onSelect?: Function;
   index?: number;
 };
 const Tab = ({
   children,
   selected,
-  setSelected,
   className,
   onSelect,
   index,
@@ -473,7 +471,6 @@ const Tab = ({
       onClick={(event) => {
         event.preventDefault();
         onSelect && onSelect(index);
-        setSelected && setSelected(index);
       }}
     >
       {children}
@@ -517,6 +514,7 @@ const ThreeScene: React.FC = () => {
 
   // tabIndex may still be needed to pause rendering
   const [tabIndex, setTabIndex] = useState<number>(0);
+  const [editorTabIndex, setEditorTabIndex] = useState<number>(0);
   const [compiling, setCompiling] = useState<boolean>(false);
 
   const [activeShader, setActiveShader] = useState<Node>(graph.nodes[0]);
@@ -882,62 +880,60 @@ const ThreeScene: React.FC = () => {
     compile(ctx, pauseCompile, elements);
   };
 
+  const onNodeDoubleClick = (event: any, node: any) => {
+    console.log({ event, node });
+    setActiveShader(graph.nodes.find((n) => n.id === node.id) as Node);
+    setEditorTabIndex(1);
+  };
+
   return (
     <div className={styles.container}>
       <SplitPane split="vertical" onChange={resizeThree}>
         <div className={styles.splitInner}>
-          {/* <canvas ref={graphRef}></canvas> */}
-          <ReactFlow
-            elements={state.elements}
-            style={flowStyles}
-            nodeTypes={nodeTypes}
-            onConnect={onConnect}
-            onEdgeUpdate={onEdgeUpdate}
-            onElementsRemove={onElementsRemove}
-            edgeTypes={edgeTypes}
-          >
-            <Background
-              variant={BackgroundVariant.Lines}
-              gap={25}
-              size={0.5}
-              color="#444444"
-            />
-          </ReactFlow>
-          <button
-            className={styles.button}
-            onClick={() => {
-              // @ts-ignore
-              setCtx({ ...ctx, index: ctx.index + 1 });
-            }}
-          >
-            Save Graph
-          </button>
-
-          <CodeEditor
-            className={styles.shader}
-            onChange={(event: any) => setShaderUnsaved(event.target.value)}
-          >
-            {shaderUnsaved}
-          </CodeEditor>
-          <button
-            className={styles.button}
-            onClick={() => {
-              const found = graph.nodes.find(
-                ({ id }) => activeShader.id === id
-              );
-              if (found) {
-                found.source = shaderUnsaved;
-                // @ts-ignore
-                setCtx({ ...ctx, index: ctx.index + 1 });
-              }
-            }}
-          >
-            Save Shader
-          </button>
+          <Tabs onSelect={setEditorTabIndex} selected={editorTabIndex}>
+            <TabGroup>
+              <Tab>Graph</Tab>
+              <Tab>
+                Editor ({activeShader.name} - {activeShader.stage})
+              </Tab>
+            </TabGroup>
+            <TabPanels>
+              <TabPanel>
+                <ReactFlow
+                  elements={state.elements}
+                  style={flowStyles}
+                  onConnect={onConnect}
+                  onEdgeUpdate={onEdgeUpdate}
+                  onElementsRemove={onElementsRemove}
+                  onNodeDoubleClick={onNodeDoubleClick}
+                  nodeTypes={nodeTypes}
+                  edgeTypes={edgeTypes}
+                >
+                  <Background
+                    variant={BackgroundVariant.Lines}
+                    gap={25}
+                    size={0.5}
+                    color="#444444"
+                  />
+                </ReactFlow>
+              </TabPanel>
+              <TabPanel>
+                <Editor
+                  height="100vh"
+                  theme="vs-dark"
+                  defaultLanguage="glsl"
+                  defaultValue={activeShader.source}
+                  options={{
+                    minimap: { enabled: false },
+                  }}
+                />
+              </TabPanel>
+            </TabPanels>
+          </Tabs>
         </div>
         {/* other pane */}
         <div ref={rightSplit} className={styles.splitInner}>
-          <Tabs onSelect={setTabIndex}>
+          <Tabs selected={tabIndex} onSelect={setTabIndex}>
             <TabGroup>
               <Tab>Scene</Tab>
               <Tab

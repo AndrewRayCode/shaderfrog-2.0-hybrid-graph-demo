@@ -49,7 +49,9 @@
   stroke-width: 3;
 }
 
+/* -------------- */
 /* Fragment theme */
+/* -------------- */
 
 .fragment .react-flow_handle_label {
   color: rgb(176, 228, 156);
@@ -88,12 +90,14 @@
   stroke: #d4ff00;
 }
 
-.vertex.flownode .react-flow__handle {
-  border-color: #fa5b5b;
-  background: #3a1919;
+.fragment.flownode .react-flow__handle {
+  border-color: #d4ff00;
+  background: #333d00;
 }
 
+/* ------------ */
 /* Vertex theme */
+/* ------------ */
 
 .vertex .react-flow_handle_label {
   color: #f86464;

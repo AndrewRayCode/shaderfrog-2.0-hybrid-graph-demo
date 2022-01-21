@@ -1,24 +1,41 @@
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as three from 'three';
 
 type Callback = (time: number) => void;
+
+// Utility function to preserve specific things against fast-refresh, as
+// *all* useMemo and useEffect and useCallbacks rerun during a fast-refresh
+// https://nextjs.org/docs/basic-features/fast-refresh
+const useOnce = <T extends unknown>(creator: (...args: any) => T): T => {
+  const ref = useRef<T | undefined>();
+  if (ref.current) {
+    return ref.current;
+  }
+  ref.current = creator();
+  return ref.current;
+};
+
 export const useThree = (callback: Callback) => {
   const [threeDom, setThreeDom] = useState<HTMLDivElement | null>(null);
   const threeDomRef = useCallback((node) => setThreeDom(node), []);
 
   const frameRef = useRef<number>(0);
   const controlsRef = useRef<OrbitControls>();
-  const scene = useMemo(() => new three.Scene(), []);
-  const camera = useMemo(() => {
-    const camera = new three.PerspectiveCamera(75, 1 / 1, 0.1, 1000);
-    camera.position.set(0, 0, 3);
-    camera.lookAt(0, 0, 0);
-    scene.add(camera);
-    return camera;
-  }, [scene]);
+  const scene = useOnce(() => new three.Scene());
+  const camera = useOnce(
+    () => new three.PerspectiveCamera(75, 1 / 1, 0.1, 1000)
+  );
 
-  const renderer = useMemo(() => new three.WebGLRenderer(), []);
+  useEffect(() => {
+    if (!scene.children.find((child) => child === camera)) {
+      camera.position.set(0, 0, 3);
+      camera.lookAt(0, 0, 0);
+      scene.add(camera);
+    }
+  }, [scene, camera]);
+
+  const renderer = useOnce(() => new three.WebGLRenderer());
 
   const savedCallback = useRef<Callback>(callback);
   // Remember the latest callback.
@@ -27,8 +44,13 @@ export const useThree = (callback: Callback) => {
   }, [callback]);
 
   useEffect(() => {
-    if (threeDom) {
-      console.log('Re-attaching three.js DOM and instantiate OrbitControls');
+    if (threeDom && !threeDom.childNodes.length) {
+      console.log(
+        'Re-attaching three.js DOM and instantiate OrbitControls, appendingx',
+        renderer.domElement,
+        'to',
+        threeDom
+      );
       threeDom.appendChild(renderer.domElement);
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.update();

@@ -9,6 +9,7 @@ import React, {
   ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -53,7 +54,7 @@ import { outlineShaderF, outlineShaderV } from './outlineShader';
 
 // import contrastNoise from '..';
 import { useAsyncExtendedState } from './useAsyncExtendedState';
-import { usePromise } from './usePromise';
+// import { usePromise } from './usePromise';
 import { useThree } from './useThree';
 import FlowEdge from './FlowEdge';
 
@@ -833,8 +834,6 @@ const ThreeScene: React.FC = () => {
     }
   }, 100);
 
-  useEffect(resizeThree, [ctx.runtime?.camera, resizeThree]);
-
   const onConnect = (params: any) => {
     const node = graph.nodes.find(({ id }) => id === params.source) as Node;
     const { stage } = node;
@@ -886,9 +885,35 @@ const ThreeScene: React.FC = () => {
     setEditorTabIndex(1);
   };
 
+  const [defaultMainSplitSize, setDefaultMainSplitSize] = useState<
+    number[] | undefined
+  >();
+  useLayoutEffect(() => {
+    const DEFAULT_SPLIT_PERCENT = 30;
+    const width = window.innerWidth;
+    const sizes = [
+      0.1 * (100 - DEFAULT_SPLIT_PERCENT) * width,
+      0.1 * DEFAULT_SPLIT_PERCENT * width,
+    ];
+    setDefaultMainSplitSize(sizes);
+  }, []);
+  useEffect(() => resizeThree(), [defaultMainSplitSize]);
+
+  useEffect(() => {
+    const listener = () => resizeThree();
+    window.addEventListener('resize', listener);
+    return () => {
+      window.removeEventListener('resize', listener);
+    };
+  }, [resizeThree]);
+
   return (
     <div className={styles.container}>
-      <SplitPane split="vertical" onChange={resizeThree}>
+      <SplitPane
+        split="vertical"
+        onChange={resizeThree}
+        defaultSizes={defaultMainSplitSize}
+      >
         <div className={styles.splitInner}>
           <Tabs onSelect={setEditorTabIndex} selected={editorTabIndex}>
             <TabGroup>

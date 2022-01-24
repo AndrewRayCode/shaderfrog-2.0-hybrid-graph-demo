@@ -60,6 +60,25 @@ export const phongNode = (
   };
 };
 
+export const physicalNode = (
+  id: string,
+  name: string,
+  options: Object,
+  stage: ShaderStage,
+  nextStageNodeId?: string
+): Node => {
+  return {
+    id,
+    name,
+    type: ShaderType.physical,
+    options,
+    inputs: [],
+    source: '',
+    stage,
+    nextStageNodeId,
+  };
+};
+
 export const toonNode = (
   id: string,
   name: string,
@@ -262,6 +281,105 @@ export const threngine: Engine<RuntimeContext> = {
           //   clearcoat: 1,
           //   map: new three.Texture(),
           // })
+        );
+      },
+      fragment: {
+        produceAst: (
+          // todo: help
+          engineContext,
+          engine,
+          graph,
+          node,
+          inputEdges
+        ) => {
+          const { fragment } = engineContext.runtime.cache.nodes[node.id];
+
+          const fragmentPreprocessed = preprocess(fragment, {
+            preserve: {
+              version: () => true,
+            },
+          });
+
+          const fragmentAst = parser.parse(fragmentPreprocessed);
+
+          // Used for the UI only right now
+          engineContext.debuggingNonsense.fragmentPreprocessed =
+            fragmentPreprocessed;
+          engineContext.debuggingNonsense.fragmentSource = fragment;
+
+          // Do I need this? Is threejs shader already in 3.00 mode?
+          // from2To3(fragmentAst);
+
+          convert300MainToReturn(fragmentAst);
+          renameBindings(fragmentAst.scopes[0], threngine.preserve, node.id);
+          renameFunctions(fragmentAst.scopes[0], node.id, {
+            main: nodeName(node),
+          });
+          return fragmentAst;
+        },
+        findInputs: (engineContext, node, ast: AstNode) => {
+          let texture2Dcalls: [AstNode, string][] = [];
+          const visitors: NodeVisitors = {
+            function_call: {
+              enter: (path) => {
+                if (
+                  // TODO: 100 vs 300
+                  (path.node.identifier?.specifier?.identifier ===
+                    'texture2D' ||
+                    path.node.identifier?.specifier?.identifier ===
+                      'texture') &&
+                  path.key
+                ) {
+                  if (!path.parent) {
+                    throw new Error(
+                      'This is impossible a function call always has a parent'
+                    );
+                  }
+                  texture2Dcalls.push([path.parent, path.key]);
+                }
+              },
+            },
+          };
+          visit(ast, visitors);
+          const inputs = texture2Dcalls.reduce(
+            (inputs, [parent, key], index) => ({
+              ...inputs,
+              [`texture2d_${index}`]: (fillerAst: AstNode) => {
+                parent[key] = fillerAst;
+              },
+            }),
+            {}
+          );
+
+          return inputs;
+        },
+        produceFiller: (node: Node, ast: AstNode) => {
+          return makeExpression(`${nodeName(node)}()`);
+        },
+      },
+      vertex: {
+        produceAst: megaShaderProduceVertexAst,
+        findInputs: megaShaderFindPositionInputs,
+        produceFiller: (node: Node, ast: AstNode) => {
+          return makeExpression(`${nodeName(node)}()`);
+        },
+      },
+    },
+    [ShaderType.physical]: {
+      onBeforeCompile: (engineContext, node) => {
+        const { three } = engineContext.runtime;
+        onBeforeCompileMegaShader(
+          engineContext,
+          node,
+          new three.MeshPhysicalMaterial({
+            // color: diffuseColor,
+            metalness: 0,
+            roughness: 0.5,
+            clearcoat: 0.5,
+            clearcoatRoughness: 0.5,
+            reflectivity: 0.5,
+            roughnessMap: new three.Texture(),
+          })
         );
       },
       fragment: {

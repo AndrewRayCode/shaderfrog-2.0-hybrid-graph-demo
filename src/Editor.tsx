@@ -1,6 +1,6 @@
 import styles from '../pages/editor/editor.module.css';
 
-import Editor from '@monaco-editor/react';
+import MonacoEditor, { Monaco } from '@monaco-editor/react';
 import throttle from 'lodash.throttle';
 import { SplitPane } from 'react-multi-split-pane';
 import cx from 'classnames';
@@ -40,7 +40,13 @@ import {
   NodeInputs,
 } from './graph';
 
-import { phongNode, toonNode, threngine, RuntimeContext } from './threngine';
+import {
+  physicalNode,
+  phongNode,
+  toonNode,
+  threngine,
+  RuntimeContext,
+} from './threngine';
 import purpleNoiseNode from './purpleNoiseNode';
 import colorShaderNode from './colorShaderNode';
 import fluidCirclesNode from './fluidCirclesNode';
@@ -57,8 +63,9 @@ import { useAsyncExtendedState } from './useAsyncExtendedState';
 // import { usePromise } from './usePromise';
 import { useThree } from './useThree';
 import FlowEdge from './FlowEdge';
+import { monacoGlsl } from './monaco-glsl';
 
-const flowStyles = { height: 500, background: '#111' };
+const flowStyles = { height: '100vh', background: '#111' };
 
 let counter = 0;
 const id = () => '' + counter++;
@@ -66,6 +73,8 @@ const outputF = outputNode(id(), 'Output F', {}, 'fragment');
 const outputV = outputNode(id(), 'Output V', {}, 'vertex', outputF.id);
 const phongF = phongNode(id(), 'Phong F', {}, 'fragment');
 const phongV = phongNode(id(), 'Phong V', {}, 'vertex', phongF.id);
+const physicalF = physicalNode(id(), 'Physical F', {}, 'fragment');
+const physicalV = physicalNode(id(), 'Physical V', {}, 'vertex', physicalF.id);
 const toonF = toonNode(id(), 'Toon F', {}, 'fragment');
 const toonV = toonNode(id(), 'Toon V', {}, 'vertex', toonF.id);
 const fluidF = fluidCirclesNode(id());
@@ -90,6 +99,8 @@ const graph: Graph = {
     outputV,
     phongF,
     phongV,
+    physicalF,
+    physicalV,
     toonF,
     fluidF,
     toonV,
@@ -400,9 +411,9 @@ total: ${(now - allStart).toFixed(3)}ms
   });
 
 type ChildProps = {
-  children?: React.ReactNode;
-  onSelect?: Function;
-  selected?: number;
+  children: React.ReactNode;
+  onSelect: Function;
+  selected: number;
 };
 const Tabs = ({ children, selected, onSelect }: ChildProps) => {
   return (
@@ -515,7 +526,8 @@ const ThreeScene: React.FC = () => {
 
   // tabIndex may still be needed to pause rendering
   const [tabIndex, setTabIndex] = useState<number>(0);
-  const [editorTabIndex, setEditorTabIndex] = useState<number>(0);
+  const [sceneTabIndex, setSceneTabIndex] = useState<number>(0);
+  const [editorTabIndex, setEditorTabIndex] = useState<number>(1);
   const [compiling, setCompiling] = useState<boolean>(false);
 
   const [activeShader, setActiveShader] = useState<Node>(graph.nodes[0]);
@@ -827,12 +839,92 @@ const ThreeScene: React.FC = () => {
     if (rightSplit.current && ctx.runtime?.camera) {
       const { camera, renderer } = ctx.runtime;
       const { width, height } = rightSplit.current.getBoundingClientRect();
-      camera.aspect = width / height;
+      let heightMinusTab = height - 25;
+      camera.aspect = width / heightMinusTab;
       camera.updateProjectionMatrix();
-      renderer.setSize(width, height);
-      extendState({ width, height });
+      renderer.setSize(width, heightMinusTab);
+      extendState({ width, height: heightMinusTab });
     }
   }, 100);
+
+  const beforeMount = (monaco: Monaco) => {
+    monaco.editor.defineTheme('myCustomTheme', {
+      base: 'vs-dark', // can also be vs-dark or hc-black
+      inherit: true, // can also be false to completely replace the builtin rules
+      rules: [
+        {
+          token: 'comment',
+          foreground: 'ffa500',
+          fontStyle: 'italic underline',
+        },
+        { token: 'comment.js', foreground: '008800', fontStyle: 'bold' },
+        { token: 'comment.css', foreground: '0000ff' }, // will inherit fontStyle from `comment` above
+      ],
+      colors: {
+        'editor.background': '#000000',
+      },
+    });
+
+    monacoGlsl(monaco);
+
+    monaco.languages.registerCompletionItemProvider('glsl', {
+      provideCompletionItems: (model, position) => {
+        return {
+          suggestions: [...threngine.preserve.values()].map((keyword) => ({
+            label: keyword,
+            kind: monaco.languages.CompletionItemKind.Text,
+            insertText: keyword,
+            range: {
+              startLineNumber: 0,
+              endLineNumber: 0,
+              startColumn: 0,
+              endColumn: 0,
+            },
+          })),
+        };
+      },
+    });
+  };
+
+  const onMount = (editor: any, monaco: Monaco) => {
+    editor.addAction({
+      // An unique identifier of the contributed action.
+      id: 'my-unique-id',
+
+      // A label of the action that will be presented to the user.
+      label: 'My Label!!!',
+
+      // An optional array of keybindings for the action.
+      keybindings: [
+        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyE,
+        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyL,
+        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
+        // monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyT,
+        // chord
+        // monaco.KeyMod.chord(
+        //   monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
+        //   monaco.KeyMod.Cmd | monaco.KeyCode.KeyS
+        // ),
+      ],
+
+      // A precondition for this action.
+      precondition: null,
+
+      // A rule to evaluate on top of the precondition in order to dispatch the keybindings.
+      keybindingContext: null,
+
+      contextMenuGroupId: 'navigation',
+
+      contextMenuOrder: 1.5,
+
+      // Method that will be executed when the action is triggered.
+      // @param editor The editor instance is passed in as a convenience
+      run: function (ed: any) {
+        console.log('wtf');
+        console.log("i'm running => " + ed.getPosition());
+      },
+    });
+  };
 
   const onConnect = (params: any) => {
     const node = graph.nodes.find(({ id }) => id === params.source) as Node;
@@ -880,7 +972,6 @@ const ThreeScene: React.FC = () => {
   };
 
   const onNodeDoubleClick = (event: any, node: any) => {
-    console.log({ event, node });
     setActiveShader(graph.nodes.find((n) => n.id === node.id) as Node);
     setEditorTabIndex(1);
   };
@@ -943,20 +1034,40 @@ const ThreeScene: React.FC = () => {
                 </ReactFlow>
               </TabPanel>
               <TabPanel>
-                <Editor
+                <div className={styles.editorControls}>
+                  <button
+                    className={styles.button}
+                    onClick={() => compile(ctx, pauseCompile, state.elements)}
+                    disabled={compiling}
+                  >
+                    Save
+                  </button>
+                </div>
+                <MonacoEditor
                   height="100vh"
-                  theme="vs-dark"
-                  defaultLanguage="glsl"
+                  language="glsl"
+                  theme="myCustomTheme"
                   defaultValue={activeShader.source}
+                  onChange={(value, event) => {
+                    if (value) {
+                      (
+                        graph.nodes.find(
+                          ({ id }) => id === activeShader.id
+                        ) as Node
+                      ).source = value;
+                    }
+                  }}
                   options={{
                     minimap: { enabled: false },
                   }}
+                  onMount={onMount}
+                  beforeMount={beforeMount}
                 />
               </TabPanel>
             </TabPanels>
           </Tabs>
         </div>
-        {/* other pane */}
+        {/* 3d display split */}
         <div ref={rightSplit} className={styles.splitInner}>
           <Tabs selected={tabIndex} onSelect={setTabIndex}>
             <TabGroup>
@@ -979,7 +1090,6 @@ const ThreeScene: React.FC = () => {
                     `Complile took ${state.compileMs}ms`}
                 </div>
                 <div className={styles.sceneControls}>
-                  Preview with:
                   <button
                     className={styles.button}
                     onClick={() => setLights('point')}
@@ -1013,7 +1123,7 @@ const ThreeScene: React.FC = () => {
                 </div>
               </TabPanel>
               <TabPanel>
-                <Tabs>
+                <Tabs onSelect={setSceneTabIndex} selected={sceneTabIndex}>
                   <TabGroup className={styles.secondary}>
                     <Tab>3Frag</Tab>
                     <Tab>3Vert</Tab>

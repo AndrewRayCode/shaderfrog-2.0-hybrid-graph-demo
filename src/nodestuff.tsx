@@ -339,6 +339,7 @@ export enum ShaderType {
   shader = 'shader',
   add = 'add',
   multiply = 'multiply',
+  physical = 'physical',
 }
 
 export interface ShaderSections {

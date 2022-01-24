@@ -118,59 +118,61 @@ const graph: Graph = {
     solidColorF,
   ],
   edges: [
-    // { from: '2', to: '1', output: 'main', input: 'color' },
     // TODO: Put other images in the graphf like the toon step shader
     // TODO: Could be cool to try outline shader https://shaderfrog.com/app/view/4876
-    // TODO: Try pbr node demo from threejs
     // TODO: Have uniforms added per shader in the graph
-    // TODO: Fix hot reloading breaking the graph
     // TODO: Try plugging into normal map
     // TODO: AnyCode node to try manipulating above shader for normal map
     // TODO: Make uniforms like map: change the uniforms
     // TODO: Add 1.00 / 3.00 switch
+    // TODO: Fix adding / changing edges not auto-removing previous edges
+    // TOOD: Highlight drop targets on drag
+    // TOOD: Name inputs, nomralmap/roughnessMap based on uniform name?
     // TODO: Here we hardcode "out" for the inputs which needs to line up with
     //       the custom handles.
+    // TODO: Fix moving add node inputs causing missing holes
+    // TODO: Colorize nodes based on if they're going through frag or vert
     {
       from: phongV.id,
       to: outputV.id,
       output: 'main',
       input: 'position',
-      type: 'vertex',
+      stage: 'vertex',
     },
     {
       from: phongF.id,
       to: outputF.id,
       output: 'main',
       input: 'color',
-      type: 'fragment',
+      stage: 'fragment',
     },
     {
       from: add.id,
       to: phongF.id,
       output: 'out',
       input: 'texture2d_0',
-      type: 'fragment',
+      stage: 'fragment',
     },
     {
       from: purpleNoise.id,
       to: add.id,
       output: 'out',
       input: 'a',
-      type: 'fragment',
+      stage: 'fragment',
     },
     {
       from: heatShaderF.id,
       to: add.id,
       output: 'out',
       input: 'b',
-      type: 'fragment',
+      stage: 'fragment',
     },
     {
       from: heatShaderV.id,
       to: phongV.id,
       output: 'position',
       input: 'position',
-      type: 'vertex',
+      stage: 'vertex',
     },
   ],
 };
@@ -503,6 +505,60 @@ const TabPanel = ({ children, ...props }: TabPanelProps) => {
   return <div {...props}>{children}</div>;
 };
 
+const findInputStage = (byIds: any, node: any) => {
+  return (
+    (!node.data.biStage && node.data.stage) ||
+    (byIds.targets[node.id] || []).reduce((found: any, edge: any) => {
+      return (
+        found ||
+        edge.data.stage ||
+        findInputStage(byIds, byIds.ids[edge.source])
+      );
+    }, undefined)
+  );
+};
+
+// Some nodes, like add, can be used for either fragment or vertex stage. When
+// we connect edges in the graph, update it to figure out which stage we should
+// set the add node to based on inputs to the node.
+const setBiStages = (elements: any[]) => {
+  const byIds = elements.reduce(
+    (acc, element) => ({
+      ...acc,
+      ...(element.target
+        ? {
+            targets: {
+              ...acc.targets,
+              [element.target]: [...(acc[element.target] || []), element],
+            },
+          }
+        : {
+            ids: {
+              ...acc.ids,
+              [element.id]: element,
+            },
+          }),
+    }),
+    { targets: {}, ids: {} }
+  );
+  return elements.map((element) => {
+    if (!element.data.biStage && element.data.stage) {
+      return element;
+    }
+    const stage = findInputStage(byIds, element);
+    // TODO: This works to turn node colors, doesn't turn edges of related
+    // bistage nodes
+    console.log('looking up stage for', element, 'and found', stage);
+    return {
+      ...element,
+      data: {
+        ...element.data,
+        stage: findInputStage(byIds, element),
+      },
+    };
+  });
+};
+
 type AnyFn = (...args: any) => any;
 function useThrottle(callback: AnyFn, delay: number) {
   const cbRef = useRef<AnyFn>(callback);
@@ -527,7 +583,7 @@ const ThreeScene: React.FC = () => {
   // tabIndex may still be needed to pause rendering
   const [tabIndex, setTabIndex] = useState<number>(0);
   const [sceneTabIndex, setSceneTabIndex] = useState<number>(0);
-  const [editorTabIndex, setEditorTabIndex] = useState<number>(1);
+  const [editorTabIndex, setEditorTabIndex] = useState<number>(0);
   const [compiling, setCompiling] = useState<boolean>(false);
 
   const [activeShader, setActiveShader] = useState<Node>(graph.nodes[0]);
@@ -688,7 +744,7 @@ const ThreeScene: React.FC = () => {
           to: element.target,
           output: 'out',
           input: element.targetHandle,
-          type: element.data.type,
+          stage: element.data.stage,
         }));
 
       setCompiling(true);
@@ -799,12 +855,13 @@ const ThreeScene: React.FC = () => {
     const spacing = 200;
     const maxHeight = 4;
 
-    const elements = [
+    const elements = setBiStages([
       ...graph.nodes.map((node: any, index) => ({
         id: node.id,
         data: {
           label: node.name,
           stage: node.stage,
+          biStage: node.biStage,
           inputs: ctx.nodes[node.id]?.inputs || [],
         },
         type: 'special',
@@ -826,11 +883,11 @@ const ThreeScene: React.FC = () => {
         sourceHandle: edge.output,
         targetHandle: edge.input,
         target: edge.to,
-        data: { type: edge.type },
-        className: edge.type,
+        data: { stage: edge.stage },
+        className: edge.stage,
         type: 'special',
       })),
-    ];
+    ]);
     compile(ctx, pauseCompile, elements);
     extendState({ elements });
   }, [ctx, extendState, pauseCompile, compile, state.elements.length]);
@@ -927,10 +984,10 @@ const ThreeScene: React.FC = () => {
   };
 
   const onConnect = (params: any) => {
-    const node = graph.nodes.find(({ id }) => id === params.source) as Node;
-    const { stage } = node;
-    console.log('params', params, 'and source node', node);
-    const elements = [
+    const stage = state.elements.find((elem: any) => elem.id === params.source)
+      .data.stage;
+
+    const elements = setBiStages([
       ...state.elements.filter(
         (element: any) =>
           // Prevent one input handle from having multiple inputs
@@ -953,7 +1010,7 @@ const ThreeScene: React.FC = () => {
         className: stage,
         type: 'special',
       },
-    ];
+    ]);
     extendState({ elements });
     compile(ctx, pauseCompile, elements);
   };
@@ -964,9 +1021,9 @@ const ThreeScene: React.FC = () => {
   const onElementsRemove = (params: any) => {
     const ids = new Set(params.map(({ id }: any) => id));
 
-    const elements: any = [
+    const elements: any = setBiStages([
       ...state.elements.filter(({ id }: any) => !ids.has(id)),
-    ];
+    ]);
     extendState({ elements });
     compile(ctx, pauseCompile, elements);
   };
@@ -998,6 +1055,13 @@ const ThreeScene: React.FC = () => {
     };
   }, [resizeThree]);
 
+  const onConnectStart = (params: any, { nodeId, handleType }: any) => {
+    console.log('params', params, nodeId, handleType);
+  };
+  const onConnectStop = (params: any) => {
+    console.log('params', params);
+  };
+
   return (
     <div className={styles.container}>
       <SplitPane
@@ -1024,6 +1088,8 @@ const ThreeScene: React.FC = () => {
                   onNodeDoubleClick={onNodeDoubleClick}
                   nodeTypes={nodeTypes}
                   edgeTypes={edgeTypes}
+                  onConnectStart={onConnectStart}
+                  onConnectStop={onConnectStop}
                 >
                   <Background
                     variant={BackgroundVariant.Lines}

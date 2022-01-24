@@ -42,7 +42,7 @@
 .react-flow__edge-path-selector {
   fill: transparent;
   stroke-linecap: round;
-  stroke-width: 10;
+  stroke-width: 12;
 }
 
 .react-flow__edge.selected .react-flow__edge-path {
@@ -63,7 +63,7 @@
 }
 
 .fragment .flowlabel {
-  background: linear-gradient(to right, #091a09, #3b4508);
+  background: linear-gradient(to right, #264b21, #295829);
 }
 
 .react-flow__edge.fragment .react-flow__edge-path {

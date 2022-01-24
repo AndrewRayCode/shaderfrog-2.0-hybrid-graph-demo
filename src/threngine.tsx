@@ -372,7 +372,6 @@ export const threngine: Engine<RuntimeContext> = {
           engineContext,
           node,
           new three.MeshPhysicalMaterial({
-            // color: diffuseColor,
             metalness: 0,
             roughness: 0.5,
             clearcoat: 0.5,

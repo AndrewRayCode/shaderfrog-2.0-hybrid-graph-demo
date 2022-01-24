@@ -245,6 +245,7 @@ export interface Node {
   source: string;
   expressionOnly?: boolean;
   stage?: ShaderStage;
+  biStage?: boolean;
   nextStageNodeId?: string;
 }
 
@@ -307,6 +308,7 @@ export const addNode = (id: string, options: Object): Node => ({
   inputs: [],
   source: `a + b`,
   expressionOnly: true,
+  biStage: true,
 });
 
 export const multiplyNode = (id: string, options: Object): Node => ({
@@ -317,6 +319,7 @@ export const multiplyNode = (id: string, options: Object): Node => ({
   inputs: [],
   source: `a * b`,
   expressionOnly: true,
+  biStage: true,
 });
 
 export type Edge = {
@@ -324,7 +327,7 @@ export type Edge = {
   to: string;
   output: string;
   input: string;
-  type: ShaderStage;
+  stage: ShaderStage;
 };
 
 export interface Graph {

@@ -21,3 +21,25 @@ button[disabled] {
   background-color: #999;
   color: #222;
 }
+
+/* tab styles */
+.tab_tabs {
+  display: grid;
+  background: #444;
+  grid-auto-flow: column;
+  color: #fff;
+  grid-auto-columns: max-content;
+  border-top: 1px solid #555;
+  border-bottom: 1px solid #000;
+}
+
+.tab_tab {
+  background: #333;
+  border-right: 1px solid #000;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.tab_selected {
+  background: #000;
+}

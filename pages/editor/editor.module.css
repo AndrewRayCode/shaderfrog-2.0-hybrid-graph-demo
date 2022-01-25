@@ -107,46 +107,26 @@ textarea.error {
   padding: 10px;
 }
 
-.tabs {
-  display: grid;
-  background: #444;
-  grid-auto-flow: column;
-  color: #fff;
-  grid-auto-columns: max-content;
-  border-top: 1px solid #555;
-  border-bottom: 1px solid #000;
-}
-
-.tab {
-  background: #333;
-  border-right: 1px solid #000;
-  padding: 4px 8px;
-  cursor: pointer;
-}
-
+/* editor specific tab styles */
 .errored {
   background: rgb(176, 0, 0);
 }
 
-.selected {
-  background: #000;
-}
-
 .selected.errored,
-.secondary .tab.selected.errored {
+.secondary .tab_tab.selected.errored {
   background: rgb(84, 0, 0);
 }
 
 .secondary {
   background: #555;
 }
-.secondary .tab {
+.secondary .tab_tab {
   background: #444;
 }
-.secondary .tab.selected {
+.secondary .tab_tab.selected {
   background: #111;
 }
-.secondary .tab.errored {
+.secondary .tab_tab.errored {
   background: rgb(176, 0, 0);
 }
 

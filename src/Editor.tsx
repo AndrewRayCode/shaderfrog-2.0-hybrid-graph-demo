@@ -64,6 +64,7 @@ import { useAsyncExtendedState } from './useAsyncExtendedState';
 import { useThree } from './useThree';
 import FlowEdge from './FlowEdge';
 import { monacoGlsl } from './monaco-glsl';
+import { Tabs, Tab, TabGroup, TabPanel, TabPanels } from './Tabs';
 
 const flowStyles = { height: '100vh', background: '#111' };
 
@@ -412,99 +413,6 @@ total: ${(now - allStart).toFixed(3)}ms
     }, 0);
   });
 
-type ChildProps = {
-  children: React.ReactNode;
-  onSelect: Function;
-  selected: number;
-};
-const Tabs = ({ children, selected, onSelect }: ChildProps) => {
-  return (
-    <>
-      {React.Children.map<ReactNode, ReactNode>(
-        children,
-        (child) =>
-          React.isValidElement(child) &&
-          React.cloneElement(child, {
-            selected,
-            onSelect,
-          })
-      )}
-    </>
-  );
-};
-
-type TabGroupProps = {
-  children?: React.ReactNode;
-  selected?: number;
-  className?: string;
-  onSelect?: Function;
-};
-const TabGroup = ({
-  children,
-  selected,
-  onSelect,
-  ...props
-}: TabGroupProps) => {
-  return (
-    <div {...props} className={cx(styles.tabs, props.className)}>
-      {React.Children.map<ReactNode, ReactNode>(
-        children,
-        (child, index) =>
-          React.isValidElement(child) &&
-          React.cloneElement(child, {
-            selected,
-            onSelect,
-            index,
-          })
-      )}
-    </div>
-  );
-};
-
-type TabProps = {
-  children?: React.ReactNode;
-  selected?: number;
-  className?: any;
-  onSelect?: Function;
-  index?: number;
-};
-const Tab = ({
-  children,
-  selected,
-  className,
-  onSelect,
-  index,
-  ...props
-}: TabProps) => {
-  return (
-    <div
-      {...props}
-      className={cx(className, styles.tab, {
-        [styles.selected]: selected === index,
-      })}
-      onClick={(event) => {
-        event.preventDefault();
-        onSelect && onSelect(index);
-      }}
-    >
-      {children}
-    </div>
-  );
-};
-
-type TabPanelsProps = { selected?: number; children: React.ReactNode };
-const TabPanels = ({ selected, children }: TabPanelsProps) => (
-  <>
-    {React.Children.map<ReactNode, ReactNode>(children, (child, index) =>
-      selected === index ? child : null
-    )}
-  </>
-);
-type TabPanelProps = { children: React.ReactNode; className?: string };
-const TabPanel = ({ children, ...props }: TabPanelProps) => {
-  return <div {...props}>{children}</div>;
-};
-
 const findInputStage = (byIds: any, node: any) => {
   return (
     (!node.data.biStage && node.data.stage) ||
@@ -541,22 +449,39 @@ const setBiStages = (elements: any[]) => {
     }),
     { targets: {}, ids: {} }
   );
-  return elements.map((element) => {
-    if (!element.data.biStage && element.data.stage) {
-      return element;
-    }
-    const stage = findInputStage(byIds, element);
-    // TODO: This works to turn node colors, doesn't turn edges of related
-    // bistage nodes
-    console.log('looking up stage for', element, 'and found', stage);
-    return {
-      ...element,
-      data: {
-        ...element.data,
-        stage: findInputStage(byIds, element),
-      },
-    };
-  });
+
+  const updatedSides: any = {};
+  // Update the node stages by looking at their inputs
+  return (
+    elements
+      .map((element) => {
+        if (!element.data.biStage && element.data.stage) {
+          return element;
+        }
+        return (updatedSides[element.id] = {
+          ...element,
+          data: {
+            ...element.data,
+            stage: findInputStage(byIds, element),
+          },
+        });
+      })
+      // Set the stage for edges connected to nodes whose stage changed
+      .map((element) => {
+        if (!element.source || !(element.source in updatedSides)) {
+          return element;
+        }
+        const { stage } = updatedSides[element.source].data;
+        return {
+          ...element,
+          className: stage,
+          data: {
+            ...element.data,
+            stage,
+          },
+        };
+      })
+  );
 };
 
 type AnyFn = (...args: any) => any;
@@ -1071,7 +996,7 @@ const ThreeScene: React.FC = () => {
       >
         <div className={styles.splitInner}>
           <Tabs onSelect={setEditorTabIndex} selected={editorTabIndex}>
-            <TabGroup>
+            <TabGroup className={styles.tabs}>
               <Tab>Graph</Tab>
               <Tab>
                 Editor ({activeShader.name} - {activeShader.stage})
@@ -1136,7 +1061,7 @@ const ThreeScene: React.FC = () => {
         {/* 3d display split */}
         <div ref={rightSplit} className={styles.splitInner}>
           <Tabs selected={tabIndex} onSelect={setTabIndex}>
-            <TabGroup>
+            <TabGroup className={styles.tabs}>
               <Tab>Scene</Tab>
               <Tab
                 className={{
@@ -1190,7 +1115,7 @@ const ThreeScene: React.FC = () => {
               </TabPanel>
               <TabPanel>
                 <Tabs onSelect={setSceneTabIndex} selected={sceneTabIndex}>
-                  <TabGroup className={styles.secondary}>
+                  <TabGroup className={cx(styles.tabs, styles.secondary)}>
                     <Tab>3Frag</Tab>
                     <Tab>3Vert</Tab>
                     <Tab>Pre 3Frag</Tab>

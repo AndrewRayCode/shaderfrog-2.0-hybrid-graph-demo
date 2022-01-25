@@ -377,6 +377,7 @@ export const threngine: Engine<RuntimeContext> = {
             clearcoat: 0.5,
             clearcoatRoughness: 0.5,
             reflectivity: 0.5,
+            map: new three.Texture(),
             roughnessMap: new three.Texture(),
           })
         );

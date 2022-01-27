@@ -49,6 +49,11 @@
   stroke-width: 3;
 }
 
+.react-flow_handle_label {
+  color: rgb(176, 228, 156);
+  position: absolute;
+}
+
 /* -------------- */
 /* Fragment theme */
 /* -------------- */

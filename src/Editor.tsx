@@ -20,6 +20,9 @@ import ReactFlow, {
   BackgroundVariant,
   Handle,
   Position,
+  Node as FlowNode,
+  Edge as FlowEdge,
+  // FlowElement,
 } from 'react-flow-renderer';
 
 import {
@@ -35,6 +38,7 @@ import {
 } from './nodestuff';
 import {
   compileGraph,
+  computeAllContexts,
   computeGraphContext,
   EngineContext,
   NodeInputs,
@@ -62,7 +66,7 @@ import { outlineShaderF, outlineShaderV } from './outlineShader';
 import { useAsyncExtendedState } from './useAsyncExtendedState';
 // import { usePromise } from './usePromise';
 import { useThree } from './useThree';
-import FlowEdge from './FlowEdge';
+import FlowEdgeComponent from './FlowEdge';
 import ConnectionLine from './ConnectionLine';
 import { monacoGlsl } from './monaco-glsl';
 import { Tabs, Tab, TabGroup, TabPanel, TabPanels } from './Tabs';
@@ -137,14 +141,14 @@ const graph: Graph = {
     {
       from: phongV.id,
       to: outputV.id,
-      output: 'main',
+      output: 'out',
       input: 'position',
       stage: 'vertex',
     },
     {
       from: phongF.id,
       to: outputF.id,
-      output: 'main',
+      output: 'out',
       input: 'color',
       stage: 'fragment',
     },
@@ -172,7 +176,7 @@ const graph: Graph = {
     {
       from: heatShaderV.id,
       to: phongV.id,
-      output: 'position',
+      output: 'out',
       input: 'position',
       stage: 'vertex',
     },
@@ -181,63 +185,76 @@ const graph: Graph = {
 
 const handleTop = 40;
 const textHeight = 10;
-type NodeProps = {
-  data: {
-    label: string;
-    stage: ShaderStage;
-    inputs: NodeInputs[];
-  };
+type NodeHandle = {
+  validTarget: boolean;
+  name: string;
 };
+type FlowNodeData = {
+  label: string;
+  stage?: ShaderStage;
+  biStage: boolean;
+  outputs: NodeHandle[];
+  inputs: NodeHandle[];
+};
+type FlowEdgeData = {
+  stage?: ShaderStage;
+};
+type NodeProps = {
+  data: FlowNodeData;
+};
+type FlowElement = FlowNode<FlowNodeData> | FlowEdge<FlowEdgeData>;
+
 const CustomNodeComponent = ({ data }: NodeProps) => {
-  // TODO: Populate inputs (and eventually outputs) after the graph compiles!
-  // console.log('data.inputs', data.inputs);
   return (
     <div
       className={'flownode ' + data.stage}
       style={{
-        height: `${
-          handleTop + Math.max(Object.keys(data.inputs).length, 1) * 20
-        }px`,
+        height: `${handleTop + Math.max(data.inputs.length, 1) * 20}px`,
       }}
     >
       <div className="flowlabel">{data.label}</div>
       <div className="flowInputs">
-        {Object.keys(data.inputs).map((name, index) => (
-          <React.Fragment key={name}>
+        {data.inputs.map((input, index) => (
+          <React.Fragment key={input.name}>
             <div
               className="react-flow_handle_label"
               style={{
                 top: `${handleTop - textHeight + index * 20}px`,
                 left: 15,
-                position: 'absolute',
               }}
             >
-              {name}
+              {input.name}
             </div>
             <Handle
-              id={name}
+              id={input.name}
+              className={cx({ validTarget: input.validTarget })}
               type="target"
               position={Position.Left}
               style={{ top: `${handleTop + index * 20}px` }}
             />
           </React.Fragment>
         ))}
-        <div
-          style={{
-            top: `${handleTop - textHeight}px`,
-            right: 15,
-            position: 'absolute',
-          }}
-          className="react-flow_handle_label"
-        >
-          out
-        </div>
-        <Handle
-          type="source"
-          position={Position.Right}
-          id="out"
-          style={{ top: `${handleTop}px` }}
-        />
+
+        {data.outputs.map((output, index) => (
+          <React.Fragment key={output.name}>
+            <div
+              className="react-flow_handle_label"
+              style={{
+                top: `${handleTop - textHeight + index * 20}px`,
+                right: 15,
+              }}
+            >
+              {output.name}
+            </div>
+            <Handle
+              id={output.name}
+              className={cx({ validTarget: output.validTarget })}
+              type="source"
+              position={Position.Right}
+              style={{ top: `${handleTop + index * 20}px` }}
+            />
+          </React.Fragment>
+        ))}
       </div>
     </div>
   );
@@ -249,7 +266,7 @@ const nodeTypes = {
 
 // Not currently used but keeping around in case I want to try it again
 const edgeTypes = {
-  special: FlowEdge,
+  special: FlowEdgeComponent,
 };
 
 const compileGraphAsync = async (
@@ -414,31 +431,44 @@ total: ${(now - allStart).toFixed(3)}ms
     }, 0);
   });
 
-const findInputStage = (byIds: any, node: any) => {
+const findInputStage = (
+  byIds: IndexedByTarget,
+  node: FlowNode<FlowNodeData>
+): ShaderStage | undefined => {
   return (
-    (!node.data.biStage && node.data.stage) ||
-    (byIds.targets[node.id] || []).reduce((found: any, edge: any) => {
-      return (
-        found ||
-        edge.data.stage ||
-        findInputStage(byIds, byIds.ids[edge.source])
-      );
-    }, undefined)
+    (!node.data?.biStage && node.data?.stage) ||
+    (byIds.targets[node.id] || []).reduce<ShaderStage | undefined>(
+      (found, edge) => {
+        return (
+          found ||
+          edge.data?.stage ||
+          findInputStage(byIds, byIds.ids[edge.source])
+        );
+      },
+      undefined
+    )
   );
 };
 
+type IndexedByTarget = {
+  targets: Record<string, FlowEdge<FlowEdgeData>[]>;
+  ids: Record<string, FlowNode<FlowNodeData>>;
+};
 // Some nodes, like add, can be used for either fragment or vertex stage. When
 // we connect edges in the graph, update it to figure out which stage we should
 // set the add node to based on inputs to the node.
-const setBiStages = (elements: any[]) => {
+const setBiStages = (elements: FlowElement[]) => {
   const byIds = elements.reduce(
     (acc, element) => ({
       ...acc,
-      ...(element.target
+      ...('target' in element
         ? {
             targets: {
               ...acc.targets,
-              [element.target]: [...(acc[element.target] || []), element],
+              [element.target]: [
+                ...(acc.targets[element.target] || []),
+                element,
+              ],
             },
           }
         : {
@@ -448,14 +478,17 @@ const setBiStages = (elements: any[]) => {
             },
           }),
     }),
-    { targets: {}, ids: {} }
+    { targets: {}, ids: {} } as IndexedByTarget
   );
 
-  const updatedSides: any = {};
+  const updatedSides: Record<string, FlowElement> = {};
   // Update the node stages by looking at their inputs
   return (
     elements
       .map((element) => {
+        if (!element.data || !('biStage' in element.data)) {
+          return element;
+        }
         if (!element.data.biStage && element.data.stage) {
           return element;
         }
@@ -463,16 +496,16 @@ const setBiStages = (elements: any[]) => {
           ...element,
           data: {
             ...element.data,
-            stage: findInputStage(byIds, element),
+            stage: findInputStage(byIds, element as FlowNode<FlowNodeData>),
           },
         });
       })
       // Set the stage for edges connected to nodes whose stage changed
       .map((element) => {
-        if (!element.source || !(element.source in updatedSides)) {
+        if (!('source' in element) || !(element.source in updatedSides)) {
           return element;
         }
-        const { stage } = updatedSides[element.source].data;
+        const { stage } = updatedSides[element.source].data as FlowNodeData;
         return {
           ...element,
           className: stage,
@@ -525,7 +558,15 @@ const ThreeScene: React.FC = () => {
   const [originalVert, setOriginalVert] = useState<string | undefined>('');
   const [finalFragment, setFinalFragment] = useState<string | undefined>('');
 
-  const [state, setState, extendState] = useAsyncExtendedState<any>({
+  const [state, setState, extendState] = useAsyncExtendedState<{
+    fragError: string | null;
+    vertError: string | null;
+    programError: string | null;
+    compileMs: string | null;
+    width: number;
+    height: number;
+    elements: FlowElement[];
+  }>({
     fragError: null,
     vertError: null,
     programError: null,
@@ -686,21 +727,24 @@ const ThreeScene: React.FC = () => {
           setPreprocessedVert(ctx.debuggingNonsense.vertexPreprocessed);
           setOriginal(ctx.debuggingNonsense.fragmentSource);
           setOriginalVert(ctx.debuggingNonsense.vertexSource);
-          extendState(({ elements }) => ({
+          extendState((state) => ({
             compileMs,
-            elements: [
-              ...elements.map((node: any) =>
-                node?.data?.inputs
-                  ? {
-                      ...node,
-                      data: {
-                        ...node.data,
-                        inputs: ctx.nodes[node.id]?.inputs || [],
-                      },
-                    }
-                  : node
-              ),
-            ],
+            elements: (state.elements || []).map((node) =>
+              node.data && 'inputs' in node.data
+                ? {
+                    ...node,
+                    data: {
+                      ...node.data,
+                      inputs: Object.keys(ctx.nodes[node.id]?.inputs || []).map(
+                        (name) => ({
+                          validTarget: false,
+                          name,
+                        })
+                      ),
+                    },
+                  }
+                : node
+            ),
           }));
         }
       );
@@ -772,7 +816,7 @@ const ThreeScene: React.FC = () => {
       return;
     }
 
-    computeGraphContext(ctx, threngine, graph);
+    computeAllContexts(ctx, threngine, graph);
 
     let engines = 0;
     let maths = 0;
@@ -788,7 +832,16 @@ const ThreeScene: React.FC = () => {
           label: node.name,
           stage: node.stage,
           biStage: node.biStage,
-          inputs: ctx.nodes[node.id]?.inputs || [],
+          inputs: Object.keys(ctx.nodes[node.id]?.inputs || []).map((name) => ({
+            name,
+            validTarget: false,
+          })),
+          outputs: [
+            {
+              validTarget: false,
+              name: 'out',
+            },
+          ],
         },
         type: 'special',
         position:
@@ -910,21 +963,23 @@ const ThreeScene: React.FC = () => {
   };
 
   const onConnect = (params: any) => {
-    const stage = state.elements.find((elem: any) => elem.id === params.source)
-      .data.stage;
+    const stage = state.elements.find((elem) => elem.id === params.source)?.data
+      ?.stage;
 
     const elements = setBiStages([
       ...state.elements.filter(
-        (element: any) =>
+        (element) =>
           // Prevent one input handle from having multiple inputs
           !(
             (
+              'targetHandle' in element &&
               element.targetHandle === params.targetHandle &&
               element.target === params.target
             )
             // Prevent one output handle from having multiple lines out
           ) &&
           !(
+            'sourceHandle' in element &&
             element.sourceHandle === params.sourceHandle &&
             element.source === params.source
           )

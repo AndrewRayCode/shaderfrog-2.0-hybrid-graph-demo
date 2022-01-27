@@ -571,6 +571,14 @@ export type CompileGraphResult = {
   vertex: ShaderSections;
 };
 
+export const computeAllContexts = <T>(
+  engineContext: EngineContext<T>,
+  engine: Engine<T>,
+  graph: Graph
+) => {
+  computeSideContext(engineContext, engine, graph, graph.nodes);
+};
+
 export const computeGraphContext = <T>(
   engineContext: EngineContext<T>,
   engine: Engine<T>,

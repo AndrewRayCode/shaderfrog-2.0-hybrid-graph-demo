@@ -375,13 +375,13 @@ export const collectConnectedNodes = (
       compiledIds = { ...compiledIds, ...childIds };
     });
 
-    return { ...compiledIds, [node.id]: true };
+    return { ...compiledIds, [node.id]: node };
   } else {
-    return { ...compiledIds, [node.id]: true };
+    return { ...compiledIds, [node.id]: node };
   }
 };
 
-type NodeIds = Record<string, boolean>;
+type NodeIds = Record<string, Node>;
 export type CompileNodeResult = [ShaderSections, AstNode | void, NodeIds];
 
 export const compileNode = <T>(
@@ -466,7 +466,7 @@ export const compileNode = <T>(
       sections,
       // @ts-ignore
       (stage in parser ? parser[stage] : parser).produceFiller(node, ast),
-      { ...compiledIds, [node.id]: true },
+      { ...compiledIds, [node.id]: node },
     ];
   } else {
     const sections = node.expressionOnly
@@ -477,7 +477,7 @@ export const compileNode = <T>(
       sections,
       // @ts-ignore
       (stage in parser ? parser[stage] : parser).produceFiller(node, ast),
-      { ...compiledIds, [node.id]: true },
+      { ...compiledIds, [node.id]: node },
     ];
   }
 };
@@ -524,45 +524,47 @@ const computeSideContext = <T>(
   engineContext: EngineContext<T>,
   engine: Engine<T>,
   graph: Graph,
-  stage?: ShaderStage
+  nodes: Node[]
+  // stage?: ShaderStage
 ) =>
-  graph.nodes
-    .filter((node) => node.stage === stage)
-    .reduce((context, node) => {
-      let parser;
-      let nodeContext;
+  // graph.nodes
+  //   .filter((node) => node.stage === stage)
+  //   .reduce((context, node) => {
+  nodes.reduce((context, node) => {
+    let parser;
+    let nodeContext;
 
-      console.log('computing context for', node.name);
-      // User parser
-      if ((parser = engine.parsers[node.type])) {
-        nodeContext = computeNodeContext(
-          engineContext,
-          engine,
-          graph,
-          parser,
-          node,
-          stage
-        );
-        // Internal parser
-      } else if ((parser = parsers[node.type])) {
-        nodeContext = computeNodeContext(
-          engineContext,
-          engine as unknown as Engine<Runtime>,
-          graph,
-          parser,
-          node,
-          stage
-        );
-      } else {
-        throw new Error(`No parser for ${node.type}`);
-      }
+    console.log('computing context for', node.name);
+    // User parser
+    if ((parser = engine.parsers[node.type])) {
+      nodeContext = computeNodeContext(
+        engineContext,
+        engine,
+        graph,
+        parser,
+        node,
+        node.stage
+      );
+      // Internal parser
+    } else if ((parser = parsers[node.type])) {
+      nodeContext = computeNodeContext(
+        engineContext,
+        engine as unknown as Engine<Runtime>,
+        graph,
+        parser,
+        node,
+        node.stage
+      );
+    } else {
+      throw new Error(`No parser for ${node.type}`);
+    }
 
-      context[node.id] = {
-        ...(context[node.id] || {}),
-        ...nodeContext,
-      };
-      return context;
-    }, engineContext.nodes);
+    context[node.id] = {
+      ...(context[node.id] || {}),
+      ...nodeContext,
+    };
+    return context;
+  }, engineContext.nodes);
 
 export type CompileGraphResult = {
   fragment: ShaderSections;
@@ -574,9 +576,40 @@ export const computeGraphContext = <T>(
   engine: Engine<T>,
   graph: Graph
 ) => {
-  computeSideContext(engineContext, engine, graph);
-  computeSideContext(engineContext, engine, graph, 'fragment');
-  computeSideContext(engineContext, engine, graph, 'vertex');
+  const outputFrag = graph.nodes.find(
+    (node) => node.type === 'output' && node.stage === 'fragment'
+  );
+  if (!outputFrag) {
+    throw new Error('No fragment output in graph');
+  }
+  const outputVert = graph.nodes.find(
+    (node) => node.type === 'output' && node.stage === 'vertex'
+  );
+  if (!outputVert) {
+    throw new Error('No vertex output in graph');
+  }
+
+  const vertexIds = collectConnectedNodes(graph, graph.edges, outputVert, {});
+  const fragmentIds = collectConnectedNodes(graph, graph.edges, outputFrag, {});
+  const additionalIds = graph.nodes.filter(
+    (node) =>
+      node.stage === 'vertex' &&
+      node.nextStageNodeId &&
+      fragmentIds[node.nextStageNodeId] &&
+      !vertexIds[node.id]
+  );
+
+  computeSideContext(engineContext, engine, graph, [
+    outputFrag,
+    ...Object.values(fragmentIds),
+  ]);
+  computeSideContext(engineContext, engine, graph, [
+    outputVert,
+    ...Object.values(vertexIds),
+    ...additionalIds,
+  ]);
+  // computeSideContext(engineContext, engine, graph, 'fragment');
+  // computeSideContext(engineContext, engine, graph, 'vertex');
 };
 
 export const compileGraph = <T>(
@@ -624,7 +657,7 @@ export const compileGraph = <T>(
       to: outputVert.id,
       output: 'main',
       input: 'mainStmts',
-      type: 'vertex',
+      stage: 'vertex',
     }));
 
   const [vertex, ,] = compileNode(

@@ -63,6 +63,7 @@ import { useAsyncExtendedState } from './useAsyncExtendedState';
 // import { usePromise } from './usePromise';
 import { useThree } from './useThree';
 import FlowEdge from './FlowEdge';
+import ConnectionLine from './ConnectionLine';
 import { monacoGlsl } from './monaco-glsl';
 import { Tabs, Tab, TabGroup, TabPanel, TabPanels } from './Tabs';
 
@@ -1011,6 +1012,7 @@ const ThreeScene: React.FC = () => {
                   onEdgeUpdate={onEdgeUpdate}
                   onElementsRemove={onElementsRemove}
                   onNodeDoubleClick={onNodeDoubleClick}
+                  connectionLineComponent={ConnectionLine}
                   nodeTypes={nodeTypes}
                   edgeTypes={edgeTypes}
                   onConnectStart={onConnectStart}

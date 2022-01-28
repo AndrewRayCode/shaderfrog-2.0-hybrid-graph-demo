@@ -1037,10 +1037,63 @@ const ThreeScene: React.FC = () => {
   }, [resizeThree]);
 
   const onConnectStart = (params: any, { nodeId, handleType }: any) => {
-    console.log('params', params, nodeId, handleType);
+    console.log({ nodeId, handleType });
+    extendState(({ elements }) => {
+      const source = graph.nodes.find(({ id }) => id === nodeId) as Node;
+      return {
+        elements: (elements || []).map((element) => {
+          if (
+            element.data &&
+            'label' in element.data &&
+            (element.data.stage === source.stage ||
+              !source.stage ||
+              !element.data.stage) &&
+            element.id !== nodeId
+          ) {
+            return {
+              ...element,
+              data: {
+                ...element.data,
+                inputs: element.data.inputs.map((input) => ({
+                  ...input,
+                  validTarget: handleType === 'source',
+                })),
+                outputs: element.data.outputs.map((output) => ({
+                  ...output,
+                  validTarget: handleType === 'target',
+                })),
+              },
+            };
+          }
+          return element;
+        }),
+      };
+    });
   };
-  const onConnectStop = (params: any) => {
-    console.log('params', params);
+  const onConnectStop = () => {
+    extendState(({ elements }) => {
+      return {
+        elements: (elements || []).map((element) => {
+          if (element.data && 'label' in element.data) {
+            return {
+              ...element,
+              data: {
+                ...element.data,
+                inputs: element.data.inputs.map((input) => ({
+                  ...input,
+                  validTarget: false,
+                })),
+                outputs: element.data.outputs.map((output) => ({
+                  ...output,
+                  validTarget: false,
+                })),
+              },
+            };
+          }
+          return element;
+        }),
+      };
+    });
   };
 
   return (

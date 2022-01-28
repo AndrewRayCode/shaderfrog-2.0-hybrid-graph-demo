@@ -23,6 +23,7 @@
 .flownode .react-flow__handle {
   width: 12px;
   height: 12px;
+  transition: 0.2s all ease-in-out;
 }
 
 .react-flow__edgeupdater {
@@ -52,6 +53,12 @@
 .react-flow_handle_label {
   color: rgb(176, 228, 156);
   position: absolute;
+}
+
+.react-flow__handle.validTarget {
+  box-shadow: 0 0 10px #fff;
+  border-color: #d7d7d7;
+  background: #bfbfbf;
 }
 
 /* -------------- */
@@ -98,6 +105,13 @@
 .fragment.flownode .react-flow__handle {
   border-color: #d4ff00;
   background: #333d00;
+  transition: all 0.2s ease-in;
+}
+
+.fragment .react-flow__handle.validTarget {
+  box-shadow: 0 0 20px 5px #0f0;
+  border-color: #fefff7;
+  background: #d4ff00;
 }
 
 /* ------------ */
@@ -145,4 +159,11 @@
 .vertex.flownode .react-flow__handle {
   border-color: #fa5b5b;
   background: #3a1919;
+  transition: all 0.2s ease-in;
+}
+
+.vertex .react-flow__handle.validTarget {
+  box-shadow: 0 0 10px #f00;
+  border-color: #ffd3d3;
+  background: #fa5b5b;
 }

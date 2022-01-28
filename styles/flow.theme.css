@@ -23,7 +23,7 @@
 .flownode .react-flow__handle {
   width: 12px;
   height: 12px;
-  transition: 0.2s all ease-in-out;
+  transition: 0.1s all ease-out;
 }
 
 .react-flow__edgeupdater {
@@ -57,8 +57,14 @@
 
 .react-flow__handle.validTarget {
   box-shadow: 0 0 10px #fff;
-  border-color: #d7d7d7;
+  border-color: #d4bcbc;
   background: #bfbfbf;
+}
+
+.react-flow__handle.react-flow__handle-connecting {
+  box-shadow: 0 0 10px #fff;
+  border-color: #fff;
+  background: #fff;
 }
 
 /* -------------- */
@@ -114,6 +120,12 @@
   background: #d4ff00;
 }
 
+.fragment .react-flow__handle.validTarget.react-flow__handle-connecting {
+  box-shadow: 0 0 20px 5px #efe;
+  border-color: #efe;
+  background: #efe;
+}
+
 /* ------------ */
 /* Vertex theme */
 /* ------------ */
@@ -166,4 +178,10 @@
   box-shadow: 0 0 10px #f00;
   border-color: #ffd3d3;
   background: #fa5b5b;
+}
+
+.vertex .react-flow__handle.validTarget.react-flow__handle-connecting {
+  box-shadow: 0 0 20px 5px #fee;
+  border-color: #fee;
+  background: #fee;
 }

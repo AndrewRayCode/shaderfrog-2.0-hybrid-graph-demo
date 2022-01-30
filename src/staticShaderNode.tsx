@@ -1,9 +1,9 @@
 import { sourceNode } from './nodestuff';
 
-const colorShaderNode = (id: string) =>
+const staticShaderNode = (id: string) =>
   sourceNode(
     id,
-    'Color Shader',
+    'Static Shader',
     {},
     `
 /**
@@ -46,4 +46,4 @@ void main() {
     'fragment'
   );
 
-export default colorShaderNode;
+export default staticShaderNode;

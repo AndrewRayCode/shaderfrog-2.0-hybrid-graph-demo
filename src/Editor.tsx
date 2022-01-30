@@ -22,6 +22,7 @@ import ReactFlow, {
   Position,
   Node as FlowNode,
   Edge as FlowEdge,
+  Connection,
   // FlowElement,
 } from 'react-flow-renderer';
 
@@ -52,7 +53,7 @@ import {
   RuntimeContext,
 } from './threngine';
 import purpleNoiseNode from './purpleNoiseNode';
-import colorShaderNode from './colorShaderNode';
+import staticShaderNode from './staticShaderNode';
 import fluidCirclesNode from './fluidCirclesNode';
 import solidColorNode from './solidColorNode';
 import {
@@ -84,7 +85,7 @@ const physicalV = physicalNode(id(), 'Physical V', {}, 'vertex', physicalF.id);
 const toonF = toonNode(id(), 'Toon F', {}, 'fragment');
 const toonV = toonNode(id(), 'Toon V', {}, 'vertex', toonF.id);
 const fluidF = fluidCirclesNode(id());
-const colorShader = colorShaderNode(id());
+const staticShader = staticShaderNode(id());
 const purpleNoise = purpleNoiseNode(id());
 const heatShaderF = heatShaderFragmentNode(id());
 const heatShaderV = heatShaderVertexNode(id());
@@ -110,7 +111,7 @@ const graph: Graph = {
     toonF,
     fluidF,
     toonV,
-    colorShader,
+    staticShader,
     purpleNoise,
     heatShaderF,
     heatShaderV,
@@ -962,8 +963,8 @@ const ThreeScene: React.FC = () => {
     });
   };
 
-  const onConnect = (params: any) => {
-    const stage = state.elements.find((elem) => elem.id === params.source)?.data
+  const addConnection = (edge: FlowEdge | Connection) => {
+    const stage = state.elements.find((elem) => elem.id === edge.source)?.data
       ?.stage;
 
     const elements = setBiStages([
@@ -973,32 +974,34 @@ const ThreeScene: React.FC = () => {
           !(
             (
               'targetHandle' in element &&
-              element.targetHandle === params.targetHandle &&
-              element.target === params.target
+              element.targetHandle === edge.targetHandle &&
+              element.target === edge.target
             )
             // Prevent one output handle from having multiple lines out
           ) &&
           !(
             'sourceHandle' in element &&
-            element.sourceHandle === params.sourceHandle &&
-            element.source === params.source
+            element.sourceHandle === edge.sourceHandle &&
+            element.source === edge.source
           )
       ),
       {
-        ...params,
-        id: `${params.source}-${params.target}`,
-        data: { type: stage },
+        ...edge,
+        id: `${edge.source}-${edge.target}`,
+        data: { stage },
         className: stage,
         type: 'special',
-      },
+      } as FlowEdge<FlowEdgeData>,
     ]);
     extendState({ elements });
     compile(ctx, pauseCompile, elements);
   };
 
-  const onEdgeUpdate = (params: any) => {
-    console.log('onEdgeUpdate', params);
-  };
+  const onConnect = (edge: FlowEdge | Connection) => addConnection(edge);
+
+  const onEdgeUpdate = (oldEdge: FlowEdge, newConnection: Connection) =>
+    addConnection(newConnection);
+
   const onElementsRemove = (params: any) => {
     const ids = new Set(params.map(({ id }: any) => id));
 
@@ -1028,16 +1031,7 @@ const ThreeScene: React.FC = () => {
   }, []);
   useEffect(() => resizeThree(), [defaultMainSplitSize]);
 
-  useEffect(() => {
-    const listener = () => resizeThree();
-    window.addEventListener('resize', listener);
-    return () => {
-      window.removeEventListener('resize', listener);
-    };
-  }, [resizeThree]);
-
-  const onConnectStart = (params: any, { nodeId, handleType }: any) => {
-    console.log({ nodeId, handleType });
+  const setTargets = (nodeId: string, handleType: string) => {
     extendState(({ elements }) => {
       const source = graph.nodes.find(({ id }) => id === nodeId) as Node;
       return {
@@ -1070,7 +1064,7 @@ const ThreeScene: React.FC = () => {
       };
     });
   };
-  const onConnectStop = () => {
+  const resetTargets = () => {
     extendState(({ elements }) => {
       return {
         elements: (elements || []).map((element) => {
@@ -1095,6 +1089,28 @@ const ThreeScene: React.FC = () => {
       };
     });
   };
+
+  useEffect(() => {
+    const listener = () => resizeThree();
+    window.addEventListener('resize', listener);
+    return () => {
+      window.removeEventListener('resize', listener);
+    };
+  }, [resizeThree]);
+
+  const onEdgeUpdateStart = (event: any, edge: any) => {
+    const g = event.target.parentElement;
+    const handleType =
+      [...g.parentElement.children].indexOf(g) === 3 ? 'source' : 'target';
+    const nodeId = handleType === 'source' ? edge.source : edge.target;
+    setTargets(nodeId, handleType);
+  };
+  const onConnectStart = (params: any, { nodeId, handleType }: any) => {
+    console.log({ nodeId, handleType });
+    setTargets(nodeId, handleType);
+  };
+  const onEdgeUpdateEnd = () => resetTargets();
+  const onConnectStop = () => resetTargets();
 
   return (
     <div className={styles.container}>
@@ -1124,6 +1140,8 @@ const ThreeScene: React.FC = () => {
                   nodeTypes={nodeTypes}
                   edgeTypes={edgeTypes}
                   onConnectStart={onConnectStart}
+                  onEdgeUpdateStart={onEdgeUpdateStart}
+                  onEdgeUpdateEnd={onEdgeUpdateEnd}
                   onConnectStop={onConnectStop}
                 >
                   <Background

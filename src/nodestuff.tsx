@@ -96,9 +96,14 @@ export const doesLinkThruShader = (graph: Graph, node: Node): boolean => {
     ) as Node;
     return (
       foundShader ||
-      [ShaderType.toon, ShaderType.phong, ShaderType.shader].includes(
-        upstreamNode.type
-      ) ||
+      // TODO: Source of bugs here, phon/shader/physical should all be the
+      // same thing?
+      [
+        ShaderType.toon,
+        ShaderType.phong,
+        ShaderType.shader,
+        ShaderType.physical,
+      ].includes(upstreamNode.type) ||
       doesLinkThruShader(graph, upstreamNode)
     );
   }, false);

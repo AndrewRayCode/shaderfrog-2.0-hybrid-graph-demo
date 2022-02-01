@@ -288,7 +288,7 @@ export const outputNode = (
   source:
     stage === 'fragment'
       ? `
-#version 300 es
+// #version 300 es
 out vec4 frogFragOut;
 void main() {
   frogFragOut = vec4(1.0);
@@ -296,7 +296,7 @@ void main() {
 `
       : // gl_Position isn't "out"-able apparently https://stackoverflow.com/a/24425436/743464
         `
-#version 300 es
+// #version 300 es
 void main() {
   gl_Position = vec4(1.0);
 }

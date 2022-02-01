@@ -139,6 +139,12 @@ const graph: Graph = {
     //       the custom handles.
     // TODO: Fix moving add node inputs causing missing holes
     // TODO: Colorize nodes based on if they're going through frag or vert
+    // TODO: Highlight inputs and outputs in the shader editor
+    // TODO: Add more syntax highlighting to the GLSL editor, look at vscode
+    //       plugin? https://github.com/stef-levesque/vscode-shader/tree/master/syntaxes
+    // - Consolidate todos in this file
+    // - Look into why the linked vertex node is no longer found
+    // - Related to above - highlight nodes in use by graph, maybe edges too
     {
       from: phongV.id,
       to: outputV.id,
@@ -666,12 +672,6 @@ const ThreeScene: React.FC = () => {
     image.minFilter = three.NearestFilter;
     image.magFilter = three.NearestFilter;
   }, []);
-
-  /// TODO:
-  // - Consolidate todos in this file
-  // - Look into why the linked vertex node is no longer found
-  // - Related to above - highlight nodes in use by graph, maybe edges too
-  // - Switching to spotlights causes a frame of scene.render() to error
 
   const [ctx, setCtx] = useState<EngineContext<RuntimeContext>>({
     runtime: {

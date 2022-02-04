@@ -6,6 +6,7 @@ import { generate } from '@shaderfrog/glsl-parser';
 import babf from './babylon-fragment';
 import babv from './babylon-vertex';
 
+import purpleNoiseNode from './purpleNoiseNode';
 import {
   outputNode,
   Graph,
@@ -33,9 +34,10 @@ const outputF = outputNode(id(), 'Output F', {}, 'fragment');
 const outputV = outputNode(id(), 'Output V', {}, 'vertex', outputF.id);
 const physicalF = physicalNode(id(), 'Putput F', {}, 'fragment');
 const physicalV = physicalNode(id(), 'Physical V', {}, 'vertex', outputF.id);
+const purpleNoise = purpleNoiseNode(id());
 
 const graph: Graph = {
-  nodes: [outputF, outputV, physicalF, physicalV],
+  nodes: [outputF, outputV, physicalF, physicalV, purpleNoise],
   edges: [
     {
       from: physicalV.id,
@@ -49,6 +51,13 @@ const graph: Graph = {
       to: outputF.id,
       output: 'out',
       input: 'color',
+      stage: 'fragment',
+    },
+    {
+      from: purpleNoise.id,
+      to: physicalF.id,
+      output: 'out',
+      input: 'texture2d_2',
       stage: 'fragment',
     },
   ],
@@ -165,6 +174,15 @@ const Babylon = () => {
           attributes,
           options,
         });
+        uniforms.push('time_4');
+        uniforms.push('permutations_4');
+        uniforms.push('iterations_4');
+        uniforms.push('uvScale_4');
+        uniforms.push('color1_4');
+        uniforms.push('color2_4');
+        uniforms.push('color3_4');
+        uniforms.push('brightnessX_4');
+        uniforms.push('speed_4');
         options.processFinalCode = (type, code) => {
           console.warn('Compiling!', graph, 'for nodes');
           if (!compiled.vert) {
@@ -231,6 +249,21 @@ const Babylon = () => {
 
       // shaderMaterial.setBaseTexture('textureSampler', mainTexture);
       sphere.material = shaderMaterial;
+
+      sphere.onBeforeDrawObservable.add((mesh) => {
+        const effect = sphere.material.getEffect();
+        if (effect) {
+          effect.setFloat('brightnessX_4', 1.0);
+          effect.setFloat('permutations_4', 10);
+          effect.setFloat('iterations_4', 1);
+          effect.setFloat('time_4', performance.now() * 0.001);
+          effect.setFloat('speed_4', 1.0);
+          effect.setVector2('uvScale_4', new BABYLON.Vector2(1, 1));
+          effect.setColor3('color1_4', new BABYLON.Color3(0.7, 0.3, 0.8));
+          effect.setColor3('color2_4', new BABYLON.Color3(0.1, 0.2, 0.9));
+          effect.setColor3('color3_4', new BABYLON.Color3(0.8, 0.3, 0.8));
+        }
+      });
 
       // Create a built-in "ground" shape; its constructor takes 6 params : name, width, height, subdivision, scene, updatable
       const ground = BABYLON.Mesh.CreateGround(

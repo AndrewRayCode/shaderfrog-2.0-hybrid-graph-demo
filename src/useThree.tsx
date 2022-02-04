@@ -1,20 +1,9 @@
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as three from 'three';
+import useOnce from './useOnce';
 
 type Callback = (time: number) => void;
-
-// Utility function to preserve specific things against fast-refresh, as
-// *all* useMemo and useEffect and useCallbacks rerun during a fast-refresh
-// https://nextjs.org/docs/basic-features/fast-refresh
-const useOnce = <T extends unknown>(creator: (...args: any) => T): T => {
-  const ref = useRef<T | undefined>();
-  if (ref.current) {
-    return ref.current;
-  }
-  ref.current = creator();
-  return ref.current;
-};
 
 export const useThree = (callback: Callback) => {
   const [threeDom, setThreeDom] = useState<HTMLDivElement | null>(null);

@@ -113,7 +113,7 @@ const onBeforeCompileMegaShader = (
   const mesh = meshRef.current;
 
   mesh.material = newMat;
-  console.log('scene', JSON.parse(JSON.stringify(scene)));
+  // console.log('scene', JSON.parse(JSON.stringify(scene)));
   renderer.compile(scene, camera);
 
   // The references to the compiled shaders in WebGL
@@ -274,24 +274,10 @@ export const threngine: Engine<RuntimeContext> = {
             color: 0x00ff00,
             map: new three.Texture(),
           })
-          // new three.MeshPhysicalMaterial({
-          //   color: 0x00ff00,
-          //   roughness: 0.046,
-          //   metalness: 0.491,
-          //   clearcoat: 1,
-          //   map: new three.Texture(),
-          // })
         );
       },
       fragment: {
-        produceAst: (
-          // todo: help
-          engineContext,
-          engine,
-          graph,
-          node,
-          inputEdges
-        ) => {
+        produceAst: (engineContext, engine, graph, node, inputEdges) => {
           const { fragment } = engineContext.runtime.cache.nodes[node.id];
 
           const fragmentPreprocessed = preprocess(fragment, {

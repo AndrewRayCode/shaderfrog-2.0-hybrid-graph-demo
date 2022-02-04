@@ -1,12 +1,9 @@
 import styles from '../pages/editor/editor.module.css';
 
-import MonacoEditor, { Monaco } from '@monaco-editor/react';
-import throttle from 'lodash.throttle';
 import { SplitPane } from 'react-multi-split-pane';
 import cx from 'classnames';
 import { generate } from '@shaderfrog/glsl-parser';
 import React, {
-  ReactNode,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -14,7 +11,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-// import * as three from 'three';
+
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -45,13 +42,6 @@ import {
   NodeInputs,
 } from './graph';
 
-import {
-  physicalNode,
-  phongNode,
-  toonNode,
-  threngine,
-  RuntimeContext,
-} from './threngine';
 import purpleNoiseNode from './purpleNoiseNode';
 import staticShaderNode from './staticShaderNode';
 import fluidCirclesNode from './fluidCirclesNode';
@@ -66,14 +56,17 @@ import { outlineShaderF, outlineShaderV } from './outlineShader';
 // import contrastNoise from '..';
 import { useAsyncExtendedState } from './useAsyncExtendedState';
 // import { usePromise } from './usePromise';
-// import { useThree } from './useThree';
-import FlowEdgeComponent from './FlowEdge';
-import ConnectionLine from './ConnectionLine';
-import { monacoGlsl } from './monaco-glsl';
-import { Tabs, Tab, TabGroup, TabPanel, TabPanels } from './Tabs';
-import ThreeComponent from './ThreeComponent';
 
-const flowStyles = { height: '100vh', background: '#111' };
+import ConnectionLine from './flow/ConnectionLine';
+import FlowEdgeComponent, { FlowEdgeData } from './flow/FlowEdge';
+import FlowNodeComponent, { FlowNodeData } from './flow/FlowNode';
+
+import { Tabs, Tab, TabGroup, TabPanel, TabPanels } from './Tabs';
+import Monaco from './Monaco';
+
+import ThreeComponent from './ThreeComponent';
+import { physicalNode, phongNode, toonNode, threngine } from './threngine';
+import useThrottle from './useThrottle';
 
 let counter = 0;
 const id = () => '' + counter++;
@@ -191,88 +184,13 @@ const graph: Graph = {
   ],
 };
 
-const handleTop = 40;
-const textHeight = 10;
-type NodeHandle = {
-  validTarget: boolean;
-  name: string;
-};
-type FlowNodeData = {
-  label: string;
-  stage?: ShaderStage;
-  biStage: boolean;
-  outputs: NodeHandle[];
-  inputs: NodeHandle[];
-};
-type FlowEdgeData = {
-  stage?: ShaderStage;
-};
-type NodeProps = {
-  data: FlowNodeData;
-};
-type FlowElement = FlowNode<FlowNodeData> | FlowEdge<FlowEdgeData>;
-
-const CustomNodeComponent = ({ data }: NodeProps) => {
-  return (
-    <div
-      className={'flownode ' + data.stage}
-      style={{
-        height: `${handleTop + Math.max(data.inputs.length, 1) * 20}px`,
-      }}
-    >
-      <div className="flowlabel">{data.label}</div>
-      <div className="flowInputs">
-        {data.inputs.map((input, index) => (
-          <React.Fragment key={input.name}>
-            <div
-              className="react-flow_handle_label"
-              style={{
-                top: `${handleTop - textHeight + index * 20}px`,
-                left: 15,
-              }}
-            >
-              {input.name}
-            </div>
-            <Handle
-              id={input.name}
-              className={cx({ validTarget: input.validTarget })}
-              type="target"
-              position={Position.Left}
-              style={{ top: `${handleTop + index * 20}px` }}
-            />
-          </React.Fragment>
-        ))}
-
-        {data.outputs.map((output, index) => (
-          <React.Fragment key={output.name}>
-            <div
-              className="react-flow_handle_label"
-              style={{
-                top: `${handleTop - textHeight + index * 20}px`,
-                right: 15,
-              }}
-            >
-              {output.name}
-            </div>
-            <Handle
-              id={output.name}
-              className={cx({ validTarget: output.validTarget })}
-              type="source"
-              position={Position.Right}
-              style={{ top: `${handleTop + index * 20}px` }}
-            />
-          </React.Fragment>
-        ))}
-      </div>
-    </div>
-  );
-};
+const flowStyles = { height: '100vh', background: '#111' };
+export type FlowElement = FlowNode<FlowNodeData> | FlowEdge<FlowEdgeData>;
 
 const nodeTypes = {
-  special: CustomNodeComponent,
+  special: FlowNodeComponent,
 };
 
-// Not currently used but keeping around in case I want to try it again
 const edgeTypes = {
   special: FlowEdgeComponent,
 };
@@ -284,7 +202,7 @@ export type UICompileGraphResult = {
 };
 
 const compileGraphAsync = async (
-  ctx: EngineContext<RuntimeContext>
+  ctx: EngineContext<any>
 ): Promise<UICompileGraphResult> =>
   new Promise((resolve, reject) => {
     setTimeout(() => {
@@ -400,20 +318,6 @@ const setBiStages = (elements: FlowElement[]) => {
 };
 
 type AnyFn = (...args: any) => any;
-function useThrottle(callback: AnyFn, delay: number) {
-  const cbRef = useRef<AnyFn>(callback);
-
-  // use mutable ref to make useCallback/throttle not depend on `cb` dep
-  useEffect(() => {
-    cbRef.current = callback;
-  }, [callback]);
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useCallback(
-    throttle((...args) => cbRef.current(...args), delay),
-    [delay]
-  );
-}
 
 const Editor: React.FC = () => {
   // const sceneRef = useRef<{ [key: string]: any }>({});
@@ -429,9 +333,6 @@ const Editor: React.FC = () => {
   const [previewObject, setPreviewObject] = useState('torusknot');
 
   const [activeShader, setActiveShader] = useState<Node>(graph.nodes[0]);
-  // const [shaderUnsaved, setShaderUnsaved] = useState<string>(
-  //   activeShader.source
-  // );
   const [preprocessed, setPreprocessed] = useState<string | undefined>('');
   const [preprocessedVert, setPreprocessedVert] = useState<string | undefined>(
     ''
@@ -460,15 +361,14 @@ const Editor: React.FC = () => {
     elements: [],
   });
 
-  const setGlResult = useMemo(
-    () =>
-      (result: {
-        fragError: string;
-        vertError: string;
-        programError: string;
-      }) => {
-        extendState(result);
-      },
+  const setGlResult = useCallback(
+    (result: {
+      fragError: string;
+      vertError: string;
+      programError: string;
+    }) => {
+      extendState(result);
+    },
     [extendState]
   );
 
@@ -482,34 +382,11 @@ const Editor: React.FC = () => {
     [setCtxState]
   );
 
-  // const [ctx, setCtx] = useState<EngineContext<RuntimeContext>>({
-  //   runtime: {
-  //     three,
-  //     renderer,
-  //     material: null,
-  //     // I'm refactoring the hooks, is this an issue, where meshRef won't
-  //     // be set? I put previewObject in the deps array to try to ensure this
-  //     // hook is called when that's changed
-  //     meshRef: meshRef,
-  //     scene,
-  //     camera,
-  //     index: 0,
-  //     threeTone,
-  //     cache: { nodes: {} },
-  //   },
-  //   nodes: {},
-  //   debuggingNonsense: {},
-  // });
-
   // Compile function, meant to be called manually in places where we want to
   // trigger a compile. I tried making this a useEffect, however this function
   // needs to update "elements" at the end, which leads to an infinite loop
   const compile = useCallback(
-    (
-      ctx: EngineContext<RuntimeContext>,
-      pauseCompile: boolean,
-      elements: any[]
-    ) => {
+    (ctx: EngineContext<any>, pauseCompile: boolean, elements: any[]) => {
       if (!ctx || pauseCompile || !elements.length) {
         return;
       }
@@ -559,6 +436,10 @@ const Editor: React.FC = () => {
       });
     },
     [extendState]
+  );
+  const compileCtxOnly = useCallback(
+    (ctx: EngineContext<any>) => compile(ctx, pauseCompile, state.elements),
+    [compile, pauseCompile, state.elements]
   );
 
   // Create the graph
@@ -627,85 +508,6 @@ const Editor: React.FC = () => {
     extendState({ elements });
   }, [ctx, extendState, pauseCompile, compile, state.elements.length]);
 
-  const beforeMount = (monaco: Monaco) => {
-    monaco.editor.defineTheme('myCustomTheme', {
-      base: 'vs-dark', // can also be vs-dark or hc-black
-      inherit: true, // can also be false to completely replace the builtin rules
-      rules: [
-        {
-          token: 'comment',
-          foreground: 'ffa500',
-          fontStyle: 'italic underline',
-        },
-        { token: 'comment.js', foreground: '008800', fontStyle: 'bold' },
-        { token: 'comment.css', foreground: '0000ff' }, // will inherit fontStyle from `comment` above
-      ],
-      colors: {
-        'editor.background': '#000000',
-      },
-    });
-
-    monacoGlsl(monaco);
-
-    monaco.languages.registerCompletionItemProvider('glsl', {
-      provideCompletionItems: (model, position) => {
-        return {
-          suggestions: [...threngine.preserve.values()].map((keyword) => ({
-            label: keyword,
-            kind: monaco.languages.CompletionItemKind.Text,
-            insertText: keyword,
-            range: {
-              startLineNumber: 0,
-              endLineNumber: 0,
-              startColumn: 0,
-              endColumn: 0,
-            },
-          })),
-        };
-      },
-    });
-  };
-
-  const onMount = (editor: any, monaco: Monaco) => {
-    editor.addAction({
-      // An unique identifier of the contributed action.
-      id: 'my-unique-id',
-
-      // A label of the action that will be presented to the user.
-      label: 'My Label!!!',
-
-      // An optional array of keybindings for the action.
-      keybindings: [
-        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyE,
-        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyL,
-        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
-        // monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyT,
-        // chord
-        // monaco.KeyMod.chord(
-        //   monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
-        //   monaco.KeyMod.Cmd | monaco.KeyCode.KeyS
-        // ),
-      ],
-
-      // A precondition for this action.
-      precondition: null,
-
-      // A rule to evaluate on top of the precondition in order to dispatch the keybindings.
-      keybindingContext: null,
-
-      contextMenuGroupId: 'navigation',
-
-      contextMenuOrder: 1.5,
-
-      // Method that will be executed when the action is triggered.
-      // @param editor The editor instance is passed in as a convenience
-      run: function (ed: any) {
-        console.log('wtf');
-        console.log("i'm running => " + ed.getPosition());
-      },
-    });
-  };
-
   const addConnection = (edge: FlowEdge | Connection) => {
     const stage = state.elements.find((elem) => elem.id === edge.source)?.data
       ?.stage;
@@ -772,7 +574,24 @@ const Editor: React.FC = () => {
     ];
     setDefaultMainSplitSize(sizes);
   }, []);
-  // useEffect(() => resizeThree(), [defaultMainSplitSize]);
+
+  const onSplitResize = useThrottle(() => {
+    if (rightSplit.current) {
+      const { width, height } = rightSplit.current.getBoundingClientRect();
+      let heightMinusTab = height - 25;
+      extendState({ width, height: heightMinusTab });
+    }
+  }, 100);
+
+  useEffect(() => {
+    const listener = () => onSplitResize();
+    window.addEventListener('resize', listener);
+    return () => {
+      window.removeEventListener('resize', listener);
+    };
+  }, [onSplitResize]);
+
+  useEffect(() => onSplitResize(), [defaultMainSplitSize, onSplitResize]);
 
   const setTargets = (nodeId: string, handleType: string) => {
     extendState(({ elements }) => {
@@ -851,7 +670,7 @@ const Editor: React.FC = () => {
     <div className={styles.container}>
       <SplitPane
         split="vertical"
-        // onChange={resizeThree}
+        onChange={onSplitResize}
         defaultSizes={defaultMainSplitSize}
       >
         <div className={styles.splitInner}>
@@ -900,14 +719,19 @@ const Editor: React.FC = () => {
                     }
                     disabled={compiling}
                   >
-                    Save
+                    Save (⌘-S)
                   </button>
                 </div>
-                <MonacoEditor
-                  height="100vh"
-                  language="glsl"
-                  theme="myCustomTheme"
+                <Monaco
+                  engine={threngine}
                   defaultValue={activeShader.source}
+                  onSave={() =>
+                    compile(
+                      ctx as EngineContext<any>,
+                      pauseCompile,
+                      state.elements
+                    )
+                  }
                   onChange={(value, event) => {
                     if (value) {
                       (
@@ -917,11 +741,6 @@ const Editor: React.FC = () => {
                       ).source = value;
                     }
                   }}
-                  options={{
-                    minimap: { enabled: false },
-                  }}
-                  onMount={onMount}
-                  beforeMount={beforeMount}
                 />
               </TabPanel>
             </TabPanels>
@@ -949,10 +768,12 @@ const Editor: React.FC = () => {
                   setLights={setLights}
                   previewObject={previewObject}
                   setPreviewObject={setPreviewObject}
-                  compile={compile}
+                  compile={compileCtxOnly}
                   compiling={compiling}
                   compileResult={compileResult}
                   setGlResult={setGlResult}
+                  width={state.width}
+                  height={state.height}
                 />
               </TabPanel>
               <TabPanel>

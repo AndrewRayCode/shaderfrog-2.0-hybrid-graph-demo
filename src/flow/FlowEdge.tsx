@@ -5,6 +5,11 @@ import {
   // getEdgeCenter,
   getMarkerEnd,
 } from 'react-flow-renderer';
+import { ShaderStage } from '../nodestuff';
+
+export type FlowEdgeData = {
+  stage?: ShaderStage;
+};
 
 export default function FlowEdge({
   id,

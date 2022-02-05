@@ -28,7 +28,7 @@ export type RuntimeContext = {
   camera: any;
   meshRef: any;
   BABYLON: any;
-  material: any;
+  // material: any;
   // index: number;
   // threeTone: any;
   cache: {
@@ -42,63 +42,6 @@ export type RuntimeContext = {
     };
   };
 };
-
-// export const phongNode = (
-//   id: string,
-//   name: string,
-//   options: Object,
-//   stage: ShaderStage,
-//   nextStageNodeId?: string
-// ): Node => {
-//   return {
-//     id,
-//     name,
-//     type: ShaderType.phong,
-//     options,
-//     inputs: [],
-//     source: '',
-//     stage,
-//     nextStageNodeId,
-//   };
-// };
-
-export const physicalNode = (
-  id: string,
-  name: string,
-  options: Object,
-  stage: ShaderStage,
-  nextStageNodeId?: string
-): Node => {
-  return {
-    id,
-    name,
-    type: ShaderType.physical,
-    options,
-    inputs: [],
-    source: '',
-    stage,
-    nextStageNodeId,
-  };
-};
-
-// export const toonNode = (
-//   id: string,
-//   name: string,
-//   options: Object,
-//   stage: ShaderStage,
-//   nextStageNodeId?: string
-// ): Node => {
-//   return {
-//     id,
-//     name,
-//     type: ShaderType.toon,
-//     options,
-//     inputs: [],
-//     source: '',
-//     stage,
-//     nextStageNodeId,
-//   };
-// };
 
 const onBeforeCompileMegaShader = (
   engineContext: EngineContext<RuntimeContext>,
@@ -168,10 +111,12 @@ const megaShaderProduceVertexAst = (
     returnGlPosition(vertexAst);
   }
 
-  renameBindings(vertexAst.scopes[0], babylengine.preserve, node.id);
-  renameFunctions(vertexAst.scopes[0], node.id, {
-    main: nodeName(node),
-  });
+  renameBindings(vertexAst.scopes[0], (name) =>
+    babylengine.preserve.has(name) ? name : `${name}_${node.id}`
+  );
+  renameFunctions(vertexAst.scopes[0], (name) =>
+    name === 'main' ? nodeName(node) : `${name}_${node.id}`
+  );
   return vertexAst;
 };
 
@@ -197,6 +142,52 @@ const megaShaderFindPositionInputs = (
     );
   },
 });
+
+const inputNameMap: { [key: string]: string } = {
+  albedoSampler: 'albedo',
+};
+const texture2DInputFinder = (
+  engineContext: EngineContext<RuntimeContext>,
+  node: Node,
+  ast: AstNode
+) => {
+  let texture2Dcalls: [string, AstNode, string][] = [];
+  const visitors: NodeVisitors = {
+    function_call: {
+      enter: (path) => {
+        if (
+          // TODO: 100 vs 300
+          (path.node.identifier?.specifier?.identifier === 'texture2D' ||
+            path.node.identifier?.specifier?.identifier === 'texture') &&
+          path.key
+        ) {
+          if (!path.parent) {
+            throw new Error(
+              'This is impossible a function call always has a parent'
+            );
+          }
+          texture2Dcalls.push([
+            generate(path.node.args[0]),
+            path.parent,
+            path.key,
+          ]);
+        }
+      },
+    },
+  };
+  visit(ast, visitors);
+  const inputs = texture2Dcalls.reduce(
+    (inputs, [name, parent, key], index) => ({
+      ...inputs,
+      [inputNameMap[name] || name]: (fillerAst: AstNode) => {
+        parent[key] = fillerAst;
+      },
+    }),
+    {}
+  );
+
+  return inputs;
+};
 
 export const babylengine: Engine<RuntimeContext> = {
   // TODO: Get from uniform lib?
@@ -329,48 +320,15 @@ export const babylengine: Engine<RuntimeContext> = {
           // from2To3(fragmentAst);
 
           convert300MainToReturn(fragmentAst);
-          renameBindings(fragmentAst.scopes[0], babylengine.preserve, node.id);
-          renameFunctions(fragmentAst.scopes[0], node.id, {
-            main: nodeName(node),
-          });
+          renameBindings(fragmentAst.scopes[0], (name) =>
+            babylengine.preserve.has(name) ? name : `${name}_${node.id}`
+          );
+          renameFunctions(fragmentAst.scopes[0], (name) =>
+            name === 'main' ? nodeName(node) : `${name}_${node.id}`
+          );
           return fragmentAst;
         },
-        findInputs: (engineContext, node, ast: AstNode) => {
-          let texture2Dcalls: [AstNode, string][] = [];
-          const visitors: NodeVisitors = {
-            function_call: {
-              enter: (path) => {
-                if (
-                  // TODO: 100 vs 300
-                  (path.node.identifier?.specifier?.identifier ===
-                    'texture2D' ||
-                    path.node.identifier?.specifier?.identifier ===
-                      'texture') &&
-                  path.key
-                ) {
-                  if (!path.parent) {
-                    throw new Error(
-                      'This is impossible a function call always has a parent'
-                    );
-                  }
-                  texture2Dcalls.push([path.parent, path.key]);
-                }
-              },
-            },
-          };
-          visit(ast, visitors);
-          const inputs = texture2Dcalls.reduce(
-            (inputs, [parent, key], index) => ({
-              ...inputs,
-              [`texture2d_${index}`]: (fillerAst: AstNode) => {
-                parent[key] = fillerAst;
-              },
-            }),
-            {}
-          );
-
-          return inputs;
-        },
+        findInputs: texture2DInputFinder,
         produceFiller: (node: Node, ast: AstNode) => {
           return makeExpression(`${nodeName(node)}()`);
         },
@@ -385,3 +343,7 @@ export const babylengine: Engine<RuntimeContext> = {
     },
   },
 };
+
+babylengine.parsers[ShaderType.toon] = babylengine.parsers[ShaderType.physical];
+babylengine.parsers[ShaderType.phong] =
+  babylengine.parsers[ShaderType.physical];

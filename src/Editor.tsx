@@ -15,8 +15,6 @@ import React, {
 import ReactFlow, {
   Background,
   BackgroundVariant,
-  Handle,
-  Position,
   Node as FlowNode,
   Edge as FlowEdge,
   Connection,
@@ -31,16 +29,21 @@ import {
   addNode,
   multiplyNode,
   ShaderType,
-  Edge,
   ShaderStage,
+  phongNode,
+  physicalNode,
+  toonNode,
 } from './nodestuff';
 import {
   compileGraph,
   computeAllContexts,
   computeGraphContext,
+  Engine,
   EngineContext,
   NodeInputs,
 } from './graph';
+
+import useThrottle from './useThrottle';
 
 import purpleNoiseNode from './purpleNoiseNode';
 import staticShaderNode from './staticShaderNode';
@@ -65,8 +68,10 @@ import { Tabs, Tab, TabGroup, TabPanel, TabPanels } from './Tabs';
 import Monaco from './Monaco';
 
 import ThreeComponent from './ThreeComponent';
-import { physicalNode, phongNode, toonNode, threngine } from './threngine';
-import useThrottle from './useThrottle';
+import { threngine } from './threngine';
+
+import BabylonComponent from './BabylonComponent';
+import { babylengine } from './bablyengine';
 
 let counter = 0;
 const id = () => '' + counter++;
@@ -93,6 +98,14 @@ const outlineV = outlineShaderV(id(), outlineF.id);
 const solidColorF = solidColorNode(id());
 
 // const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
+
+const usePrevious = <T extends unknown>(value: T): T | undefined => {
+  const ref = useRef<T>();
+  useEffect(() => {
+    ref.current = value;
+  });
+  return ref.current;
+};
 
 const graph: Graph = {
   nodes: [
@@ -140,40 +153,40 @@ const graph: Graph = {
     // - Look into why the linked vertex node is no longer found
     // - Related to above - highlight nodes in use by graph, maybe edges too
     {
-      from: phongV.id,
+      from: physicalV.id,
       to: outputV.id,
       output: 'out',
       input: 'position',
       stage: 'vertex',
     },
     {
-      from: phongF.id,
+      from: physicalF.id,
       to: outputF.id,
       output: 'out',
       input: 'color',
       stage: 'fragment',
     },
-    {
-      from: add.id,
-      to: phongF.id,
-      output: 'out',
-      input: 'texture2d_0',
-      stage: 'fragment',
-    },
+    // {
+    //   from: add.id,
+    //   to: physicalF.id,
+    //   output: 'out',
+    //   input: 'texture2d_0',
+    //   stage: 'fragment',
+    // },
     {
       from: purpleNoise.id,
-      to: add.id,
+      to: physicalF.id,
       output: 'out',
-      input: 'a',
+      input: 'albedo',
       stage: 'fragment',
     },
-    {
-      from: heatShaderF.id,
-      to: add.id,
-      output: 'out',
-      input: 'b',
-      stage: 'fragment',
-    },
+    // {
+    //   from: heatShaderF.id,
+    //   to: add.id,
+    //   output: 'out',
+    //   input: 'b',
+    //   stage: 'fragment',
+    // },
     {
       from: heatShaderV.id,
       to: phongV.id,
@@ -202,6 +215,7 @@ export type UICompileGraphResult = {
 };
 
 const compileGraphAsync = async (
+  engine: Engine<any>,
   ctx: EngineContext<any>
 ): Promise<UICompileGraphResult> =>
   new Promise((resolve, reject) => {
@@ -210,7 +224,7 @@ const compileGraphAsync = async (
 
       const allStart = performance.now();
 
-      const result = compileGraph(ctx, threngine, graph);
+      const result = compileGraph(ctx, engine, graph);
       const fragmentResult = generate(
         shaderSectionsToAst(result.fragment).program
       );
@@ -317,9 +331,9 @@ const setBiStages = (elements: FlowElement[]) => {
   );
 };
 
-type AnyFn = (...args: any) => any;
-
 const Editor: React.FC = () => {
+  const [engine, setEngine] = useState<Engine<any>>(threngine || babylengine);
+
   // const sceneRef = useRef<{ [key: string]: any }>({});
   const rightSplit = useRef<HTMLDivElement>(null);
   const [pauseCompile, setPauseCompile] = useState(false);
@@ -374,11 +388,11 @@ const Editor: React.FC = () => {
 
   const [ctx, setCtxState] = useState<EngineContext<any>>();
 
-  const setCtx = useMemo(
-    () =>
-      <T extends unknown>(ctx: EngineContext<T>) => {
-        setCtxState(ctx);
-      },
+  const setCtx = useCallback(
+    <T extends unknown>(ctx: EngineContext<T>) => {
+      console.log('got new context!', ctx);
+      setCtxState(ctx);
+    },
     [setCtxState]
   );
 
@@ -386,7 +400,12 @@ const Editor: React.FC = () => {
   // trigger a compile. I tried making this a useEffect, however this function
   // needs to update "elements" at the end, which leads to an infinite loop
   const compile = useCallback(
-    (ctx: EngineContext<any>, pauseCompile: boolean, elements: any[]) => {
+    (
+      engine: Engine<any>,
+      ctx: EngineContext<any>,
+      pauseCompile: boolean,
+      elements: any[]
+    ) => {
       if (!ctx || pauseCompile || !elements.length) {
         return;
       }
@@ -403,12 +422,12 @@ const Editor: React.FC = () => {
 
       setCompiling(true);
 
-      compileGraphAsync(ctx).then((compileResult) => {
+      compileGraphAsync(engine, ctx).then((compileResult) => {
         // sceneRef.current.shadersUpdated = true;
         setCompiling(false);
         setCompileResult(compileResult);
-        // setFinalFragment(fragmentResult);
-        // setVertex(vertexResult);
+        setFinalFragment(compileResult.fragmentResult);
+        setVertex(compileResult.vertexResult);
         // Mutated from the processAst call for now
         setPreprocessed(ctx.debuggingNonsense.fragmentPreprocessed);
         setPreprocessedVert(ctx.debuggingNonsense.vertexPreprocessed);
@@ -437,23 +456,19 @@ const Editor: React.FC = () => {
     },
     [extendState]
   );
+
   const compileCtxOnly = useCallback(
-    (ctx: EngineContext<any>) => compile(ctx, pauseCompile, state.elements),
-    [compile, pauseCompile, state.elements]
+    (ctx: EngineContext<any>) =>
+      compile(engine, ctx, pauseCompile, state.elements),
+    [engine, compile, pauseCompile, state.elements]
   );
 
-  // Create the graph
-  useEffect(() => {
-    if (
-      !ctx ||
-      !Object.keys(ctx.nodes) ||
-      !ctx.runtime.three ||
-      state.elements.length
-    ) {
+  const initializeGraph = useCallback(() => {
+    if (!ctx) {
       return;
     }
 
-    computeAllContexts(ctx, threngine, graph);
+    computeAllContexts(ctx, engine, graph);
 
     let engines = 0;
     let maths = 0;
@@ -504,9 +519,19 @@ const Editor: React.FC = () => {
         type: 'special',
       })),
     ]);
-    compile(ctx, pauseCompile, elements);
+
+    console.log('compiling!!', engine, ctx);
+    compile(engine, ctx, pauseCompile, elements);
     extendState({ elements });
-  }, [ctx, extendState, pauseCompile, compile, state.elements.length]);
+  }, [engine, ctx, extendState, pauseCompile, compile]);
+
+  // Create the graph
+  const prevCtx = usePrevious(ctx);
+  useEffect(() => {
+    if (prevCtx !== ctx || !state.elements.length) {
+      initializeGraph();
+    }
+  }, [prevCtx, ctx, engine, state.elements, initializeGraph]);
 
   const addConnection = (edge: FlowEdge | Connection) => {
     const stage = state.elements.find((elem) => elem.id === edge.source)?.data
@@ -539,7 +564,7 @@ const Editor: React.FC = () => {
       } as FlowEdge<FlowEdgeData>,
     ]);
     extendState({ elements });
-    compile(ctx as EngineContext<any>, pauseCompile, elements);
+    compile(engine, ctx as EngineContext<any>, pauseCompile, elements);
   };
 
   const onConnect = (edge: FlowEdge | Connection) => addConnection(edge);
@@ -554,7 +579,7 @@ const Editor: React.FC = () => {
       ...state.elements.filter(({ id }: any) => !ids.has(id)),
     ]);
     extendState({ elements });
-    compile(ctx as EngineContext<any>, pauseCompile, elements);
+    compile(engine, ctx as EngineContext<any>, pauseCompile, elements);
   };
 
   const onNodeDoubleClick = (event: any, node: any) => {
@@ -674,6 +699,28 @@ const Editor: React.FC = () => {
         defaultSizes={defaultMainSplitSize}
       >
         <div className={styles.splitInner}>
+          <div className={styles.tabControls}>
+            <button
+              className={styles.tabButton}
+              onClick={() => {
+                if (!ctx) {
+                  return;
+                }
+                if (engine === babylengine) {
+                  setEngine(threngine);
+                  // compile(threngine, ctx, pauseCompile, state.elements);
+                } else {
+                  setEngine(babylengine);
+                  // compile(babylengine, ctx, pauseCompile, state.elements);
+                }
+              }}
+              disabled={compiling}
+            >
+              {engine === babylengine
+                ? 'Switch to Three.js'
+                : 'Switch to Babylon.js'}
+            </button>
+          </div>
           <Tabs onSelect={setEditorTabIndex} selected={editorTabIndex}>
             <TabGroup className={styles.tabs}>
               <Tab>Graph</Tab>
@@ -712,6 +759,7 @@ const Editor: React.FC = () => {
                     className={styles.button}
                     onClick={() =>
                       compile(
+                        engine,
                         ctx as EngineContext<any>,
                         pauseCompile,
                         state.elements
@@ -723,10 +771,11 @@ const Editor: React.FC = () => {
                   </button>
                 </div>
                 <Monaco
-                  engine={threngine}
+                  engine={engine}
                   defaultValue={activeShader.source}
                   onSave={() =>
                     compile(
+                      engine,
                       ctx as EngineContext<any>,
                       pauseCompile,
                       state.elements
@@ -761,20 +810,37 @@ const Editor: React.FC = () => {
             </TabGroup>
             <TabPanels>
               <TabPanel className={styles.scene}>
-                <ThreeComponent
-                  setCtx={setCtx}
-                  graph={graph}
-                  lights={lights}
-                  setLights={setLights}
-                  previewObject={previewObject}
-                  setPreviewObject={setPreviewObject}
-                  compile={compileCtxOnly}
-                  compiling={compiling}
-                  compileResult={compileResult}
-                  setGlResult={setGlResult}
-                  width={state.width}
-                  height={state.height}
-                />
+                {engine === threngine ? (
+                  <ThreeComponent
+                    setCtx={setCtx}
+                    graph={graph}
+                    lights={lights}
+                    setLights={setLights}
+                    previewObject={previewObject}
+                    setPreviewObject={setPreviewObject}
+                    compile={compileCtxOnly}
+                    compiling={compiling}
+                    compileResult={compileResult}
+                    setGlResult={setGlResult}
+                    width={state.width}
+                    height={state.height}
+                  />
+                ) : (
+                  <BabylonComponent
+                    setCtx={setCtx}
+                    graph={graph}
+                    lights={lights}
+                    setLights={setLights}
+                    previewObject={previewObject}
+                    setPreviewObject={setPreviewObject}
+                    compile={compileCtxOnly}
+                    compiling={compiling}
+                    compileResult={compileResult}
+                    setGlResult={setGlResult}
+                    width={state.width}
+                    height={state.height}
+                  />
+                )}
               </TabPanel>
               <TabPanel>
                 <Tabs onSelect={setSceneTabIndex} selected={sceneTabIndex}>

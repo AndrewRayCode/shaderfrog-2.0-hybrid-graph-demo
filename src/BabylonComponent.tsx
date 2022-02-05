@@ -1,0 +1,312 @@
+import * as BABYLON from 'babylonjs';
+import { useEffect, useMemo, useRef, useState } from 'react';
+
+import { generate } from '@shaderfrog/glsl-parser';
+
+import babf from './babylon-fragment';
+import babv from './babylon-vertex';
+
+import purpleNoiseNode from './purpleNoiseNode';
+import {
+  outputNode,
+  Graph,
+  shaderSectionsToAst,
+  Node,
+  addNode,
+  multiplyNode,
+  ShaderType,
+  Edge,
+  ShaderStage,
+} from './nodestuff';
+
+import {
+  compileGraph,
+  computeAllContexts,
+  computeGraphContext,
+  EngineContext,
+  NodeInputs,
+} from './graph';
+import { babylengine, RuntimeContext } from './bablyengine';
+
+import styles from '../pages/editor/editor.module.css';
+
+import { UICompileGraphResult } from './Editor';
+import { useBabylon } from './useBabylon';
+import useOnce from './useOnce';
+
+// import { threngine, RuntimeContext } from './threngine';
+
+// import { useThree } from './useThree';
+
+// const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
+
+type AnyFn = (...args: any) => any;
+type BabylonComponentProps = {
+  compile: AnyFn;
+  compiling: boolean;
+  compileResult: UICompileGraphResult | undefined;
+  graph: Graph;
+  lights: string;
+  previewObject: string;
+  setCtx: <T extends unknown>(ctx: EngineContext<T>) => void;
+  setGlResult: AnyFn;
+  setLights: AnyFn;
+  setPreviewObject: AnyFn;
+  width: number;
+  height: number;
+};
+const BabylonComponent: React.FC<BabylonComponentProps> = ({
+  compile,
+  compiling,
+  compileResult,
+  graph,
+  lights,
+  previewObject,
+  setCtx,
+  setGlResult,
+  setLights,
+  setPreviewObject,
+  width,
+  height,
+}) => {
+  const { babylonCanvas, babylonDomRef, scene, camera, engine } = useBabylon(
+    () => {}
+  );
+
+  useOnce(() => {
+    // Create a basic light, aiming 0, 1, 0 - meaning, to the sky
+    new BABYLON.HemisphericLight('light1', new BABYLON.Vector3(0, 2, 0), scene);
+
+    // Create a built-in "ground" shape; its constructor takes 6 params : name, width, height, subdivision, scene, updatable
+    // BABYLON.Mesh.CreateGround('ground1', 6, 6, 2, scene, false);
+  });
+
+  const pu: any = graph.nodes.find((node) => node.name === 'Purple Metal')?.id;
+
+  const meshRef = useRef<BABYLON.Mesh>();
+  useMemo(() => {
+    if (meshRef.current) {
+      meshRef.current.dispose();
+    }
+
+    let mesh;
+    if (previewObject === 'torusknot') {
+      mesh = BABYLON.MeshBuilder.CreateTorusKnot('torusKnot', {}, scene);
+    } else if (previewObject === 'sphere') {
+      mesh = BABYLON.Mesh.CreateSphere(
+        'sphere1',
+        16,
+        2,
+        scene,
+        false,
+        BABYLON.Mesh.FRONTSIDE
+      );
+    } else {
+      throw new Error('fffffff');
+    }
+    if (meshRef.current) {
+      mesh.material = meshRef.current.material;
+    }
+    meshRef.current = mesh;
+    mesh.position.y = 1;
+
+    mesh.onBeforeDrawObservable.add((mesh) => {
+      if (mesh && mesh.material) {
+        const effect = mesh.material.getEffect();
+        if (effect) {
+          effect.setFloat(`brightnessX_${pu}`, 1.0);
+          effect.setFloat(`permutations_${pu}`, 10);
+          effect.setFloat(`iterations_${pu}`, 1);
+          effect.setFloat(`time_${pu}`, performance.now() * 0.001);
+          effect.setFloat(`speed_${pu}`, 1.0);
+          effect.setVector2(`uvScale_${pu}`, new BABYLON.Vector2(1, 1));
+          effect.setColor3(`color1_${pu}`, new BABYLON.Color3(0.7, 0.3, 0.8));
+          effect.setColor3(`color2_${pu}`, new BABYLON.Color3(0.1, 0.2, 0.9));
+          effect.setColor3(`color3_${pu}`, new BABYLON.Color3(0.8, 0.3, 0.8));
+        }
+      }
+    });
+  }, [previewObject, scene, pu]);
+
+  const [ctx] = useState<EngineContext<RuntimeContext>>({
+    runtime: {
+      BABYLON,
+      scene,
+      camera,
+      meshRef,
+      cache: { nodes: {} },
+    },
+    nodes: {},
+    debuggingNonsense: {},
+  });
+
+  // Inform parent our context is created
+  useEffect(() => {
+    setCtx<RuntimeContext>(ctx);
+  }, [ctx, setCtx]);
+
+  useEffect(() => {
+    const shaderMaterial = new BABYLON.PBRMaterial('pbr', scene);
+
+    const brickTexture = new BABYLON.Texture('/brick-texture.jpeg', scene);
+    shaderMaterial.albedoTexture = brickTexture;
+    shaderMaterial.albedoColor = new BABYLON.Color3(1.0, 0.766, 0.336);
+    shaderMaterial.metallic = 0.1; // set to 1 to only use it from the metallicRoughnessTexture
+    shaderMaterial.roughness = 0.1; // set to 1 to only use it from the metallicRoughnessTexture
+
+    shaderMaterial.customShaderNameResolve = (
+      shaderName,
+      uniforms,
+      uniformBuffers,
+      samplers,
+      defines,
+      attributes,
+      options
+    ) => {
+      uniforms.push(`time_${pu}`);
+      uniforms.push(`permutations_${pu}`);
+      uniforms.push(`iterations_${pu}`);
+      uniforms.push(`uvScale_${pu}`);
+      uniforms.push(`color1_${pu}`);
+      uniforms.push(`color2_${pu}`);
+      uniforms.push(`color3_${pu}`);
+      uniforms.push(`brightnessX_${pu}`);
+      uniforms.push(`speed_${pu}`);
+      if (options) {
+        options.processFinalCode = (type, code) => {
+          if (type === 'vertex') {
+            console.log('processFinalCode', {
+              code,
+              type,
+              vert: compileResult?.vertexResult || babv,
+            });
+            return compileResult?.vertexResult || babv;
+          }
+          console.log('processFinalCode', {
+            code,
+            type,
+            frag: compileResult?.fragmentResult || babf,
+          });
+          return compileResult?.fragmentResult || babf;
+        };
+      }
+      return shaderName;
+    };
+
+    if (meshRef.current) {
+      meshRef.current.material = shaderMaterial;
+    }
+    // sceneRef.current.shadersUpdated = true;
+  }, [scene, compileResult, ctx.runtime, graph.nodes]);
+
+  // const lightsRef = useRef<three.Object3D[]>([]);
+  // useMemo(() => {
+  //   // Hack to let this hook get the latest state like ctx, but only update
+  //   // if a certain dependency has changed
+  //   // @ts-ignore
+  //   if (scene.lights === lights) {
+  //     return;
+  //   }
+  //   lightsRef.current.forEach((light) => scene.remove(light));
+
+  //   if (lights === 'point') {
+  //     const pointLight = new three.PointLight(0xffffff, 1);
+  //     pointLight.position.set(0, 0, 1);
+  //     scene.add(pointLight);
+  //     const helper = new three.PointLightHelper(pointLight, 0.1);
+  //     scene.add(helper);
+  //     lightsRef.current = [pointLight, helper];
+  //   } else {
+  //     const light = new three.SpotLight(0x00ff00, 1, 3, 0.4, 1);
+  //     light.position.set(0, 0, 2);
+  //     scene.add(light);
+
+  //     const helper = new three.SpotLightHelper(
+  //       light,
+  //       new three.Color(0x00ff00)
+  //     );
+  //     scene.add(helper);
+
+  //     const light2 = new three.SpotLight(0xff0000, 1, 4, 0.4, 1);
+  //     light2.position.set(0, 0, 2);
+  //     scene.add(light2);
+
+  //     const helper2 = new three.SpotLightHelper(
+  //       light2,
+  //       new three.Color(0xff0000)
+  //     );
+  //     scene.add(helper2);
+
+  //     lightsRef.current = [light, light2, helper, helper2];
+  //   }
+
+  //   if (meshRef.current) {
+  //     meshRef.current.material = loadingMaterial;
+  //   }
+
+  //   // @ts-ignore
+  //   if (scene.lights) {
+  //     compile(ctx);
+  //   }
+  //   // @ts-ignore
+  //   scene.lights = lights;
+  // }, [lights, scene, compile, ctx]);
+
+  useEffect(() => {
+    babylonCanvas.width = width;
+    babylonCanvas.height = height;
+    engine.resize();
+  }, [engine, babylonCanvas, width, height, ctx.runtime]);
+
+  return (
+    <div>
+      <div
+        style={{
+          width: `${width}px`,
+          height: `${height}px`,
+        }}
+        ref={babylonDomRef}
+      ></div>
+      <div className={styles.sceneLabel}>
+        {compiling && 'Compiling...'}
+        {!compiling &&
+          compileResult?.compileMs &&
+          `Complile took ${compileResult?.compileMs}ms`}
+      </div>
+      <div className={styles.sceneControls}>
+        <button
+          className={styles.button}
+          onClick={() => setLights('point')}
+          disabled={lights === 'point'}
+        >
+          Point Light
+        </button>
+        <button
+          className={styles.button}
+          onClick={() => setLights('spot')}
+          disabled={lights === 'spot'}
+        >
+          Spot Lights
+        </button>
+        <button
+          className={styles.button}
+          onClick={() =>
+            setPreviewObject(
+              previewObject === 'sphere' ? 'torusknot' : 'sphere'
+            )
+          }
+        >
+          {previewObject === 'sphere' ? 'Torus Knot' : 'Sphere'}
+        </button>
+        {/* <button
+          className={styles.button}
+          onClick={() => setPauseCompile(!pauseCompile)}
+        >
+          {pauseCompile ? 'Unpause' : 'Pause'}
+        </button> */}
+      </div>
+    </div>
+  );
+};
+
+export default BabylonComponent;

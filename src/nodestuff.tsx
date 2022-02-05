@@ -305,6 +305,63 @@ void main() {
   nextStageNodeId,
 });
 
+export const phongNode = (
+  id: string,
+  name: string,
+  options: Object,
+  stage: ShaderStage,
+  nextStageNodeId?: string
+): Node => {
+  return {
+    id,
+    name,
+    type: ShaderType.phong,
+    options,
+    inputs: [],
+    source: '',
+    stage,
+    nextStageNodeId,
+  };
+};
+
+export const physicalNode = (
+  id: string,
+  name: string,
+  options: Object,
+  stage: ShaderStage,
+  nextStageNodeId?: string
+): Node => {
+  return {
+    id,
+    name,
+    type: ShaderType.physical,
+    options,
+    inputs: [],
+    source: '',
+    stage,
+    nextStageNodeId,
+  };
+};
+
+export const toonNode = (
+  id: string,
+  name: string,
+  options: Object,
+  stage: ShaderStage,
+  nextStageNodeId?: string
+): Node => {
+  return {
+    id,
+    name,
+    type: ShaderType.toon,
+    options,
+    inputs: [],
+    source: '',
+    stage,
+    nextStageNodeId,
+  };
+};
+
 export const addNode = (id: string, options: Object): Node => ({
   id,
   name: 'add',

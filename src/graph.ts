@@ -230,10 +230,12 @@ export const parsers: Parser<Runtime> = {
         from2To3(fragmentAst, 'fragment');
 
         convert300MainToReturn(fragmentAst);
-        renameBindings(fragmentAst.scopes[0], engine.preserve, node.id);
-        renameFunctions(fragmentAst.scopes[0], node.id, {
-          main: nodeName(node),
-        });
+        renameBindings(fragmentAst.scopes[0], (name) =>
+          engine.preserve.has(name) ? name : `${name}_${node.id}`
+        );
+        renameFunctions(fragmentAst.scopes[0], (name) =>
+          name === 'main' ? nodeName(node) : `${name}_${node.id}`
+        );
         return fragmentAst;
       },
       findInputs: (engineContext, node, ast) => {
@@ -286,10 +288,12 @@ export const parsers: Parser<Runtime> = {
           returnGlPosition(vertexAst);
         }
 
-        renameBindings(vertexAst.scopes[0], engine.preserve, node.id);
-        renameFunctions(vertexAst.scopes[0], node.id, {
-          main: nodeName(node),
-        });
+        renameBindings(vertexAst.scopes[0], (name) =>
+          engine.preserve.has(name) ? name : `${name}_${node.id}`
+        );
+        renameFunctions(vertexAst.scopes[0], (name) =>
+          name === 'main' ? nodeName(node) : `${name}_${node.id}`
+        );
         return vertexAst;
       },
       findInputs: (engineContext, node, ast) => ({
@@ -446,7 +450,11 @@ export const compileNode = <T>(
         throw new Error("I'm drunk and I think this case should be impossible");
       }
       if (!(edge.input in inputs)) {
-        throw new Error(`Node "${node.name}" has no input ${edge.input}!`);
+        throw new Error(
+          `Node "${node.name}" has no input ${
+            edge.input
+          }!\nAvailable:${Object.keys(inputs).join(', ')}`
+        );
       }
       inputs[edge.input](fillerAst);
       // console.log(generate(ast.program));

@@ -129,10 +129,8 @@ void main() {
 
 test('horrible jesus help me', () => {
   const threeVertexMain = `
-  #version 300 es
-  out vec4 frogFragOut;
   void main() {
-    frogFragOut = vec4(1.0);
+    texture2D(main, uv);
   }
 `;
 

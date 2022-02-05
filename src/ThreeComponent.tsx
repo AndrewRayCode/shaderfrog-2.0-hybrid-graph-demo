@@ -31,13 +31,7 @@ import {
   NodeInputs,
 } from './graph';
 
-import {
-  physicalNode,
-  phongNode,
-  toonNode,
-  threngine,
-  RuntimeContext,
-} from './threngine';
+import { threngine, RuntimeContext } from './threngine';
 
 import { useThree } from './useThree';
 
@@ -167,7 +161,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     runtime: {
       three,
       renderer,
-      material: null,
       meshRef: meshRef,
       scene,
       camera,

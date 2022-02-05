@@ -468,7 +468,9 @@ const Editor: React.FC = () => {
       return;
     }
 
+    setCompiling(true);
     computeAllContexts(ctx, engine, graph);
+    setCompiling(false);
 
     let engines = 0;
     let maths = 0;
@@ -700,6 +702,9 @@ const Editor: React.FC = () => {
       >
         <div className={styles.splitInner}>
           <div className={styles.tabControls}>
+            <div className={styles.activeEngine}>
+              {engine === babylengine ? 'Babylon.js' : 'Three.js'}
+            </div>
             <button
               className={styles.tabButton}
               onClick={() => {

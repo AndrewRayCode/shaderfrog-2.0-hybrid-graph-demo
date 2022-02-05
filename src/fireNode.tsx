@@ -29,7 +29,8 @@ void main() {
 }
 
 `,
-    'fragment'
+    'fragment',
+    'three'
   );
 
 const fireVert = (id: string) =>
@@ -243,7 +244,8 @@ const fireVert = (id: string) =>
     }
     
 `,
-    'vertex'
+    'vertex',
+    'three'
   );
 
 export { fireFrag, fireVert };

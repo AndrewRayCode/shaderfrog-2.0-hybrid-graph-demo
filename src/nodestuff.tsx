@@ -252,6 +252,7 @@ export interface Node {
   stage?: ShaderStage;
   biStage?: boolean;
   nextStageNodeId?: string;
+  originalEngine?: string;
 }
 
 export const sourceNode = (
@@ -260,6 +261,7 @@ export const sourceNode = (
   options: Object,
   source: string,
   stage: ShaderStage,
+  originalEngine?: string,
   nextStageNodeId?: string
 ): Node => ({
   id,
@@ -269,6 +271,7 @@ export const sourceNode = (
   inputs: [],
   source,
   stage,
+  originalEngine,
   nextStageNodeId,
 });
 

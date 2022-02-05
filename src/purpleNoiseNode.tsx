@@ -212,7 +212,8 @@ vec3 colorOutput = 1.0 * brightnessX * (
 gl_FragColor = vec4( clamp(colorOutput, vec3(0.0), vec3(0.9)), 1.0 );
 }
 `,
-    'fragment'
+    'fragment',
+    'three'
   );
 
 export default purpleNoiseNode;

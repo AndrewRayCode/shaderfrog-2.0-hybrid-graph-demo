@@ -43,7 +43,8 @@ void main() {
     gl_FragColor = vec4( color * tan(vNormal*time*time), 1.0 );
 }
 `,
-    'fragment'
+    'fragment',
+    'three'
   );
 
 export default staticShaderNode;

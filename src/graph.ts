@@ -34,6 +34,7 @@ import {
 } from './nodestuff';
 
 export interface Engine<T> {
+  name: string;
   preserve: Set<string>;
   // Component: FunctionComponent<{ engine: Engine; parsers: NodeParsers }>;
   // nodes: NodeParsers;
@@ -228,6 +229,13 @@ export const parsers: Parser<Runtime> = {
         });
         const fragmentAst = parser.parse(fragmentPreprocessed);
         from2To3(fragmentAst, 'fragment');
+
+        // Total hack for now
+        if (node.originalEngine === 'three' && engine.name === 'babylon') {
+          renameBindings(fragmentAst.scopes[0], (name) =>
+            name === 'vUv' ? 'vMainUV1' : name
+          );
+        }
 
         convert300MainToReturn(fragmentAst);
         renameBindings(fragmentAst.scopes[0], (name) =>

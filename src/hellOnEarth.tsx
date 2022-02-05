@@ -191,7 +191,8 @@ const hellOnEarthFrag = (id: string) =>
      
      }
 `,
-    'fragment'
+    'fragment',
+    'three'
   );
 
 const hellOnEarthVert = (id: string) =>
@@ -351,7 +352,8 @@ void main() {
 
 }
 `,
-    'vertex'
+    'vertex',
+    'three'
   );
 
 export { hellOnEarthFrag, hellOnEarthVert };

@@ -142,6 +142,15 @@ textarea.error {
   z-index: 10;
 }
 
+.activeEngine {
+  display: inline-block;
+  margin: 0 14px;
+  color: #fff;
+  font-size: 14px;
+  line-height: 14px;
+  text-shadow: 0 0 10px #000;
+}
+
 .tabButton {
   align-items: center;
   margin: 1px;
@@ -159,6 +168,12 @@ textarea.error {
   user-select: none;
   -webkit-user-select: none;
   touch-action: manipulation;
+}
+
+.tabButton:disabled {
+  background: linear-gradient(180deg, rgb(77, 77, 77) 0%, #414141 100%);
+  color: #ddd;
+  text-shadow: 2px ​1px 2px #aaa;
 }
 
 .editorControls {

@@ -93,7 +93,8 @@ const fluidCirclesNode = (id: string) =>
     }
     
 `,
-    'fragment'
+    'fragment',
+    'three'
   );
 
 export default fluidCirclesNode;

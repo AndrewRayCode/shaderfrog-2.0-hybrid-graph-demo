@@ -61,7 +61,8 @@ const heatShaderFragmentNode = (id: string) =>
         gl_FragColor = vec4( toneToHeatColorMap(color.r), 1.0 );
     }
 `,
-    'fragment'
+    'fragment',
+    'three'
   );
 
 const heatShaderVertexNode = (id: string) =>
@@ -93,7 +94,8 @@ const heatShaderVertexNode = (id: string) =>
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
 `,
-    'vertex'
+    'vertex',
+    'three'
   );
 
 export { heatShaderFragmentNode, heatShaderVertexNode };

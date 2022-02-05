@@ -5,10 +5,7 @@ import useOnce from './useOnce';
 type Callback = (time: number) => void;
 
 export const useBabylon = (callback: Callback) => {
-  const [babylonCanvas] = useState(
-    () =>
-      console.log('creating a new canvas') || document.createElement('canvas')
-  );
+  const [babylonCanvas] = useState(() => document.createElement('canvas'));
 
   const [babylonDom, setBabylonDom] = useState<HTMLCanvasElement | null>(null);
   const babylonDomRef = useCallback((node) => setBabylonDom(node), []);
@@ -17,16 +14,13 @@ export const useBabylon = (callback: Callback) => {
 
   const [engine] = useState(
     () =>
-      console.log('creating a new engine') ||
       new BABYLON.Engine(babylonCanvas, true, {
         preserveDrawingBuffer: true,
         stencil: true,
       })
   );
 
-  const [scene] = useState(
-    () => console.log('making new scene') || new BABYLON.Scene(engine)
-  );
+  const [scene] = useState(() => new BABYLON.Scene(engine));
 
   const [camera] = useState(
     () =>

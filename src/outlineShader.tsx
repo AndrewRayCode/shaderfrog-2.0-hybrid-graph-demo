@@ -58,6 +58,7 @@ void main()
 }
 `,
     'vertex',
+    'three',
     nextStageNodeId
   );
 

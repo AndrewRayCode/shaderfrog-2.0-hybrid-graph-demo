@@ -16,7 +16,8 @@ const solidColorNode = (id: string) =>
     }
     
 `,
-    'fragment'
+    'fragment',
+    'three'
   );
 
 export default solidColorNode;

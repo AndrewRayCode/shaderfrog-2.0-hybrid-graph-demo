@@ -190,6 +190,7 @@ const texture2DInputFinder = (
 };
 
 export const babylengine: Engine<RuntimeContext> = {
+  name: 'babylon',
   // TODO: Get from uniform lib?
   preserve: new Set<string>([
     'vAmbientInfos',

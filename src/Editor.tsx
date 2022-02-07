@@ -174,7 +174,7 @@ const graph: Graph = {
     //   stage: 'fragment',
     // },
     {
-      from: purpleNoise.id,
+      from: solidColorF.id,
       to: physicalF.id,
       output: 'out',
       input: 'albedo',
@@ -226,9 +226,11 @@ const compileGraphAsync = async (
 
       const result = compileGraph(ctx, engine, graph);
       const fragmentResult = generate(
-        shaderSectionsToAst(result.fragment).program
+        shaderSectionsToAst(result.fragment, engine.mergeOptions).program
       );
-      const vertexResult = generate(shaderSectionsToAst(result.vertex).program);
+      const vertexResult = generate(
+        shaderSectionsToAst(result.vertex, engine.mergeOptions).program
+      );
 
       const now = performance.now();
       console.log(`Compilation took:
@@ -270,8 +272,8 @@ type IndexedByTarget = {
 // Some nodes, like add, can be used for either fragment or vertex stage. When
 // we connect edges in the graph, update it to figure out which stage we should
 // set the add node to based on inputs to the node.
-const setBiStages = (elements: FlowElement[]) => {
-  const byIds = elements.reduce(
+const setBiStages = (flowElements: FlowElement[]) => {
+  const byIds = flowElements.reduce(
     (acc, element) => ({
       ...acc,
       ...('target' in element
@@ -297,7 +299,7 @@ const setBiStages = (elements: FlowElement[]) => {
   const updatedSides: Record<string, FlowElement> = {};
   // Update the node stages by looking at their inputs
   return (
-    elements
+    flowElements
       .map((element) => {
         if (!element.data || !('biStage' in element.data)) {
           return element;
@@ -342,7 +344,7 @@ const Editor: React.FC = () => {
   const [tabIndex, setTabIndex] = useState<number>(0);
   const [sceneTabIndex, setSceneTabIndex] = useState<number>(0);
   const [editorTabIndex, setEditorTabIndex] = useState<number>(0);
-  const [compiling, setCompiling] = useState<boolean>(false);
+  const [guiMsg, setGuiMsg] = useState<string>('');
   const [lights, setLights] = useState<string>('point');
   const [previewObject, setPreviewObject] = useState('torusknot');
 
@@ -364,7 +366,7 @@ const Editor: React.FC = () => {
     compileMs: string | null;
     width: number;
     height: number;
-    elements: FlowElement[];
+    flowElements: FlowElement[];
   }>({
     fragError: null,
     vertError: null,
@@ -372,7 +374,7 @@ const Editor: React.FC = () => {
     compileMs: null,
     width: 0,
     height: 0,
-    elements: [],
+    flowElements: [],
   });
 
   const setGlResult = useCallback(
@@ -398,33 +400,37 @@ const Editor: React.FC = () => {
 
   // Compile function, meant to be called manually in places where we want to
   // trigger a compile. I tried making this a useEffect, however this function
-  // needs to update "elements" at the end, which leads to an infinite loop
+  // needs to update "flowElements" at the end, which leads to an infinite loop
   const compile = useCallback(
     (
       engine: Engine<any>,
       ctx: EngineContext<any>,
       pauseCompile: boolean,
-      elements: any[]
+      flowElements: FlowElement[]
     ) => {
-      if (!ctx || pauseCompile || !elements.length) {
-        return;
-      }
+      // if (!ctx || pauseCompile || !flowElements.length) {
+      //   return;
+      // }
 
-      graph.edges = elements
-        .filter((element: any) => element.source)
-        .map((element: any) => ({
+      // Convert the flow edges into the graph edges, to reflect the latest
+      // user's changes
+      graph.edges = flowElements
+        .filter(
+          (element): element is FlowEdge<FlowEdgeData> => 'source' in element
+        )
+        .map((element) => ({
           from: element.source,
           to: element.target,
           output: 'out',
-          input: element.targetHandle,
-          stage: element.data.stage,
+          input: element.targetHandle as string,
+          stage: element.data?.stage as ShaderStage,
         }));
 
-      setCompiling(true);
+      setGuiMsg('Compiling!');
 
       compileGraphAsync(engine, ctx).then((compileResult) => {
         // sceneRef.current.shadersUpdated = true;
-        setCompiling(false);
+        setGuiMsg('');
         setCompileResult(compileResult);
         setFinalFragment(compileResult.fragmentResult);
         setVertex(compileResult.vertexResult);
@@ -435,7 +441,7 @@ const Editor: React.FC = () => {
         setOriginalVert(ctx.debuggingNonsense.vertexSource);
         extendState((state) => ({
           // compileMs,
-          elements: (state.elements || []).map((node) =>
+          flowElements: (state.flowElements || []).map((node) =>
             node.data && 'inputs' in node.data
               ? {
                   ...node,
@@ -457,10 +463,14 @@ const Editor: React.FC = () => {
     [extendState]
   );
 
-  const compileCtxOnly = useCallback(
+  // Let child components call compile after, say, their lighting has finished
+  // updating. I'm doing this to avoid having to figure out the flow control
+  // of: parent updates lights, child gets updates, sets lights, then parent
+  // handles recompile
+  const childCompile = useCallback(
     (ctx: EngineContext<any>) =>
-      compile(engine, ctx, pauseCompile, state.elements),
-    [engine, compile, pauseCompile, state.elements]
+      compile(engine, ctx, pauseCompile, state.flowElements),
+    [engine, compile, pauseCompile, state.flowElements]
   );
 
   const initializeGraph = useCallback(() => {
@@ -468,79 +478,90 @@ const Editor: React.FC = () => {
       return;
     }
 
-    setCompiling(true);
-    computeAllContexts(ctx, engine, graph);
-    setCompiling(false);
+    setGuiMsg(`🥸🥸🥸🥸🥸🥸🥸 Initializing ${engine.name}...`);
+    setTimeout(() => {
+      computeAllContexts(ctx, engine, graph);
 
-    let engines = 0;
-    let maths = 0;
-    let outputs = 0;
-    let shaders = 0;
-    const spacing = 200;
-    const maxHeight = 4;
+      let engines = 0;
+      let maths = 0;
+      let outputs = 0;
+      let shaders = 0;
+      const spacing = 200;
+      const maxHeight = 4;
 
-    const elements = setBiStages([
-      ...graph.nodes.map((node: any, index) => ({
-        id: node.id,
-        data: {
-          label: node.name,
-          stage: node.stage,
-          biStage: node.biStage,
-          inputs: Object.keys(ctx.nodes[node.id]?.inputs || []).map((name) => ({
-            name,
-            validTarget: false,
-          })),
-          outputs: [
-            {
-              validTarget: false,
-              name: 'out',
-            },
-          ],
-        },
-        type: 'special',
-        position:
-          node.type === ShaderType.output
-            ? { x: spacing * 2, y: outputs++ * 100 }
-            : node.type === ShaderType.phong || node.type === ShaderType.toon
-            ? { x: spacing, y: engines++ * 100 }
-            : node.type === ShaderType.add || node.type === ShaderType.multiply
-            ? { x: 0, y: maths++ * 100 }
-            : {
-                x: -Math.floor(index / maxHeight) * spacing,
-                y: (shaders++ % maxHeight) * 100,
+      const flowElements = setBiStages([
+        ...graph.nodes.map((node: any, index) => ({
+          id: node.id,
+          data: {
+            label: node.name,
+            stage: node.stage,
+            biStage: node.biStage,
+            inputs: Object.keys(ctx.nodes[node.id]?.inputs || []).map(
+              (name) => ({
+                name,
+                validTarget: false,
+              })
+            ),
+            outputs: [
+              {
+                validTarget: false,
+                name: 'out',
               },
-      })),
-      ...graph.edges.map((edge) => ({
-        id: `${edge.to}-${edge.from}`,
-        source: edge.from,
-        sourceHandle: edge.output,
-        targetHandle: edge.input,
-        target: edge.to,
-        data: { stage: edge.stage },
-        className: edge.stage,
-        type: 'special',
-      })),
-    ]);
+            ],
+          },
+          type: 'special',
+          position:
+            node.type === ShaderType.output
+              ? { x: spacing * 2, y: outputs++ * 100 }
+              : node.type === ShaderType.phong || node.type === ShaderType.toon
+              ? { x: spacing, y: engines++ * 100 }
+              : node.type === ShaderType.add ||
+                node.type === ShaderType.multiply
+              ? { x: 0, y: maths++ * 100 }
+              : {
+                  x: -Math.floor(index / maxHeight) * spacing,
+                  y: (shaders++ % maxHeight) * 100,
+                },
+        })),
+        ...graph.edges.map((edge) => ({
+          id: `${edge.to}-${edge.from}`,
+          source: edge.from,
+          sourceHandle: edge.output,
+          targetHandle: edge.input,
+          target: edge.to,
+          data: { stage: edge.stage },
+          className: edge.stage,
+          type: 'special',
+        })),
+      ]);
 
-    console.log('compiling!!', engine, ctx);
-    compile(engine, ctx, pauseCompile, elements);
-    extendState({ elements });
+      compile(engine, ctx, pauseCompile, flowElements);
+      extendState({ flowElements });
+      setGuiMsg('');
+    }, 10);
   }, [engine, ctx, extendState, pauseCompile, compile]);
 
   // Create the graph
-  const prevCtx = usePrevious(ctx);
+  const prevEngine = usePrevious(engine);
   useEffect(() => {
-    if (prevCtx !== ctx || !state.elements.length) {
+    if (ctx && (prevEngine !== engine || !state.flowElements.length)) {
+      console.log(
+        '🚦🚦🚦🚦🚦🚦🚦🚦🚦🚦🚦 initializeGraph(), ',
+        engine,
+        prevEngine,
+        engine !== prevEngine,
+        state.flowElements.length
+      );
       initializeGraph();
     }
-  }, [prevCtx, ctx, engine, state.elements, initializeGraph]);
+  }, [prevEngine, ctx, engine, state.flowElements, initializeGraph]);
 
   const addConnection = (edge: FlowEdge | Connection) => {
-    const stage = state.elements.find((elem) => elem.id === edge.source)?.data
-      ?.stage;
+    const stage = state.flowElements.find((elem) => elem.id === edge.source)
+      ?.data?.stage;
 
-    const elements = setBiStages([
-      ...state.elements.filter(
+    const flowElements = setBiStages([
+      ...state.flowElements.filter(
         (element) =>
           // Prevent one input handle from having multiple inputs
           !(
@@ -565,8 +586,8 @@ const Editor: React.FC = () => {
         type: 'special',
       } as FlowEdge<FlowEdgeData>,
     ]);
-    extendState({ elements });
-    compile(engine, ctx as EngineContext<any>, pauseCompile, elements);
+    extendState({ flowElements });
+    compile(engine, ctx as EngineContext<any>, pauseCompile, flowElements);
   };
 
   const onConnect = (edge: FlowEdge | Connection) => addConnection(edge);
@@ -577,11 +598,11 @@ const Editor: React.FC = () => {
   const onElementsRemove = (params: any) => {
     const ids = new Set(params.map(({ id }: any) => id));
 
-    const elements: any = setBiStages([
-      ...state.elements.filter(({ id }: any) => !ids.has(id)),
+    const flowElements: any = setBiStages([
+      ...state.flowElements.filter(({ id }: any) => !ids.has(id)),
     ]);
-    extendState({ elements });
-    compile(engine, ctx as EngineContext<any>, pauseCompile, elements);
+    extendState({ flowElements });
+    compile(engine, ctx as EngineContext<any>, pauseCompile, flowElements);
   };
 
   const onNodeDoubleClick = (event: any, node: any) => {
@@ -621,10 +642,10 @@ const Editor: React.FC = () => {
   useEffect(() => onSplitResize(), [defaultMainSplitSize, onSplitResize]);
 
   const setTargets = (nodeId: string, handleType: string) => {
-    extendState(({ elements }) => {
+    extendState(({ flowElements }) => {
       const source = graph.nodes.find(({ id }) => id === nodeId) as Node;
       return {
-        elements: (elements || []).map((element) => {
+        flowElements: (flowElements || []).map((element) => {
           if (
             element.data &&
             'label' in element.data &&
@@ -654,9 +675,9 @@ const Editor: React.FC = () => {
     });
   };
   const resetTargets = () => {
-    extendState(({ elements }) => {
+    extendState(({ flowElements }) => {
       return {
-        elements: (elements || []).map((element) => {
+        flowElements: (flowElements || []).map((element) => {
           if (element.data && 'label' in element.data) {
             return {
               ...element,
@@ -712,14 +733,15 @@ const Editor: React.FC = () => {
                   return;
                 }
                 if (engine === babylengine) {
+                  setCompileResult(undefined);
                   setEngine(threngine);
-                  // compile(threngine, ctx, pauseCompile, state.elements);
+                  // compile(threngine, ctx, pauseCompile, state.flowElements);
                 } else {
+                  setCompileResult(undefined);
                   setEngine(babylengine);
-                  // compile(babylengine, ctx, pauseCompile, state.elements);
+                  // compile(babylengine, ctx, pauseCompile, state.flowElements);
                 }
               }}
-              disabled={compiling}
             >
               {engine === babylengine
                 ? 'Switch to Three.js'
@@ -736,7 +758,7 @@ const Editor: React.FC = () => {
             <TabPanels>
               <TabPanel>
                 <ReactFlow
-                  elements={state.elements}
+                  elements={state.flowElements}
                   style={flowStyles}
                   onConnect={onConnect}
                   onEdgeUpdate={onEdgeUpdate}
@@ -767,10 +789,9 @@ const Editor: React.FC = () => {
                         engine,
                         ctx as EngineContext<any>,
                         pauseCompile,
-                        state.elements
+                        state.flowElements
                       )
                     }
-                    disabled={compiling}
                   >
                     Save (⌘-S)
                   </button>
@@ -783,7 +804,7 @@ const Editor: React.FC = () => {
                       engine,
                       ctx as EngineContext<any>,
                       pauseCompile,
-                      state.elements
+                      state.flowElements
                     )
                   }
                   onChange={(value, event) => {
@@ -823,8 +844,8 @@ const Editor: React.FC = () => {
                     setLights={setLights}
                     previewObject={previewObject}
                     setPreviewObject={setPreviewObject}
-                    compile={compileCtxOnly}
-                    compiling={compiling}
+                    compile={childCompile}
+                    guiMsg={guiMsg}
                     compileResult={compileResult}
                     setGlResult={setGlResult}
                     width={state.width}
@@ -838,8 +859,8 @@ const Editor: React.FC = () => {
                     setLights={setLights}
                     previewObject={previewObject}
                     setPreviewObject={setPreviewObject}
-                    compile={compileCtxOnly}
-                    compiling={compiling}
+                    compile={childCompile}
+                    guiMsg={guiMsg}
                     compileResult={compileResult}
                     setGlResult={setGlResult}
                     width={state.width}

@@ -31,11 +31,13 @@ import {
   returnGlPosition,
   doesLinkThruShader,
   makeFnStatement,
+  MergeOptions,
 } from './nodestuff';
 
 export interface Engine<T> {
   name: string;
   preserve: Set<string>;
+  mergeOptions: MergeOptions;
   // Component: FunctionComponent<{ engine: Engine; parsers: NodeParsers }>;
   // nodes: NodeParsers;
   parsers: Parser<T>;

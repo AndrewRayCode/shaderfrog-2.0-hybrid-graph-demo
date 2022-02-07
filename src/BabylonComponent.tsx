@@ -1,31 +1,12 @@
 import * as BABYLON from 'babylonjs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { generate } from '@shaderfrog/glsl-parser';
-
 import babf from './babylon-fragment';
 import babv from './babylon-vertex';
 
-import purpleNoiseNode from './purpleNoiseNode';
-import {
-  outputNode,
-  Graph,
-  shaderSectionsToAst,
-  Node,
-  addNode,
-  multiplyNode,
-  ShaderType,
-  Edge,
-  ShaderStage,
-} from './nodestuff';
+import { Graph } from './nodestuff';
 
-import {
-  compileGraph,
-  computeAllContexts,
-  computeGraphContext,
-  EngineContext,
-  NodeInputs,
-} from './graph';
+import { EngineContext } from './graph';
 import { babylengine, RuntimeContext } from './bablyengine';
 
 import styles from '../pages/editor/editor.module.css';
@@ -34,16 +15,27 @@ import { UICompileGraphResult } from './Editor';
 import { useBabylon } from './useBabylon';
 import useOnce from './useOnce';
 
-// import { threngine, RuntimeContext } from './threngine';
-
-// import { useThree } from './useThree';
-
 // const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
+
+const _err = BABYLON.Logger.Error;
+let capturing = false;
+let capture: any[] = [];
+BABYLON.Logger.Error = (...args) => {
+  const str = args[0] || '';
+  if (capturing || str.startsWith('Unable to compile effect')) {
+    capturing = true;
+    capture.push(str);
+    if (str.startsWith('Error:')) {
+      capturing = false;
+    }
+  }
+  _err(...args);
+};
 
 type AnyFn = (...args: any) => any;
 type BabylonComponentProps = {
   compile: AnyFn;
-  compiling: boolean;
+  guiMsg: string;
   compileResult: UICompileGraphResult | undefined;
   graph: Graph;
   lights: string;
@@ -57,7 +49,7 @@ type BabylonComponentProps = {
 };
 const BabylonComponent: React.FC<BabylonComponentProps> = ({
   compile,
-  compiling,
+  guiMsg,
   compileResult,
   graph,
   lights,
@@ -69,8 +61,26 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
   width,
   height,
 }) => {
+  const shadersRef = useRef<boolean>(false);
+
   const { babylonCanvas, babylonDomRef, scene, camera, engine } = useBabylon(
-    () => {}
+    () => {
+      if (shadersRef.current) {
+        // console.log(meshRef.current?.material);
+        // const effect = meshRef.current?.material?.getEffect();
+        // const y = BABYLON.Logger._pipelineContext;
+        // const t = capture;
+        // capture.FRAGMENT SHADER ERROR
+        setGlResult({
+          fragError: capture.find((str) =>
+            str.includes('FRAGMENT SHADER ERROR')
+          ),
+          vertError: capture.find((str) => str.includes('VERTEX SHADER ERROR')),
+          programError: '',
+        });
+        shadersRef.current = false;
+      }
+    }
   );
 
   useOnce(() => {
@@ -146,10 +156,22 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
   }, [ctx, setCtx]);
 
   useEffect(() => {
+    if (!compileResult?.fragmentResult) {
+      return;
+    }
+
     const shaderMaterial = new BABYLON.PBRMaterial('pbr', scene);
+
+    // Ensures irradiance is computed per fragment to make the
+    // Bump visible
+    shaderMaterial.forceIrradianceInFragment = true;
 
     const brickTexture = new BABYLON.Texture('/brick-texture.jpeg', scene);
     shaderMaterial.albedoTexture = brickTexture;
+
+    const brickNormal = new BABYLON.Texture('/brick-texture.jpeg', scene);
+    shaderMaterial.bumpTexture = brickNormal;
+
     shaderMaterial.albedoColor = new BABYLON.Color3(1.0, 0.766, 0.336);
     shaderMaterial.metallic = 0.1; // set to 1 to only use it from the metallicRoughnessTexture
     shaderMaterial.roughness = 0.1; // set to 1 to only use it from the metallicRoughnessTexture
@@ -172,24 +194,26 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       uniforms.push(`color3_${pu}`);
       uniforms.push(`brightnessX_${pu}`);
       uniforms.push(`speed_${pu}`);
-      if (options) {
-        options.processFinalCode = (type, code) => {
-          if (type === 'vertex') {
-            console.log('processFinalCode', {
-              code,
-              type,
-              vert: compileResult?.vertexResult || babv,
-            });
-            return compileResult?.vertexResult || babv;
-          }
-          console.log('processFinalCode', {
-            code,
-            type,
-            frag: compileResult?.fragmentResult || babf,
-          });
-          return compileResult?.fragmentResult || babf;
-        };
-      }
+      // if (options) {
+      //   options.processFinalCode = (type, code) => {
+      //     if (type === 'vertex') {
+      //       console.log('processFinalCode', {
+      //         code,
+      //         type,
+      //         vert: compileResult?.vertexResult || babv,
+      //       });
+      //       return compileResult?.vertexResult || babv;
+      //     }
+      //     console.log('processFinalCode', {
+      //       code,
+      //       type,
+      //       frag: compileResult?.fragmentResult || babf,
+      //     });
+      //     return compileResult?.fragmentResult || babf;
+      //   };
+      // }
+      capture = [];
+      shadersRef.current = true;
       return shaderName;
     };
 
@@ -197,7 +221,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       meshRef.current.material = shaderMaterial;
     }
     // sceneRef.current.shadersUpdated = true;
-  }, [scene, compileResult, ctx.runtime, graph.nodes]);
+  }, [pu, scene, compileResult, ctx.runtime, graph.nodes]);
 
   // const lightsRef = useRef<three.Object3D[]>([]);
   // useMemo(() => {
@@ -268,8 +292,8 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
         ref={babylonDomRef}
       ></div>
       <div className={styles.sceneLabel}>
-        {compiling && 'Compiling...'}
-        {!compiling &&
+        {guiMsg}
+        {!guiMsg &&
           compileResult?.compileMs &&
           `Complile took ${compileResult?.compileMs}ms`}
       </div>

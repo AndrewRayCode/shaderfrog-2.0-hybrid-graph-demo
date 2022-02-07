@@ -71,6 +71,7 @@ const onBeforeCompileMegaShader = (
   // const fragment = gl.getShaderSource(fragmentRef);
   // const vertex = gl.getShaderSource(vertexRef);
 
+  // TODO: This is hard coded to not include a b'ump
   engineContext.runtime.cache.nodes[node.id] = {
     // fragmentRef,
     // vertexRef,
@@ -191,6 +192,10 @@ const texture2DInputFinder = (
 
 export const babylengine: Engine<RuntimeContext> = {
   name: 'babylon',
+  mergeOptions: {
+    includePrecisions: true,
+    includeVersion: false,
+  },
   // TODO: Get from uniform lib?
   preserve: new Set<string>([
     'vAmbientInfos',

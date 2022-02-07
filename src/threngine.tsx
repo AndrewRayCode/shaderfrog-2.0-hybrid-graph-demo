@@ -81,13 +81,18 @@ const onBeforeCompileMegaShader = (
   };
 };
 
+const xxy =
+  () =>
+  (a: EngineContext<RuntimeContext>, b: any, c: Graph, d: Node, e: Edge[]) =>
+    megaShaderProduceVertexAst(a, b, c, d, e, true);
 const megaShaderProduceVertexAst = (
   // todo: help
   engineContext: EngineContext<RuntimeContext>,
   engine: any,
   graph: Graph,
   node: Node,
-  inputEdges: Edge[]
+  inputEdges: Edge[],
+  inc?: boolean
 ) => {
   const { nodes } = engineContext.runtime.cache;
   const { vertex } =
@@ -102,7 +107,9 @@ const megaShaderProduceVertexAst = (
   });
 
   const vertexAst = parser.parse(vertexPreprocessed);
-  engineContext.debuggingNonsense.vertexPreprocessed = vertexPreprocessed;
+  if (inc) {
+    engineContext.debuggingNonsense.vertexPreprocessed = vertexPreprocessed;
+  }
 
   // Do I need this? Is threejs shader already in 3.00 mode?
   // from2To3(vertexAst);
@@ -193,6 +200,10 @@ const texture2DInputFinder = (
 
 export const threngine: Engine<RuntimeContext> = {
   name: 'three',
+  mergeOptions: {
+    includePrecisions: true,
+    includeVersion: true,
+  },
   // TODO: Get from uniform lib?
   preserve: new Set<string>([
     'viewMatrix',
@@ -221,7 +232,11 @@ export const threngine: Engine<RuntimeContext> = {
     'shininess',
     'opacity',
     'map',
+    'specularTint',
     'time',
+    'normalScale',
+    'normalMap',
+    'roughnessMap',
     // Uniforms for lighting
     'receiveShadow',
     'ambientLightColor',
@@ -265,6 +280,7 @@ export const threngine: Engine<RuntimeContext> = {
           new three.MeshPhongMaterial({
             color: 0x00ff00,
             map: new three.Texture(),
+            normalMap: new three.Texture(),
           })
         );
       },
@@ -281,9 +297,9 @@ export const threngine: Engine<RuntimeContext> = {
           const fragmentAst = parser.parse(fragmentPreprocessed);
 
           // Used for the UI only right now
-          engineContext.debuggingNonsense.fragmentPreprocessed =
-            fragmentPreprocessed;
-          engineContext.debuggingNonsense.fragmentSource = fragment;
+          // engineContext.debuggingNonsense.fragmentPreprocessed =
+          //   fragmentPreprocessed;
+          // engineContext.debuggingNonsense.fragmentSource = fragment;
 
           // Do I need this? Is threejs shader already in 3.00 mode?
           // from2To3(fragmentAst);
@@ -317,13 +333,16 @@ export const threngine: Engine<RuntimeContext> = {
           engineContext,
           node,
           new three.MeshPhysicalMaterial({
-            metalness: 0,
-            roughness: 0.5,
+            metalness: 0.4,
+            roughness: 0.2,
             clearcoat: 0.5,
             clearcoatRoughness: 0.5,
             reflectivity: 0.5,
+            color: new three.Vector3(1.0, 1.0, 1.0),
             map: new three.Texture(),
-            roughnessMap: new three.Texture(),
+            // TODO: Normals are wrong when using normalmap
+            normalMap: new three.Texture(),
+            // roughnessMap: new three.Texture(),
           })
         );
       },
@@ -373,7 +392,8 @@ export const threngine: Engine<RuntimeContext> = {
         },
       },
       vertex: {
-        produceAst: megaShaderProduceVertexAst,
+        // produceAst: megaShaderProduceVertexAst,
+        produceAst: xxy(),
         findInputs: megaShaderFindPositionInputs,
         produceFiller: (node: Node, ast: AstNode) => {
           return makeExpression(`${nodeName(node)}()`);
@@ -413,9 +433,9 @@ export const threngine: Engine<RuntimeContext> = {
           const fragmentAst = parser.parse(fragmentPreprocessed);
 
           // Used for the UI only right now
-          engineContext.debuggingNonsense.fragmentPreprocessed =
-            fragmentPreprocessed;
-          engineContext.debuggingNonsense.fragmentSource = fragment;
+          // engineContext.debuggingNonsense.fragmentPreprocessed =
+          //   fragmentPreprocessed;
+          // engineContext.debuggingNonsense.fragmentSource = fragment;
 
           // Do I need this? Is threejs shader already in 3.00 mode?
           // from2To3(fragmentAst);

@@ -448,8 +448,14 @@ export const mergeShaderSections = (
   };
 };
 
+export type MergeOptions = {
+  includePrecisions: boolean;
+  includeVersion: boolean;
+};
+
 export const shaderSectionsToAst = (
-  sections: ShaderSections
+  sections: ShaderSections,
+  mergeOptions: MergeOptions
 ): ParserProgram => ({
   type: 'program',
   scopes: [],
@@ -457,8 +463,12 @@ export const shaderSectionsToAst = (
     {
       type: 'program',
       program: [
-        dedupeVersions(sections.version),
-        ...highestPrecisions(sections.precision),
+        ...(mergeOptions.includeVersion
+          ? [dedupeVersions(sections.version)]
+          : []),
+        ...(mergeOptions.includePrecisions
+          ? highestPrecisions(sections.precision)
+          : []),
         ...sections.preprocessor,
         // Structs before ins and uniforms as they can reference structs
         ...sections.structs,

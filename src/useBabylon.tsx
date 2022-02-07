@@ -59,7 +59,6 @@ export const useBabylon = (callback: Callback) => {
   );
 
   useEffect(() => {
-    console.log('useeffect for babylon', babylonDom, babylonDomRef);
     if (babylonDom) {
       console.log('🎬 Starting Babylon requestAnimationFrame');
       frameRef.current = requestAnimationFrame(animate);
@@ -70,6 +69,7 @@ export const useBabylon = (callback: Callback) => {
       if (frameRef.current) {
         cancelAnimationFrame(frameRef.current);
       }
+      // TODO: How to cleanup?
       // engine.dispose();
     };
   }, [engine, animate, babylonDom]);

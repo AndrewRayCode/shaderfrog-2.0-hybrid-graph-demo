@@ -40,7 +40,7 @@ const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
 type AnyFn = (...args: any) => any;
 type ThreeSceneProps = {
   compile: AnyFn;
-  compiling: boolean;
+  guiMsg: string;
   compileResult: UICompileGraphResult | undefined;
   graph: Graph;
   lights: string;
@@ -54,7 +54,7 @@ type ThreeSceneProps = {
 };
 const ThreeComponent: React.FC<ThreeSceneProps> = ({
   compile,
-  compiling,
+  guiMsg,
   compileResult,
   graph,
   lights,
@@ -66,7 +66,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   width,
   height,
 }) => {
-  const sceneRef = useRef<{ [key: string]: any }>({});
+  const shadersUpdated = useRef<boolean>(false);
 
   const { scene, camera, threeDomRef, renderer } = useThree((time) => {
     const { current: mesh } = meshRef;
@@ -74,7 +74,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       return;
     }
 
-    if (sceneRef.current.shadersUpdated) {
+    if (shadersUpdated.current) {
       const gl = renderer.getContext();
 
       const { fragmentShader, vertexShader, program } = renderer.properties
@@ -99,7 +99,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         });
       }
 
-      sceneRef.current.shadersUpdated = false;
+      shadersUpdated.current = false;
     }
 
     if (lightsRef.current) {
@@ -136,7 +136,11 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
     let mesh;
     if (previewObject === 'torusknot') {
-      const geometry = new three.TorusKnotGeometry(0.6, 0.25, 100, 16);
+      // const geometry = new three.TorusKnotGeometry(0.6, 0.25, 100, 16);
+      // geometry.computeVertexNormals();
+
+      const geometry = new three.TorusKnotGeometry(0.6, 0.25, 200, 32);
+
       mesh = new three.Mesh(geometry);
     } else if (previewObject === 'sphere') {
       const geometry = new three.SphereBufferGeometry(1, 32, 32);
@@ -178,7 +182,10 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   }, [ctx, setCtx]);
 
   useEffect(() => {
-    const { renderer, threeTone, meshRef } = ctx.runtime;
+    if (!compileResult?.fragmentResult) {
+      return;
+    }
+    const { threeTone, meshRef } = ctx.runtime;
     console.log('oh hai birfday boi boi boiiiii');
 
     const os1: any = graph.nodes.find(
@@ -208,11 +215,21 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     const uniforms = {
       ...three.ShaderLib.phong.uniforms,
       ...three.ShaderLib.toon.uniforms,
-      diffuse: { value: new three.Color(0xffffff) },
-      // ambientLightColor: { value: new three.Color(0xffffff) },
-      color: { value: new three.Color(0xffffff) },
+      ...three.ShaderLib.physical.uniforms,
+
       gradientMap: { value: threeTone },
+      metalness: { value: 0.4 },
+      roughness: { value: 0.2 },
+      clearcoat: { value: 0.5 },
+      clearcoatRoughness: { value: 0.5 },
+      reflectivity: { value: 0.5 },
+      normalScale: { value: new three.Vector2(2.0, 2.0) },
+      color: { value: new three.Vector3(1.0, 1.0, 1.0) },
+
       // map: { value: new three.TextureLoader().load('/contrast-noise.png') },
+      normalMap: {
+        value: new three.TextureLoader().load('/bricknormal.png'),
+      },
       image: {
         value: new three.TextureLoader().load('/contrast-noise.png'),
       },
@@ -227,10 +244,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       speed: { value: 3 },
       opacity: { value: 1 },
       lightPosition: { value: new three.Vector3(10, 10, 10) },
-
-      roughness: { value: 0.046 },
-      metalness: { value: 0.491 },
-      clearcoat: { value: 1 },
 
       [`brightnessX_${pu}`]: { value: 1.0 },
       [`permutations_${pu}`]: { value: 10 },
@@ -294,8 +307,17 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       // },
     });
 
+    // const mmm = new three.MeshPhongMaterial({
+    //   color: 0x1111111,
+    //   normalMap: new three.TextureLoader().load('/bricknormal.png'),
+    // });
+
+    // newMat.shading = three.SmoothShading;
+    // newMat.flatShading = false;
+
     meshRef.current.material = newMat;
-    sceneRef.current.shadersUpdated = true;
+    // meshRef.current.material = mmm;
+    shadersUpdated.current = true;
   }, [compileResult, ctx.runtime, graph.nodes]);
 
   const lightsRef = useRef<three.Object3D[]>([]);
@@ -315,24 +337,38 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       const helper = new three.PointLightHelper(pointLight, 0.1);
       scene.add(helper);
       lightsRef.current = [pointLight, helper];
+
+      const light1 = new three.PointLight(0xffffff, 1, 0);
+      light1.position.set(0, 200, 0);
+      scene.add(light1);
+
+      const light2 = new three.PointLight(0xffffff, 1, 0);
+      light2.position.set(100, 200, 100);
+      scene.add(light2);
+
+      // const light3 = new THREE.PointLight( 0xffffff, 1, 0 );
+      // light3.position.set( - 100, - 200, - 100 );
+      // scene.add( light3 );
+
+      lightsRef.current = [pointLight, helper, light1, light2];
     } else {
-      const light = new three.SpotLight(0x00ff00, 1, 3, 0.4, 1);
+      const light = new three.SpotLight(0xddffdd, 1, 3, 0.4, 1);
       light.position.set(0, 0, 2);
       scene.add(light);
 
       const helper = new three.SpotLightHelper(
         light,
-        new three.Color(0x00ff00)
+        new three.Color(0xddffdd)
       );
       scene.add(helper);
 
-      const light2 = new three.SpotLight(0xff0000, 1, 4, 0.4, 1);
+      const light2 = new three.SpotLight(0xffdddd, 1, 4, 0.4, 1);
       light2.position.set(0, 0, 2);
       scene.add(light2);
 
       const helper2 = new three.SpotLightHelper(
         light2,
-        new three.Color(0xff0000)
+        new three.Color(0xffdddd)
       );
       scene.add(helper2);
 
@@ -364,8 +400,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     <div>
       <div ref={threeDomRef}></div>
       <div className={styles.sceneLabel}>
-        {compiling && 'Compiling...'}
-        {!compiling &&
+        {guiMsg}
+        {!guiMsg &&
           compileResult?.compileMs &&
           `Complile took ${compileResult?.compileMs}ms`}
       </div>

@@ -87,9 +87,9 @@ const fluidF = fluidCirclesNode(id());
 const staticShader = staticShaderNode(id());
 const purpleNoise = purpleNoiseNode(id());
 const heatShaderF = heatShaderFragmentNode(id());
-const heatShaderV = heatShaderVertexNode(id());
+const heatShaderV = heatShaderVertexNode(id(), heatShaderF.id);
 const fireF = fireFrag(id());
-const fireV = fireVert(id());
+const fireV = fireVert(id(), fireF.id);
 const add = addNode(id(), {});
 const add2 = addNode(id(), {});
 const multiply = multiplyNode(id(), {});
@@ -111,13 +111,13 @@ const graph: Graph = {
   nodes: [
     outputF,
     outputV,
-    phongF,
-    phongV,
+    // phongF,
+    // phongV,
     physicalF,
     physicalV,
-    toonF,
+    // toonF,
+    // toonV,
     fluidF,
-    toonV,
     staticShader,
     purpleNoise,
     heatShaderF,
@@ -173,13 +173,13 @@ const graph: Graph = {
     //   input: 'texture2d_0',
     //   stage: 'fragment',
     // },
-    {
-      from: solidColorF.id,
-      to: physicalF.id,
-      output: 'out',
-      input: 'albedo',
-      stage: 'fragment',
-    },
+    // {
+    //   from: solidColorF.id,
+    //   to: physicalF.id,
+    //   output: 'out',
+    //   input: 'albedo',
+    //   stage: 'fragment',
+    // },
     // {
     //   from: heatShaderF.id,
     //   to: add.id,
@@ -187,13 +187,13 @@ const graph: Graph = {
     //   input: 'b',
     //   stage: 'fragment',
     // },
-    {
-      from: heatShaderV.id,
-      to: phongV.id,
-      output: 'out',
-      input: 'position',
-      stage: 'vertex',
-    },
+    // {
+    //   from: heatShaderV.id,
+    //   to: phongV.id,
+    //   output: 'out',
+    //   input: 'position',
+    //   stage: 'vertex',
+    // },
   ],
 };
 
@@ -334,7 +334,7 @@ const setBiStages = (flowElements: FlowElement[]) => {
 };
 
 const Editor: React.FC = () => {
-  const [engine, setEngine] = useState<Engine<any>>(threngine || babylengine);
+  const [engine, setEngine] = useState<Engine<any>>(babylengine);
 
   // const sceneRef = useRef<{ [key: string]: any }>({});
   const rightSplit = useRef<HTMLDivElement>(null);

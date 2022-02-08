@@ -1,3 +1,4 @@
+import * as BABYLON from 'babylonjs';
 import { parser, generate } from '@shaderfrog/glsl-parser';
 import {
   renameBindings,
@@ -22,11 +23,12 @@ import {
 
 import babf from './babylon-fragment';
 import babv from './babylon-vertex';
+import { MutableRefObject } from 'react';
 
 export type RuntimeContext = {
-  scene: any;
-  camera: any;
-  meshRef: any;
+  scene: BABYLON.Scene;
+  camera: BABYLON.Camera;
+  meshRef: MutableRefObject<BABYLON.Mesh | undefined>;
   BABYLON: any;
   // material: any;
   // index: number;
@@ -46,8 +48,80 @@ export type RuntimeContext = {
 const onBeforeCompileMegaShader = (
   engineContext: EngineContext<RuntimeContext>,
   node: Node
-  // newMat: any
 ) => {
+  const { scene, meshRef } = engineContext.runtime;
+
+  // TODO: match what's in threngine, where they comment this out? Maybe to
+  // support changing lights?
+  const { nodes } = engineContext.runtime.cache;
+  if (nodes[node.id] || (node.nextStageNodeId && nodes[node.nextStageNodeId])) {
+    return;
+  }
+
+  console.log('------------------------- starting onbeforecompile mega shader');
+  const shaderMaterial = new BABYLON.PBRMaterial('pbr', scene);
+
+  // Ensures irradiance is computed per fragment to make the
+  // Bump visible
+  shaderMaterial.forceIrradianceInFragment = true;
+
+  const tex = new BABYLON.Texture('/brick-texture.jpeg', scene);
+  shaderMaterial.albedoTexture = tex;
+  shaderMaterial.bumpTexture = tex;
+
+  shaderMaterial.albedoColor = new BABYLON.Color3(1.0, 1.0, 1.0);
+  shaderMaterial.metallic = 0.1; // set to 1 to only use it from the metallicRoughnessTexture
+  shaderMaterial.roughness = 0.1; // set to 1 to only use it from the metallicRoughnessTexture
+
+  let fragmentSource = engineContext.runtime.cache.nodes[node.id]?.fragment;
+  let vertexSource = engineContext.runtime.cache.nodes[node.id]?.vertex;
+  console.log(
+    '🍃 Creating custom shadermaterial for' + node.id + ` (${node.name})`
+  );
+  shaderMaterial.customShaderNameResolve = (
+    shaderName,
+    uniforms,
+    uniformBuffers,
+    samplers,
+    defines,
+    attributes,
+    options
+  ) => {
+    console.log('🍃 in customshadernameresolve');
+    if (options) {
+      options.processFinalCode = (type, code) => {
+        console.log('🍃 in processFinalCode');
+        if (type === 'vertex') {
+          console.log('🍃 BABYLENGINE vertex processFinalCode', {
+            code,
+            type,
+          });
+          vertexSource = code;
+          return code;
+        }
+        console.log('🍃 fragment BABYLENGINE processFinalCode', {
+          code,
+          type,
+        });
+        fragmentSource = code;
+        return code;
+      };
+    }
+    return shaderName;
+  };
+
+  if (meshRef.current) {
+    console.log('🍃 Calling forceCompilation()....');
+    // meshRef.current.material = shaderMaterial;
+    shaderMaterial.forceCompilation(meshRef.current);
+  } else {
+    console.log('🍃 FCUK no MESHREF RENDER()....');
+  }
+  console.log('🍃 BABYLERN forceCompilation done()....');
+  // shaderMaterial.forceCompilation(meshRef.current);
+  // scene.render();
+  console.log('🍃 BABYLERN RENDER done', { vertexSource, fragmentSource });
+
   // const { nodes } = engineContext.runtime.cache;
   // const { renderer, meshRef, scene, camera, material, threeTone, three } =
   //   engineContext.runtime;
@@ -75,8 +149,8 @@ const onBeforeCompileMegaShader = (
   engineContext.runtime.cache.nodes[node.id] = {
     // fragmentRef,
     // vertexRef,
-    fragment: babf,
-    vertex: babv,
+    fragment: fragmentSource,
+    vertex: vertexSource,
   };
 };
 

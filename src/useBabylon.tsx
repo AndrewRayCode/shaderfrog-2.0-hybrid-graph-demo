@@ -24,7 +24,14 @@ export const useBabylon = (callback: Callback) => {
 
   const [camera] = useState(
     () =>
-      new BABYLON.FreeCamera('camera1', new BABYLON.Vector3(0, 5, -10), scene)
+      new BABYLON.ArcRotateCamera(
+        'camera1',
+        0,
+        0,
+        5,
+        new BABYLON.Vector3(0, 0, 0),
+        scene
+      )
   );
 
   useEffect(() => {

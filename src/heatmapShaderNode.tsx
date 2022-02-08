@@ -65,7 +65,7 @@ const heatShaderFragmentNode = (id: string) =>
     'three'
   );
 
-const heatShaderVertexNode = (id: string) =>
+const heatShaderVertexNode = (id: string, nextStageNodeId?: string) =>
   sourceNode(
     id,
     'Fake Heatmap V',
@@ -95,7 +95,8 @@ const heatShaderVertexNode = (id: string) =>
     }
 `,
     'vertex',
-    'three'
+    'three',
+    nextStageNodeId
   );
 
 export { heatShaderFragmentNode, heatShaderVertexNode };

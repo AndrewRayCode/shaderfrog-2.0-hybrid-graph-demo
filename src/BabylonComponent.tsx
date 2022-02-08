@@ -64,7 +64,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
   const shadersRef = useRef<boolean>(false);
 
   const { babylonCanvas, babylonDomRef, scene, camera, engine } = useBabylon(
-    () => {
+    (time) => {
       if (shadersRef.current) {
         // console.log(meshRef.current?.material);
         // const effect = meshRef.current?.material?.getEffect();
@@ -79,6 +79,12 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
           programError: '',
         });
         shadersRef.current = false;
+      }
+
+      const light = lightsRef.current[0];
+      if (light) {
+        (light as BABYLON.PointLight).position.x = 1.2 * Math.sin(time * 0.001);
+        (light as BABYLON.PointLight).position.y = 1.2 * Math.cos(time * 0.001);
       }
     }
   );
@@ -101,7 +107,14 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
 
     let mesh;
     if (previewObject === 'torusknot') {
-      mesh = BABYLON.MeshBuilder.CreateTorusKnot('torusKnot', {}, scene);
+      mesh = BABYLON.MeshBuilder.CreateTorusKnot(
+        'torusKnot',
+        {
+          radius: 1,
+          tube: 0.25,
+        },
+        scene
+      );
     } else if (previewObject === 'sphere') {
       mesh = BABYLON.Mesh.CreateSphere(
         'sphere1',
@@ -172,7 +185,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     const brickNormal = new BABYLON.Texture('/brick-texture.jpeg', scene);
     shaderMaterial.bumpTexture = brickNormal;
 
-    shaderMaterial.albedoColor = new BABYLON.Color3(1.0, 0.766, 0.336);
+    shaderMaterial.albedoColor = new BABYLON.Color3(1.0, 1.0, 1.0);
     shaderMaterial.metallic = 0.1; // set to 1 to only use it from the metallicRoughnessTexture
     shaderMaterial.roughness = 0.1; // set to 1 to only use it from the metallicRoughnessTexture
 
@@ -194,24 +207,24 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       uniforms.push(`color3_${pu}`);
       uniforms.push(`brightnessX_${pu}`);
       uniforms.push(`speed_${pu}`);
-      // if (options) {
-      //   options.processFinalCode = (type, code) => {
-      //     if (type === 'vertex') {
-      //       console.log('processFinalCode', {
-      //         code,
-      //         type,
-      //         vert: compileResult?.vertexResult || babv,
-      //       });
-      //       return compileResult?.vertexResult || babv;
-      //     }
-      //     console.log('processFinalCode', {
-      //       code,
-      //       type,
-      //       frag: compileResult?.fragmentResult || babf,
-      //     });
-      //     return compileResult?.fragmentResult || babf;
-      //   };
-      // }
+      if (options) {
+        options.processFinalCode = (type, code) => {
+          if (type === 'vertex') {
+            console.log('processFinalCode', {
+              code,
+              type,
+              vert: compileResult?.vertexResult,
+            });
+            return compileResult?.vertexResult;
+          }
+          console.log('processFinalCode', {
+            code,
+            type,
+            frag: compileResult?.fragmentResult,
+          });
+          return compileResult?.fragmentResult;
+        };
+      }
       capture = [];
       shadersRef.current = true;
       return shaderName;
@@ -223,58 +236,57 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     // sceneRef.current.shadersUpdated = true;
   }, [pu, scene, compileResult, ctx.runtime, graph.nodes]);
 
-  // const lightsRef = useRef<three.Object3D[]>([]);
-  // useMemo(() => {
-  //   // Hack to let this hook get the latest state like ctx, but only update
-  //   // if a certain dependency has changed
-  //   // @ts-ignore
-  //   if (scene.lights === lights) {
-  //     return;
-  //   }
-  //   lightsRef.current.forEach((light) => scene.remove(light));
+  const lightsRef = useRef<BABYLON.Light[]>([]);
+  useMemo(() => {
+    // Hack to let this hook get the latest state like ctx, but only update
+    // if a certain dependency has changed
+    // @ts-ignore
+    if (scene.lights === lights) {
+      return;
+    }
+    //   lightsRef.current.forEach((light) => scene.remove(light));
 
-  //   if (lights === 'point') {
-  //     const pointLight = new three.PointLight(0xffffff, 1);
-  //     pointLight.position.set(0, 0, 1);
-  //     scene.add(pointLight);
-  //     const helper = new three.PointLightHelper(pointLight, 0.1);
-  //     scene.add(helper);
-  //     lightsRef.current = [pointLight, helper];
-  //   } else {
-  //     const light = new three.SpotLight(0x00ff00, 1, 3, 0.4, 1);
-  //     light.position.set(0, 0, 2);
-  //     scene.add(light);
+    if (lights === 'point') {
+      const pointLight = new BABYLON.PointLight(
+        'p1',
+        new BABYLON.Vector3(1, 0, 0),
+        scene
+      );
+      //   } else {
+      //     const light = new three.SpotLight(0x00ff00, 1, 3, 0.4, 1);
+      //     light.position.set(0, 0, 2);
+      //     scene.add(light);
 
-  //     const helper = new three.SpotLightHelper(
-  //       light,
-  //       new three.Color(0x00ff00)
-  //     );
-  //     scene.add(helper);
+      //     const helper = new three.SpotLightHelper(
+      //       light,
+      //       new three.Color(0x00ff00)
+      //     );
+      //     scene.add(helper);
 
-  //     const light2 = new three.SpotLight(0xff0000, 1, 4, 0.4, 1);
-  //     light2.position.set(0, 0, 2);
-  //     scene.add(light2);
+      //     const light2 = new three.SpotLight(0xff0000, 1, 4, 0.4, 1);
+      //     light2.position.set(0, 0, 2);
+      //     scene.add(light2);
 
-  //     const helper2 = new three.SpotLightHelper(
-  //       light2,
-  //       new three.Color(0xff0000)
-  //     );
-  //     scene.add(helper2);
+      //     const helper2 = new three.SpotLightHelper(
+      //       light2,
+      //       new three.Color(0xff0000)
+      //     );
+      //     scene.add(helper2);
 
-  //     lightsRef.current = [light, light2, helper, helper2];
-  //   }
+      lightsRef.current = [pointLight];
+    }
 
-  //   if (meshRef.current) {
-  //     meshRef.current.material = loadingMaterial;
-  //   }
+    //   if (meshRef.current) {
+    //     meshRef.current.material = loadingMaterial;
+    //   }
 
-  //   // @ts-ignore
-  //   if (scene.lights) {
-  //     compile(ctx);
-  //   }
-  //   // @ts-ignore
-  //   scene.lights = lights;
-  // }, [lights, scene, compile, ctx]);
+    //   // @ts-ignore
+    //   if (scene.lights) {
+    //     compile(ctx);
+    //   }
+    //   // @ts-ignore
+    //   scene.lights = lights;
+  }, [lights, scene, compile, ctx]);
 
   useEffect(() => {
     babylonCanvas.width = width;

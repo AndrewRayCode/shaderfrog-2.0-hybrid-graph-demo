@@ -33,7 +33,7 @@ void main() {
     'three'
   );
 
-const fireVert = (id: string) =>
+const fireVert = (id: string, nextStageNodeId?: string) =>
   sourceNode(
     id,
     'Fireball V',
@@ -245,7 +245,8 @@ const fireVert = (id: string) =>
     
 `,
     'vertex',
-    'three'
+    'three',
+    nextStageNodeId
   );
 
 export { fireFrag, fireVert };

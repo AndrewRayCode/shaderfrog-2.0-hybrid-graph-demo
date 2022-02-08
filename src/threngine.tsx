@@ -46,7 +46,7 @@ const onBeforeCompileMegaShader = (
   node: Node,
   newMat: any
 ) => {
-  const { nodes } = engineContext.runtime.cache;
+  // const { nodes } = engineContext.runtime.cache;
   // TODO: Update cache based on lights (or other, like mesh + lights?)
   // if (nodes[node.id] || (node.nextStageNodeId && nodes[node.nextStageNodeId])) {
   //   return;

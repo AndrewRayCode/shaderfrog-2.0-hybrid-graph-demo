@@ -245,7 +245,6 @@ export const threngine: Engine<RuntimeContext> = {
     'spotLights',
     'pointLights',
     // This isn't three wtf
-    'speed',
     'resolution',
     'color',
     'image',

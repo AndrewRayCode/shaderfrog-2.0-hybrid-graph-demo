@@ -12,13 +12,13 @@ export const useBabylon = (callback: Callback) => {
 
   const frameRef = useRef<number>(0);
 
-  const [engine] = useState(
-    () =>
-      new BABYLON.Engine(babylonCanvas, true, {
-        preserveDrawingBuffer: true,
-        stencil: true,
-      })
-  );
+  const [engine] = useState(() => {
+    console.log('CREATING NEW ENGINE', babylonCanvas);
+    return new BABYLON.Engine(babylonCanvas, true, {
+      preserveDrawingBuffer: true,
+      stencil: true,
+    });
+  });
 
   const [scene] = useState(() => new BABYLON.Scene(engine));
 
@@ -27,7 +27,7 @@ export const useBabylon = (callback: Callback) => {
       new BABYLON.ArcRotateCamera(
         'camera1',
         0,
-        0,
+        Math.PI,
         5,
         new BABYLON.Vector3(0, 0, 0),
         scene

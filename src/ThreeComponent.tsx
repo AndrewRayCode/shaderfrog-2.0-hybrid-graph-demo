@@ -241,10 +241,10 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       },
       time: { value: 0 },
       resolution: { value: 0.5 },
-      speed: { value: 3 },
       opacity: { value: 1 },
       lightPosition: { value: new three.Vector3(10, 10, 10) },
 
+      [`speed_${pu}`]: { value: 3.0 },
       [`brightnessX_${pu}`]: { value: 1.0 },
       [`permutations_${pu}`]: { value: 10 },
       [`iterations_${pu}`]: { value: 1 },
@@ -258,6 +258,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       [`scale_${hs2}`]: { value: 1.2 },
       [`power_${hs2}`]: { value: 1 },
 
+      [`speed_${fc}`]: { value: 1 },
       [`baseRadius_${fc}`]: { value: 1 },
       [`colorVariation_${fc}`]: { value: 0.6 },
       [`brightnessVariation_${fc}`]: { value: 0 },

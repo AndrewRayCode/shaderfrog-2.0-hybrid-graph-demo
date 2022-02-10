@@ -45,6 +45,8 @@ export type RuntimeContext = {
   };
 };
 
+let mIdx = 0;
+let id = () => mIdx++;
 const onBeforeCompileMegaShader = (
   engineContext: EngineContext<RuntimeContext>,
   node: Node
@@ -53,13 +55,13 @@ const onBeforeCompileMegaShader = (
 
   // TODO: match what's in threngine, where they comment this out? Maybe to
   // support changing lights?
-  const { nodes } = engineContext.runtime.cache;
-  if (nodes[node.id] || (node.nextStageNodeId && nodes[node.nextStageNodeId])) {
-    return;
-  }
+  // const { nodes } = engineContext.runtime.cache;
+  // if (nodes[node.id] || (node.nextStageNodeId && nodes[node.nextStageNodeId])) {
+  //   return;
+  // }
 
   console.log('------------------------- starting onbeforecompile mega shader');
-  const shaderMaterial = new BABYLON.PBRMaterial('pbr', scene);
+  const shaderMaterial = new BABYLON.PBRMaterial(`spbr${id()}`, scene);
 
   // Ensures irradiance is computed per fragment to make the
   // Bump visible
@@ -73,10 +75,15 @@ const onBeforeCompileMegaShader = (
   shaderMaterial.metallic = 0.1; // set to 1 to only use it from the metallicRoughnessTexture
   shaderMaterial.roughness = 0.1; // set to 1 to only use it from the metallicRoughnessTexture
 
-  let fragmentSource = engineContext.runtime.cache.nodes[node.id]?.fragment;
-  let vertexSource = engineContext.runtime.cache.nodes[node.id]?.vertex;
+  let fragmentSource =
+    engineContext.runtime.cache.nodes[node.id]?.fragment ||
+    engineContext.runtime.cache.nodes[node.nextStageNodeId || 'tttt']?.fragment;
+  let vertexSource =
+    engineContext.runtime.cache.nodes[node.id]?.vertex ||
+    engineContext.runtime.cache.nodes[node.nextStageNodeId || 'tttt']?.vertex;
   console.log(
-    '🍃 Creating custom shadermaterial for' + node.id + ` (${node.name})`
+    '🍃 Creating custom shadermaterial for' + node.id + ` (${node.name})`,
+    { fragmentSource, vertexSource }
   );
   shaderMaterial.customShaderNameResolve = (
     shaderName,
@@ -87,10 +94,19 @@ const onBeforeCompileMegaShader = (
     attributes,
     options
   ) => {
-    console.log('🍃 in customshadernameresolve');
+    console.log('🍃 in customshadernameresolve', { defines });
+    if (Array.isArray(defines)) {
+      defines.push('FAKE_UPDATE_' + id());
+    } else {
+      // defines['FAKE_UPDATE_' + id()] = true;
+      defines.AMBIENTDIRECTUV = 0.0000001 * Math.random();
+      // defines._isDirty = true;
+    }
     if (options) {
       options.processFinalCode = (type, code) => {
-        console.log('🍃 in processFinalCode');
+        console.log(
+          '🍃 in processFinalCode for ' + node.id + ` (${node.name})`
+        );
         if (type === 'vertex') {
           console.log('🍃 BABYLENGINE vertex processFinalCode', {
             code,
@@ -114,6 +130,7 @@ const onBeforeCompileMegaShader = (
     console.log('🍃 Calling forceCompilation()....');
     // meshRef.current.material = shaderMaterial;
     shaderMaterial.forceCompilation(meshRef.current);
+    scene.render();
   } else {
     console.log('🍃 FCUK no MESHREF RENDER()....');
   }
@@ -272,6 +289,7 @@ export const babylengine: Engine<RuntimeContext> = {
   },
   // TODO: Get from uniform lib?
   preserve: new Set<string>([
+    'normalMatrix',
     'vAmbientInfos',
     'vOpacityInfos',
     'vEmissiveInfos',
@@ -291,6 +309,7 @@ export const babylengine: Engine<RuntimeContext> = {
     'reflectivityMatrix',
     'microSurfaceSamplerMatrix',
     'bumpMatrix',
+    'bumpSampler',
     'vTangentSpaceParams',
     'reflectionMatrix',
     'vReflectionColor',
@@ -351,6 +370,13 @@ export const babylengine: Engine<RuntimeContext> = {
     'normal',
     'uv',
     'world',
+    'time',
+    // TODO: frag and vert shader get different names for varyings, also the
+    // "preserve" in the core graph.ts always reads from the engine which I don't
+    // think is what I wanted since my mental model was there was a core engine to use
+    'noise',
+    'fPosition',
+    'fNormal',
   ]),
   parsers: {
     [ShaderType.physical]: {

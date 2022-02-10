@@ -235,7 +235,7 @@ export const parsers: Parser<Runtime> = {
         // Total hack for now
         if (node.originalEngine === 'three' && engine.name === 'babylon') {
           renameBindings(fragmentAst.scopes[0], (name) =>
-            name === 'vUv' ? 'vMainUV1' : name
+            name === 'vUv' ? 'vMainUV1' : name === 'vNormal' ? 'vNormalW' : name
           );
         }
 

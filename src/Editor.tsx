@@ -145,14 +145,14 @@ const graph: Graph = {
     // TODO: Here we hardcode "out" for the inputs which needs to line up with
     //       the custom handles.
     // TODO: Fix moving add node inputs causing missing holes
-    // TODO: Colorize nodes based on if they're going through frag or vert
     // TODO: Highlight inputs and outputs in the shader editor
     // TODO: Add more syntax highlighting to the GLSL editor, look at vscode
     //       plugin? https://github.com/stef-levesque/vscode-shader/tree/master/syntaxes
-    // - Consolidate todos in this file
     // - Look into why the linked vertex node is no longer found
     // - Related to above - highlight nodes in use by graph, maybe edges too
-    // TODO: Babylon rendering is slow as shit - is this from double rendering?
+    // TODO: Plugging into bumpSampler and switching back to three from babylon
+    //       breaks as three doesn't have this input (and vice versa)
+    // TODO: Babylon.js light doesn't seem to animate
     {
       from: physicalV.id,
       to: outputV.id,
@@ -335,7 +335,8 @@ const setBiStages = (flowElements: FlowElement[]) => {
 };
 
 const Editor: React.FC = () => {
-  const [engine, setEngine] = useState<Engine<any>>(threngine);
+  const [engine, setEngine] = useState<Engine<any>>(babylengine);
+  // const [engine, setEngine] = useState<Engine<any>>(threngine);
 
   // const sceneRef = useRef<{ [key: string]: any }>({});
   const rightSplit = useRef<HTMLDivElement>(null);
@@ -390,21 +391,6 @@ const Editor: React.FC = () => {
   );
 
   const [ctx, setCtxState] = useState<EngineContext<any>>();
-
-  const setCtx = useCallback(
-    <T extends unknown>(newCtx: EngineContext<T>) => {
-      if (newCtx.engine !== ctx?.engine) {
-        console.log('Initializing new scene context!', newCtx);
-        setCtxState(ctx || newCtx);
-      } else {
-        console.log(
-          'Ignoring scene context update because we already have one for',
-          ctx.engine
-        );
-      }
-    },
-    [ctx, setCtxState]
-  );
 
   // Compile function, meant to be called manually in places where we want to
   // trigger a compile. I tried making this a useEffect, however this function
@@ -483,90 +469,93 @@ const Editor: React.FC = () => {
     [engine, compile, pauseCompile, state.flowElements]
   );
 
-  const initializeGraph = useCallback(() => {
-    if (!ctx) {
-      return;
-    }
+  const initializeGraph = useCallback(
+    (newCtx: EngineContext<any>) => {
+      setGuiMsg(`🥸 Initializing ${engine.name}...`);
+      setTimeout(() => {
+        console.log('Initializing flow nodes and compiling graph!', { newCtx });
+        computeAllContexts(newCtx, engine, graph);
 
-    setGuiMsg(`🥸🥸🥸🥸🥸🥸🥸 Initializing ${engine.name}...`);
-    setTimeout(() => {
-      computeAllContexts(ctx, engine, graph);
+        let engines = 0;
+        let maths = 0;
+        let outputs = 0;
+        let shaders = 0;
+        const spacing = 200;
+        const maxHeight = 4;
 
-      let engines = 0;
-      let maths = 0;
-      let outputs = 0;
-      let shaders = 0;
-      const spacing = 200;
-      const maxHeight = 4;
-
-      const flowElements = setBiStages([
-        ...graph.nodes.map((node: any, index) => ({
-          id: node.id,
-          data: {
-            label: node.name,
-            stage: node.stage,
-            biStage: node.biStage,
-            inputs: Object.keys(ctx.nodes[node.id]?.inputs || []).map(
-              (name) => ({
-                name,
-                validTarget: false,
-              })
-            ),
-            outputs: [
-              {
-                validTarget: false,
-                name: 'out',
-              },
-            ],
-          },
-          type: 'special',
-          position:
-            node.type === ShaderType.output
-              ? { x: spacing * 2, y: outputs++ * 100 }
-              : node.type === ShaderType.phong ||
-                node.type === ShaderType.toon ||
-                node.type === ShaderType.physical
-              ? { x: spacing, y: engines++ * 100 }
-              : node.type === ShaderType.add ||
-                node.type === ShaderType.multiply
-              ? { x: 0, y: maths++ * 100 }
-              : {
-                  x: -spacing - spacing * Math.floor(shaders / maxHeight),
-                  y: (shaders++ % maxHeight) * 100,
+        const flowElements = setBiStages([
+          ...graph.nodes.map((node: any, index) => ({
+            id: node.id,
+            data: {
+              label: node.name,
+              stage: node.stage,
+              biStage: node.biStage,
+              inputs: Object.keys(newCtx.nodes[node.id]?.inputs || []).map(
+                (name) => ({
+                  name,
+                  validTarget: false,
+                })
+              ),
+              outputs: [
+                {
+                  validTarget: false,
+                  name: 'out',
                 },
-        })),
-        ...graph.edges.map((edge) => ({
-          id: `${edge.to}-${edge.from}`,
-          source: edge.from,
-          sourceHandle: edge.output,
-          targetHandle: edge.input,
-          target: edge.to,
-          data: { stage: edge.stage },
-          className: edge.stage,
-          type: 'special',
-        })),
-      ]);
+              ],
+            },
+            type: 'special',
+            position:
+              node.type === ShaderType.output
+                ? { x: spacing * 2, y: outputs++ * 100 }
+                : node.type === ShaderType.phong ||
+                  node.type === ShaderType.toon ||
+                  node.type === ShaderType.physical
+                ? { x: spacing, y: engines++ * 100 }
+                : node.type === ShaderType.add ||
+                  node.type === ShaderType.multiply
+                ? { x: 0, y: maths++ * 100 }
+                : {
+                    x: -spacing - spacing * Math.floor(shaders / maxHeight),
+                    y: (shaders++ % maxHeight) * 100,
+                  },
+          })),
+          ...graph.edges.map((edge) => ({
+            id: `${edge.to}-${edge.from}`,
+            source: edge.from,
+            sourceHandle: edge.output,
+            targetHandle: edge.input,
+            target: edge.to,
+            data: { stage: edge.stage },
+            className: edge.stage,
+            type: 'special',
+          })),
+        ]);
 
-      compile(engine, ctx, pauseCompile, flowElements);
-      extendState({ flowElements });
-      setGuiMsg('');
-    }, 10);
-  }, [engine, ctx, extendState, pauseCompile, compile]);
+        compile(engine, newCtx, pauseCompile, flowElements);
+        extendState({ flowElements });
+        setGuiMsg('');
+      }, 10);
+    },
+    [compile, engine, extendState, pauseCompile]
+  );
 
-  // Create the graph
-  const prevEngine = usePrevious(engine);
-  useEffect(() => {
-    if (ctx && (prevEngine !== engine || !state.flowElements.length)) {
-      console.log(
-        '🚦🚦🚦🚦🚦🚦🚦🚦🚦🚦🚦 initializeGraph(), ',
-        engine,
-        prevEngine,
-        engine !== prevEngine,
-        state.flowElements.length
-      );
-      initializeGraph();
-    }
-  }, [prevEngine, ctx, engine, state.flowElements, initializeGraph]);
+  // Once we receive a new engine context, re-initialize the graph
+  const setCtx = useCallback(
+    <T extends unknown>(newCtx: EngineContext<T>) => {
+      if (newCtx.engine !== ctx?.engine) {
+        console.log('Setting new scene context!', newCtx);
+        setCtxState(newCtx);
+        initializeGraph(newCtx);
+      } else {
+        console.log(
+          'Ignoring scene context update because we already have one for',
+          ctx.engine,
+          { ctx, newCtx }
+        );
+      }
+    },
+    [ctx, setCtxState, initializeGraph]
+  );
 
   const addConnection = (edge: FlowEdge | Connection) => {
     const stage = state.flowElements.find((elem) => elem.id === edge.source)

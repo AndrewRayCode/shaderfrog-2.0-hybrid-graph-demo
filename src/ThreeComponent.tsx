@@ -163,6 +163,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
   const [ctx] = useState<EngineContext<RuntimeContext>>({
     engine: 'three',
+    compileCount: 0,
     runtime: {
       three,
       renderer,

@@ -64,6 +64,7 @@ export type NodeContext = {
 // as the generic "RuntimeContext" which is passed to implemented engine methods
 export type EngineContext<RuntimeContext> = {
   engine: string;
+  compileCount: 0;
   nodes: Record<string, NodeContext>;
   runtime: RuntimeContext;
   debuggingNonsense: {
@@ -696,6 +697,9 @@ export const compileGraph = <T>(
     'vertex',
     {}
   );
+
+  // Imperative hack :( to allow engines to know some unique id of compilation
+  engineContext.compileCount++;
 
   // Every compileNode returns the AST so far, as well as the filler for the
   // next node with inputs. On the final step, we discard the filler

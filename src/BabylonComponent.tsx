@@ -217,6 +217,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
 
   const [ctx] = useState<EngineContext<RuntimeContext>>({
     engine: 'babylon',
+    compileCount: 0,
     runtime: {
       BABYLON,
       scene,
@@ -268,13 +269,15 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       console.log('babylon component customShaderNameResolve called...', {
         defines,
       });
+
       if (Array.isArray(defines)) {
         defines.push('MYDUMMY' + id());
       } else {
         defines['MYDUMMY' + id()] = id();
-        defines.AMBIENTDIRECTUV = 0.0000001 * Math.random();
+        defines.AMBIENTDIRECTUV = 0.0000001 * ctx.compileCount;
         // defines._isDirty = true;
       }
+
       // TODO: No Time?
       uniforms.push('time');
 
@@ -357,7 +360,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       meshRef.current.material = shaderMaterial;
     }
     // sceneRef.current.shadersUpdated = true;
-  }, [pu, scene, compileResult, ctx.runtime, graph.nodes]);
+  }, [pu, scene, compileResult, ctx.compileCount]);
 
   const lightsRef = useRef<BABYLON.Light[]>([]);
   useMemo(() => {

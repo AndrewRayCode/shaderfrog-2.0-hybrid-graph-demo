@@ -216,6 +216,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
   }, [previewObject, scene]);
 
   const [ctx] = useState<EngineContext<RuntimeContext>>({
+    engine: 'babylon',
     runtime: {
       BABYLON,
       scene,

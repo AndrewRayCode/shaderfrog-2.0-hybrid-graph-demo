@@ -63,6 +63,7 @@ export type NodeContext = {
 // The context an engine builds as it evaluates. It can manage its own state
 // as the generic "RuntimeContext" which is passed to implemented engine methods
 export type EngineContext<RuntimeContext> = {
+  engine: string;
   nodes: Record<string, NodeContext>;
   runtime: RuntimeContext;
   debuggingNonsense: {

@@ -85,8 +85,9 @@ const MonacoComponent = <T extends unknown>({
       // Method that will be executed when the action is triggered.
       // @param editor The editor instance is passed in as a convenience
       run: function (ed: any) {
-        console.log('wtf');
-        console.log("i'm running => " + ed.getPosition());
+        console.log(
+          'Monaco command-s run() called at editor position ' + ed.getPosition()
+        );
         onSave();
       },
     });

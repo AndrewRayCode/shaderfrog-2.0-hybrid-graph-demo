@@ -401,13 +401,13 @@ export interface Graph {
 }
 
 export enum ShaderType {
+  output = 'output',
   toon = 'MeshToonMaterial',
   phong = 'MeshPhongMaterial',
-  output = 'output',
+  physical = 'physical',
   shader = 'shader',
   add = 'add',
   multiply = 'multiply',
-  physical = 'physical',
 }
 
 export interface ShaderSections {

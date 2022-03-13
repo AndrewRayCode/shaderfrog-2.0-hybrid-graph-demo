@@ -132,7 +132,7 @@ const graph: Graph = {
     solidColorF,
   ],
   edges: [
-    // TODO: Put other images in the graphf like the toon step shader
+    // TODO: Put other images in the graph like the toon step shader
     // TODO: Could be cool to try outline shader https://shaderfrog.com/app/view/4876
     // TODO: Have uniforms added per shader in the graph
     // TODO: Try plugging into normal map
@@ -152,6 +152,7 @@ const graph: Graph = {
     // - Consolidate todos in this file
     // - Look into why the linked vertex node is no longer found
     // - Related to above - highlight nodes in use by graph, maybe edges too
+    // TODO: Babylon rendering is slow as shit - is this from double rendering?
     {
       from: physicalV.id,
       to: outputV.id,
@@ -334,7 +335,7 @@ const setBiStages = (flowElements: FlowElement[]) => {
 };
 
 const Editor: React.FC = () => {
-  const [engine, setEngine] = useState<Engine<any>>(babylengine);
+  const [engine, setEngine] = useState<Engine<any>>(threngine);
 
   // const sceneRef = useRef<{ [key: string]: any }>({});
   const rightSplit = useRef<HTMLDivElement>(null);
@@ -391,11 +392,18 @@ const Editor: React.FC = () => {
   const [ctx, setCtxState] = useState<EngineContext<any>>();
 
   const setCtx = useCallback(
-    <T extends unknown>(ctx: EngineContext<T>) => {
-      console.log('got new context!', ctx);
-      setCtxState(ctx);
+    <T extends unknown>(newCtx: EngineContext<T>) => {
+      if (newCtx.engine !== ctx?.engine) {
+        console.log('Initializing new scene context!', newCtx);
+        setCtxState(ctx || newCtx);
+      } else {
+        console.log(
+          'Ignoring scene context update because we already have one for',
+          ctx.engine
+        );
+      }
     },
-    [setCtxState]
+    [ctx, setCtxState]
   );
 
   // Compile function, meant to be called manually in places where we want to
@@ -468,8 +476,10 @@ const Editor: React.FC = () => {
   // of: parent updates lights, child gets updates, sets lights, then parent
   // handles recompile
   const childCompile = useCallback(
-    (ctx: EngineContext<any>) =>
-      compile(engine, ctx, pauseCompile, state.flowElements),
+    (ctx: EngineContext<any>) => {
+      console.log('childCompile', ctx.nodes);
+      return compile(engine, ctx, pauseCompile, state.flowElements);
+    },
     [engine, compile, pauseCompile, state.flowElements]
   );
 
@@ -513,13 +523,15 @@ const Editor: React.FC = () => {
           position:
             node.type === ShaderType.output
               ? { x: spacing * 2, y: outputs++ * 100 }
-              : node.type === ShaderType.phong || node.type === ShaderType.toon
+              : node.type === ShaderType.phong ||
+                node.type === ShaderType.toon ||
+                node.type === ShaderType.physical
               ? { x: spacing, y: engines++ * 100 }
               : node.type === ShaderType.add ||
                 node.type === ShaderType.multiply
               ? { x: 0, y: maths++ * 100 }
               : {
-                  x: -Math.floor(index / maxHeight) * spacing,
+                  x: -spacing - spacing * Math.floor(shaders / maxHeight),
                   y: (shaders++ % maxHeight) * 100,
                 },
         })),

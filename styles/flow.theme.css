@@ -12,6 +12,7 @@
   border-radius: 10px 10px 0 0;
   padding: 2px 8px;
   border-bottom: 1px solid #666;
+  text-shadow: 0 0 2px #000;
 }
 
 .flowInputs {
@@ -84,6 +85,11 @@
   background: linear-gradient(to right, #264b21, #295829);
 }
 
+.selected .fragment .flowlabel {
+  background: linear-gradient(to right, #3c7534, #3d833d);
+  border-bottom: 1px solid #d4ff0080;
+}
+
 .react-flow__edge.fragment .react-flow__edge-path {
   stroke: #d4ff00;
 }
@@ -142,6 +148,11 @@
 .vertex .flowlabel {
   background-color: #ffe53b;
   background-image: linear-gradient(147deg, #5e081b 0%, #640909 74%);
+}
+
+.selected .vertex .flowlabel {
+  background-image: linear-gradient(147deg, #810b25 0%, #940d0d 74%);
+  border-bottom: 1px solid #da1842;
 }
 
 .react-flow__edge.vertex .react-flow__edge-path {

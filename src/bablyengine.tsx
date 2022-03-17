@@ -70,7 +70,7 @@ const onBeforeCompileMegaShader = (
 
   const tex = new BABYLON.Texture('/brick-texture.jpeg', scene);
   shaderMaterial.albedoTexture = tex;
-  // shaderMaterial.bumpTexture = tex;
+  shaderMaterial.bumpTexture = tex;
 
   shaderMaterial.albedoColor = new BABYLON.Color3(1.0, 1.0, 1.0);
   shaderMaterial.metallic = 0.1; // set to 1 to only use it from the metallicRoughnessTexture

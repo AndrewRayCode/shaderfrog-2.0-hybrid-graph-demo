@@ -34,6 +34,14 @@ const mergeBlocks = (ast1: ParserProgram, ast2: ParserProgram): string => {
   );
 };
 
+const dedupe = (code: string) =>
+  generate(
+    shaderSectionsToAst(findShaderSections(parser.parse(code)), {
+      includePrecisions: true,
+      includeVersion: true,
+    })
+  );
+
 test('It should merge uniforms with interface blocks', () => {
   let astX = parser.parse(`uniform vec2 x;`);
   let astY = parser.parse(`uniform vec2 y, z;
@@ -63,6 +71,12 @@ uniform vec3 a;
   const vec2Arr2 = parser.parse(`uniform vec2 y[10];`);
   expect(mergeBlocks(vec2Arr1, vec2Arr2)).toEqual(`uniform vec2 y[10];
 `);
+
+  // This shouldn't go through uniform merging, this test verifies it doesn't
+  // crash
+  expect(dedupe(`layout(std140,column_major) uniform;`)).toEqual(
+    `layout(std140,column_major) uniform;`
+  );
 });
 
 // const sourceToGraphWithOutputHelper = (fragment: string): Graph => ({

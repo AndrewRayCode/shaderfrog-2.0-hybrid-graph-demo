@@ -576,14 +576,17 @@ export const findShaderSections = (ast: ParserProgram): ShaderSections => {
         ...sections,
         structs: sections.structs.concat(node),
       };
+      // This definition of a uniform lines up with the processing we do in
+      // dedupeUniforms
     } else if (
       node.type === 'declaration_statement' &&
       (node.declaration?.specified_type?.qualifiers?.find(
         (n: AstNode) => n.token === 'uniform'
       ) ||
-        node.declaration?.qualifiers?.find(
+        (node.declaration?.qualifiers?.find(
           (n: AstNode) => n.token === 'uniform'
-        ))
+        ) &&
+          node.declaration.identifier))
     ) {
       return {
         ...sections,
@@ -757,7 +760,7 @@ export const dedupeUniforms = (statements: AstNode[]): any => {
           },
         };
       } else {
-        console.error('Unknown uniform AST', { stmt });
+        console.error('Unknown uniform AST', { stmt, code: generate(stmt) });
         throw new Error(
           'Unknown uniform AST encountered when merging uniforms'
         );

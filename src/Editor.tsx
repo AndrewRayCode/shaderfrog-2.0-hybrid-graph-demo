@@ -173,6 +173,8 @@ const graph: Graph = {
     //       one, which is the custom smaller shader. Or... it's weird to force
     //       the user to define the babylonjs light uniform? Can I move babylon
     //       uniform definitions to the top? Slash engine defintions?
+    // TODO: Adding shader inputs like bumpTexture should not require
+    //       duplicating that manually into babylengine
     {
       from: physicalV.id,
       to: outputV.id,

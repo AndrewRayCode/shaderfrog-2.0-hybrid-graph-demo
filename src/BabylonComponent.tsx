@@ -264,7 +264,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     shaderMaterial.albedoTexture = brickTexture;
 
     const brickNormal = new BABYLON.Texture('/brick-texture.jpeg', scene);
-    // shaderMaterial.bumpTexture = brickNormal;
+    shaderMaterial.bumpTexture = brickNormal;
 
     shaderMaterial.albedoColor = new BABYLON.Color3(1.0, 1.0, 1.0);
     shaderMaterial.metallic = 0.1; // set to 1 to only use it from the metallicRoughnessTexture

@@ -578,9 +578,12 @@ export const findShaderSections = (ast: ParserProgram): ShaderSections => {
       };
     } else if (
       node.type === 'declaration_statement' &&
-      node.declaration?.specified_type?.qualifiers?.find(
+      (node.declaration?.specified_type?.qualifiers?.find(
         (n: AstNode) => n.token === 'uniform'
-      )
+      ) ||
+        node.declaration?.qualifiers?.find(
+          (n: AstNode) => n.token === 'uniform'
+        ))
     ) {
       return {
         ...sections,
@@ -682,33 +685,94 @@ export const dedupeQualifiedStatements = (
     makeStatement(`${qualifier} ${type} ${Object.keys(varNames).join(', ')}`)
   );
 
-export const dedupeUniforms = (statements: AstNode[]): any =>
-  Object.entries(
-    statements.reduce((stmts, stmt) => {
-      const { specifier } = stmt.declaration.specified_type.specifier;
-      // Token is for "vec2", "identifier" is for custom names likes truct
-      const type = specifier.token || specifier.identifier;
-      return {
-        ...stmts,
-        [type]: {
-          ...(stmts[type] || {}),
-          ...stmt.declaration.declarations.reduce(
-            (types: { [typeName: string]: string }, decl: AstNode) => ({
-              ...types,
-              [decl.identifier.identifier]:
-                decl.identifier.identifier +
-                (decl.quantifier
-                  ? `[${decl.quantifier.specifiers[0].expression.token}]`
-                  : ''),
-            }),
-            {} as { [typeName: string]: AstNode }
-          ),
-        },
-      };
-    }, {} as { [key: string]: AstNode })
-  ).map(([type, varNames]) =>
-    makeStatement(`uniform ${type} ${Object.values(varNames).join(', ')}`)
+type UniformName = Record<string, { generated: string; hasInterface: boolean }>;
+type UniformGroup = Record<string, UniformName>;
+
+/**
+ * Merge uniforms together into lists of identifiers under the same type.
+ * There's special case handling for mixing of uniforms with "interface blocks"
+ * and those without when merging to make sure the interface block definition is
+ * preserved. Check out the tests for more
+ */
+export const dedupeUniforms = (statements: AstNode[]): any => {
+  const groupedByTypeName = Object.entries(
+    statements.reduce<UniformGroup>((stmts, stmt) => {
+      const { specified_type } = stmt.declaration;
+      const { identifier, interface_type } = stmt.declaration;
+
+      // This is the standard case, a uniform like "uniform vec2 x"
+      if (specified_type) {
+        const { specifier } = specified_type.specifier;
+        // Token is for "vec2", "identifier" is for custom names like struct
+        const type = (specifier.token || specifier.identifier) as string;
+
+        // Groups uniforms into their return type, and for each type, collapses
+        // uniform names into an object where the keys determine uniqueness
+        // "vec2": { x: x[1] }
+        const grouped = (
+          stmt.declaration.declarations as AstNode[]
+        ).reduce<UniformName>(
+          (types, decl) => ({
+            ...types,
+            // There's probably a bug here where one shader declares x[1],
+            // another declares x[2], they both get collapsed under "x",
+            // and one is wrong
+            [decl.identifier.identifier as string]: stmts[type]?.[
+              decl.identifier.identifier as string
+            ]?.hasInterface
+              ? stmts[type]?.[decl.identifier.identifier as string]
+              : {
+                  hasInterface: false,
+                  generated:
+                    decl.identifier.identifier +
+                    (decl.quantifier
+                      ? `[${decl.quantifier.specifiers[0].expression.token}]`
+                      : ''),
+                },
+          }),
+          {}
+        );
+
+        return {
+          ...stmts,
+          [type]: {
+            ...(stmts[type] || {}),
+            ...grouped,
+          },
+        };
+        // This is the less common case, a uniform like "uniform Light { vec3 position; } name"
+      } else if (interface_type) {
+        return {
+          ...stmts,
+          [interface_type.identifier as string]: {
+            [identifier.identifier.identifier as string]: {
+              generated: `${generate({
+                type: 'interface_declarator',
+                lp: stmt.declaration.lp,
+                declarations: stmt.declaration.declarations,
+                rp: stmt.declaration.rp,
+              })}${identifier.identifier.identifier}`,
+              hasInterface: true,
+            },
+          },
+        };
+      } else {
+        console.error('Unknown uniform AST', { stmt });
+        throw new Error(
+          'Unknown uniform AST encountered when merging uniforms'
+        );
+      }
+    }, {})
   );
+
+  return groupedByTypeName.map(([type, variables]) => {
+    return makeStatement(
+      `uniform ${type} ${Object.values(variables)
+        .map((v) => v.generated)
+        .join(', ')}`
+    );
+  });
+};
 
 export const outDeclaration = (name: string): Object => ({
   type: 'declaration_statement',

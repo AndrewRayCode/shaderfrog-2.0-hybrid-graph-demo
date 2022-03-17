@@ -236,12 +236,25 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
 
   useEffect(() => {
     if (!compileResult?.fragmentResult) {
-      console.log('Bailing on babylon new material');
+      console.log('Bailing on babylon new material, because no compile result');
       return;
     }
-    console.log('Re-creating BPR material');
+    console.log('🛠 🛠 🛠 Re-creating BPR material', {
+      pu,
+      scene,
+      compileResult,
+      ct: ctx.compileCount,
+    });
 
-    const shaderMaterial = new BABYLON.PBRMaterial(`pbr${id()}`, scene);
+    const pbrName = `pbr${id()}`;
+    const shaderMaterial = new BABYLON.PBRMaterial(pbrName, scene);
+
+    // FILTH lies https://forum.babylonjs.com/t/how-to-get-shader-gl-compilation-errors-from-babylon/27420/3
+    // const effect = shaderMaterial.getEffect();
+    // console.log({ effect });
+    // effect.onError = (effect, errors) => {
+    //   console.log({ effect, errors });
+    // };
 
     // Ensures irradiance is computed per fragment to make the
     // Bump visible
@@ -251,7 +264,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     shaderMaterial.albedoTexture = brickTexture;
 
     const brickNormal = new BABYLON.Texture('/brick-texture.jpeg', scene);
-    shaderMaterial.bumpTexture = brickNormal;
+    // shaderMaterial.bumpTexture = brickNormal;
 
     shaderMaterial.albedoColor = new BABYLON.Color3(1.0, 1.0, 1.0);
     shaderMaterial.metallic = 0.1; // set to 1 to only use it from the metallicRoughnessTexture
@@ -266,16 +279,25 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       attributes,
       options
     ) => {
-      console.log('babylon component customShaderNameResolve called...', {
+      console.log('💪🏽 component customShaderNameResolve called...', {
         defines,
       });
 
-      if (Array.isArray(defines)) {
-        defines.push('MYDUMMY' + id());
-      } else {
-        defines['MYDUMMY' + id()] = id();
-        defines.AMBIENTDIRECTUV = 0.0000001 * ctx.compileCount;
-        // defines._isDirty = true;
+      // if (Array.isArray(defines)) {
+      //   defines.push('MYDUMMY' + id());
+      // } else {
+      // defines['MYDUMMY' + id()] = id();
+      // if (Array.isArray(defines)) {
+      //   defines.push('MYDUMMY' + id());
+      // } else {
+      //   defines['MYDUMMY' + id()] = id();
+      //   defines.AMBIENTDIRECTUV = 0.0000001 * ctx.compileCount;
+      // }
+      // defines._isDirty = true;
+      // }
+      if (!Array.isArray(defines)) {
+        console.log('Setting AMBIENTDIRECTUV', 0.00001 * ctx.compileCount);
+        defines.AMBIENTDIRECTUV = 0.00001 * ctx.compileCount;
       }
 
       // TODO: No Time?
@@ -331,9 +353,11 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       uniforms.push(`alpha_${os2}`);
 
       if (options) {
-        console.log('Babylon scene setting processFinalCode');
+        console.log('Babylon scene setting processFinalCode...');
         options.processFinalCode = (type, code) => {
-          console.log('😮 Babylon scene processFinalCode');
+          console.log(
+            '😮😮😮 Babylon scene processFinalCode called, setting shader source!'
+          );
           if (type === 'vertex') {
             console.log('processFinalCode', {
               code,
@@ -353,10 +377,11 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       capture = [];
       shadersRef.current = true;
       return shaderName;
+      // return pbrName;
     };
 
     if (meshRef.current) {
-      console.log('reassigning shader');
+      console.log('👩‍🚀 👩‍🚀 reassigning shader');
       meshRef.current.material = shaderMaterial;
     }
     // sceneRef.current.shadersUpdated = true;

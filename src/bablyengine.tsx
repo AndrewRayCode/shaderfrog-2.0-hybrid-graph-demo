@@ -61,7 +61,8 @@ const onBeforeCompileMegaShader = (
   // }
 
   console.log('------------------------- starting onbeforecompile mega shader');
-  const shaderMaterial = new BABYLON.PBRMaterial(`spbr${id()}`, scene);
+  const pbrName = `spbr${id()}`;
+  const shaderMaterial = new BABYLON.PBRMaterial(pbrName, scene);
 
   // Ensures irradiance is computed per fragment to make the
   // Bump visible
@@ -69,7 +70,7 @@ const onBeforeCompileMegaShader = (
 
   const tex = new BABYLON.Texture('/brick-texture.jpeg', scene);
   shaderMaterial.albedoTexture = tex;
-  shaderMaterial.bumpTexture = tex;
+  // shaderMaterial.bumpTexture = tex;
 
   shaderMaterial.albedoColor = new BABYLON.Color3(1.0, 1.0, 1.0);
   shaderMaterial.metallic = 0.1; // set to 1 to only use it from the metallicRoughnessTexture
@@ -104,18 +105,17 @@ const onBeforeCompileMegaShader = (
     }
     if (options) {
       options.processFinalCode = (type, code) => {
-        console.log(
-          '🍃 in processFinalCode for ' + node.id + ` (${node.name})`
-        );
         if (type === 'vertex') {
-          console.log('🍃 BABYLENGINE vertex processFinalCode', {
+          console.log('🍃 processFinalCode vertex processFinalCode', {
+            node,
             code,
             type,
           });
           vertexSource = code;
           return code;
         }
-        console.log('🍃 fragment BABYLENGINE processFinalCode', {
+        console.log('🍃 processFinalCode fragment processFinalCode', {
+          node,
           code,
           type,
         });
@@ -123,6 +123,7 @@ const onBeforeCompileMegaShader = (
         return code;
       };
     }
+    // return pbrName;
     return shaderName;
   };
 
@@ -371,6 +372,14 @@ export const babylengine: Engine<RuntimeContext> = {
     'uv',
     'world',
     'time',
+    'Light0',
+    'Light1',
+    'Light2',
+    'Light3',
+    'light0',
+    'light1',
+    'light2',
+    'light3',
     // TODO: frag and vert shader get different names for varyings, also the
     // "preserve" in the core graph.ts always reads from the engine which I don't
     // think is what I wanted since my mental model was there was a core engine to use

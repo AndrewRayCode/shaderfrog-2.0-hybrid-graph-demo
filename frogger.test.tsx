@@ -14,174 +14,220 @@ import {
   addNode,
   sourceNode,
   returnGlPositionVec3Right,
+  mergeShaderSections,
+  findShaderSections,
 } from './src/nodestuff';
+import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
 
 const inspect = (thing: any): void =>
   console.log(util.inspect(thing, false, null, true));
 
-const sourceToGraphWithOutputHelper = (fragment: string): Graph => ({
-  nodes: [
-    outputNode('1', 'Output f', {}, 'fragment'),
-    sourceNode(
-      '2',
-      'Shader',
-      {
-        modifiesPosition: true,
-      },
-      fragment,
-      'fragment'
-    ),
-  ],
-  edges: [
-    {
-      from: '2',
-      to: '1',
-      output: 'main',
-      input: 'color',
-      type: 'fragment',
-    },
-  ],
-});
-
-const graph: Graph = {
-  nodes: [
-    outputNode('output_id', 'output f', {}, 'fragment'),
-    {
-      name: 'shader 2',
-      id: 'shader_2_id',
-      type: ShaderType.shader,
-      options: {},
-      inputs: [],
-      source: `
-uniform sampler2D image;
-varying vec2 vUv;
-void main() {
-    vec4 color = texture2D(image, vUv);
-    gl_FragColor = vec4(2.0);
-}
-`,
-    },
-    {
-      name: 'shader 4',
-      id: 'shader_4_id',
-      type: ShaderType.shader,
-      options: {},
-      inputs: [],
-      source: `
-void main() {
-    gl_FragColor = vec4(4.0);
-}
-`,
-    },
-    {
-      name: 'shader 5',
-      id: 'shader_5_id',
-      type: ShaderType.shader,
-      options: {},
-      inputs: [],
-      source: `
-void main() {
-    gl_FragColor = vec4(5.0);
-}
-`,
-    },
-    addNode('add_3_id', {}),
-    addNode('add_4_id', {}),
-  ],
-  edges: [
-    {
-      from: 'shader_2_id',
-      to: 'add_3_id',
-      output: 'main',
-      input: 'a',
-      type: 'fragment',
-    },
-    {
-      from: 'shader_4_id',
-      to: 'add_3_id',
-      output: 'main',
-      input: 'b',
-      type: 'fragment',
-    },
-    {
-      from: 'add_3_id',
-      to: 'output_id',
-      output: 'expression',
-      input: 'color',
-      type: 'fragment',
-    },
-    {
-      from: 'add_4_id',
-      to: 'add_3_id',
-      output: 'expression',
-      input: 'c',
-      type: 'fragment',
-    },
-    {
-      from: 'shader_5_id',
-      to: 'add_4_id',
-      output: 'main',
-      input: 'a',
-      type: 'fragment',
-    },
-  ],
+const mergeBlocks = (ast1: ParserProgram, ast2: ParserProgram): string => {
+  const s1 = findShaderSections(ast1);
+  const s2 = findShaderSections(ast2);
+  const merged = mergeShaderSections(s1, s2);
+  return generate(
+    shaderSectionsToAst(merged, {
+      includePrecisions: true,
+      includeVersion: true,
+    })
+  );
 };
 
-test('horrible jesus help me', () => {
-  const threeVertexMain = `
-  void main() {
-    texture2D(main, uv);
-  }
-`;
+test('It should merge uniforms with interface blocks', () => {
+  let astX = parser.parse(`uniform vec2 x;`);
+  let astY = parser.parse(`uniform vec2 y, z;
+uniform vec3 a;`);
+  expect(mergeBlocks(astX, astY)).toEqual(`uniform vec2 x, y, z;
+uniform vec3 a;
+`);
 
-  // Happens in produceAST step during compile
-  const vertexAst = parser.parse(threeVertexMain);
-  inspect(vertexAst);
-  /**
-   * This takes the gl position right side vec4(____, 1.0) in our case
-   * "position" and builds a new line vec3 frogOut = **position**; and then when
-   * we call position() below it's based on the scope bindings of the shader in
-   * which we haven't updated the position
-   *
-   * If instead of generating a literal, we generated a real ast, we could visit
-   * it in the replace instead of using bindings.
-   *
-   * TODO: Wait why does this work out of the box after only updating the ASTs
-   * to remove literals? The binding shouldn't work LOL
-   * TODO: Also it's hard to tell but the fireball shader might make the light
-   * position off?
-   *
-   * In addition to the above, what I need to do now isn't technically a vertex
-   * transformation, it's simply to get the varyings set.
-   */
-  returnGlPositionVec3Right(vertexAst);
+  const astL01 = parser.parse(`uniform Light0 { vec4 y; } x;`);
+  const astL02 = parser.parse(`uniform Light0 { vec4 y; } x;`);
+  expect(mergeBlocks(astL01, astL02)).toEqual(`uniform Light0 { vec4 y; } x;
+`);
 
-  // Happens at replacing inputs during compile
-  parsers[ShaderType.shader]?.vertex
-    .findInputs(null, null, vertexAst)
-    .position({
-      type: 'literal',
-      literal: 'hi',
-    });
-  console.log(generate(vertexAst));
-  // inspect(vertexAst);
+  const astL001 = parser.parse(`uniform Light0 { vec4 y; } x;`);
+  const astL002 = parser.parse(`uniform Light0 x;`);
+  expect(mergeBlocks(astL001, astL002)).toEqual(`uniform Light0 { vec4 y; } x;
+`);
 
-  let found;
-  visit(vertexAst, {
-    function_call: {
-      enter: (path) => {
-        const { node } = path;
-        if (
-          node?.identifier?.specifier?.token === 'vec4' &&
-          node?.args?.[2]?.token?.includes('1.')
-        ) {
-          found = node.args[0];
-        }
-      },
-    },
-  });
-  expect(generate(found)).toBe('hi');
+  const astLo01 = parser.parse(`uniform Light0 x;`);
+  const astLo02 = parser.parse(`uniform Light0 { vec4 y; } x;`);
+  expect(mergeBlocks(astLo01, astLo02)).toEqual(`uniform Light0 { vec4 y; } x;
+`);
+
+  // This may be a bug, look at how the uniforms are merged. I at least want to
+  // note its current behavior in this test
+  const vec2Arr1 = parser.parse(`uniform vec2 y[5];`);
+  const vec2Arr2 = parser.parse(`uniform vec2 y[10];`);
+  expect(mergeBlocks(vec2Arr1, vec2Arr2)).toEqual(`uniform vec2 y[10];
+`);
 });
+
+// const sourceToGraphWithOutputHelper = (fragment: string): Graph => ({
+//   nodes: [
+//     outputNode('1', 'Output f', {}, 'fragment'),
+//     sourceNode(
+//       '2',
+//       'Shader',
+//       {
+//         modifiesPosition: true,
+//       },
+//       fragment,
+//       'fragment'
+//     ),
+//   ],
+//   edges: [
+//     {
+//       from: '2',
+//       to: '1',
+//       output: 'main',
+//       input: 'color',
+//       type: 'fragment',
+//     },
+//   ],
+// });
+
+// const graph: Graph = {
+//   nodes: [
+//     outputNode('output_id', 'output f', {}, 'fragment'),
+//     {
+//       name: 'shader 2',
+//       id: 'shader_2_id',
+//       type: ShaderType.shader,
+//       options: {},
+//       inputs: [],
+//       source: `
+// uniform sampler2D image;
+// varying vec2 vUv;
+// void main() {
+//     vec4 color = texture2D(image, vUv);
+//     gl_FragColor = vec4(2.0);
+// }
+// `,
+//     },
+//     {
+//       name: 'shader 4',
+//       id: 'shader_4_id',
+//       type: ShaderType.shader,
+//       options: {},
+//       inputs: [],
+//       source: `
+// void main() {
+//     gl_FragColor = vec4(4.0);
+// }
+// `,
+//     },
+//     {
+//       name: 'shader 5',
+//       id: 'shader_5_id',
+//       type: ShaderType.shader,
+//       options: {},
+//       inputs: [],
+//       source: `
+// void main() {
+//     gl_FragColor = vec4(5.0);
+// }
+// `,
+//     },
+//     addNode('add_3_id', {}),
+//     addNode('add_4_id', {}),
+//   ],
+//   edges: [
+//     {
+//       from: 'shader_2_id',
+//       to: 'add_3_id',
+//       output: 'main',
+//       input: 'a',
+//       type: 'fragment',
+//     },
+//     {
+//       from: 'shader_4_id',
+//       to: 'add_3_id',
+//       output: 'main',
+//       input: 'b',
+//       type: 'fragment',
+//     },
+//     {
+//       from: 'add_3_id',
+//       to: 'output_id',
+//       output: 'expression',
+//       input: 'color',
+//       type: 'fragment',
+//     },
+//     {
+//       from: 'add_4_id',
+//       to: 'add_3_id',
+//       output: 'expression',
+//       input: 'c',
+//       type: 'fragment',
+//     },
+//     {
+//       from: 'shader_5_id',
+//       to: 'add_4_id',
+//       output: 'main',
+//       input: 'a',
+//       type: 'fragment',
+//     },
+//   ],
+// };
+
+// test('horrible jesus help me', () => {
+//   const threeVertexMain = `
+//   void main() {
+//     texture2D(main, uv);
+//   }
+// `;
+
+//   // Happens in produceAST step during compile
+//   const vertexAst = parser.parse(threeVertexMain);
+//   inspect(vertexAst);
+//   /**
+//    * This takes the gl position right side vec4(____, 1.0) in our case
+//    * "position" and builds a new line vec3 frogOut = **position**; and then when
+//    * we call position() below it's based on the scope bindings of the shader in
+//    * which we haven't updated the position
+//    *
+//    * If instead of generating a literal, we generated a real ast, we could visit
+//    * it in the replace instead of using bindings.
+//    *
+//    * TODO: Wait why does this work out of the box after only updating the ASTs
+//    * to remove literals? The binding shouldn't work LOL
+//    * TODO: Also it's hard to tell but the fireball shader might make the light
+//    * position off?
+//    *
+//    * In addition to the above, what I need to do now isn't technically a vertex
+//    * transformation, it's simply to get the varyings set.
+//    */
+//   returnGlPositionVec3Right(vertexAst);
+
+//   // Happens at replacing inputs during compile
+//   parsers[ShaderType.shader]?.vertex
+//     .findInputs(null, null, vertexAst)
+//     .position({
+//       type: 'literal',
+//       literal: 'hi',
+//     });
+//   console.log(generate(vertexAst));
+//   // inspect(vertexAst);
+
+//   let found;
+//   visit(vertexAst, {
+//     function_call: {
+//       enter: (path) => {
+//         const { node } = path;
+//         if (
+//           node?.identifier?.specifier?.token === 'vec4' &&
+//           node?.args?.[2]?.token?.includes('1.')
+//         ) {
+//           found = node.args[0];
+//         }
+//       },
+//     },
+//   });
+//   expect(generate(found)).toBe('hi');
+// });
 
 /*
 test('horrible jesus help me', () => {

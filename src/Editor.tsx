@@ -153,6 +153,26 @@ const graph: Graph = {
     // TODO: Plugging into bumpSampler and switching back to three from babylon
     //       breaks as three doesn't have this input (and vice versa)
     // TODO: Babylon.js light doesn't seem to animate
+    // TODO: Babylon.js shader doesn't seem to get re-applied until I leave
+    //       and come back to the scene
+    // TODO: Opposite of above, dragging in solid color to albedo, leaving and
+    //       coming back to scene, shader is black
+    // TODO: After above, dragging a graph connection line makes the shader
+    //       brighter. What the FUC/Kz
+    // TODO: If my shader defines a babylon uniform light block:
+    //       uniform Light0
+    //       {
+    //          vec4 vLightData;
+    //          vec4 vLightDiffuse;
+    //          vec4 vLightSpecular;
+    //          vec4 vLightFalloff;
+    //          vec4 shadowsInfo;
+    //          vec2 depthValues;
+    //       } light0;
+    //       Then shaderfrog needs to only keep the definition for the *first*
+    //       one, which is the custom smaller shader. Or... it's weird to force
+    //       the user to define the babylonjs light uniform? Can I move babylon
+    //       uniform definitions to the top? Slash engine defintions?
     {
       from: physicalV.id,
       to: outputV.id,
@@ -423,6 +443,7 @@ const Editor: React.FC = () => {
       setGuiMsg('Compiling!');
 
       compileGraphAsync(engine, ctx).then((compileResult) => {
+        console.log('comple async complete!', { compileResult });
         // sceneRef.current.shadersUpdated = true;
         setGuiMsg('');
         setCompileResult(compileResult);

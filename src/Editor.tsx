@@ -159,20 +159,6 @@ const graph: Graph = {
     //       coming back to scene, shader is black
     // TODO: After above, dragging a graph connection line makes the shader
     //       brighter. What the FUC/Kz
-    // TODO: If my shader defines a babylon uniform light block:
-    //       uniform Light0
-    //       {
-    //          vec4 vLightData;
-    //          vec4 vLightDiffuse;
-    //          vec4 vLightSpecular;
-    //          vec4 vLightFalloff;
-    //          vec4 shadowsInfo;
-    //          vec2 depthValues;
-    //       } light0;
-    //       Then shaderfrog needs to only keep the definition for the *first*
-    //       one, which is the custom smaller shader. Or... it's weird to force
-    //       the user to define the babylonjs light uniform? Can I move babylon
-    //       uniform definitions to the top? Slash engine defintions?
     // TODO: Adding shader inputs like bumpTexture should not require
     //       duplicating that manually into babylengine
     {

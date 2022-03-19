@@ -40,6 +40,7 @@ import {
   computeGraphContext,
   Engine,
   EngineContext,
+  klaph,
   NodeInputs,
 } from './graph';
 
@@ -182,13 +183,13 @@ const graph: Graph = {
     //   input: 'texture2d_0',
     //   stage: 'fragment',
     // },
-    // {
-    //   from: solidColorF.id,
-    //   to: physicalF.id,
-    //   output: 'out',
-    //   input: 'albedo',
-    //   stage: 'fragment',
-    // },
+    {
+      from: purpleNoise.id,
+      to: physicalF.id,
+      output: 'out',
+      input: 'albedo',
+      stage: 'fragment',
+    },
     // {
     //   from: heatShaderF.id,
     //   to: add.id,
@@ -343,7 +344,7 @@ const setBiStages = (flowElements: FlowElement[]) => {
 };
 
 const Editor: React.FC = () => {
-  const [engine, setEngine] = useState<Engine<any>>(babylengine);
+  const [engine, setEngine] = useState<Engine<any>>(threngine);
   // const [engine, setEngine] = useState<Engine<any>>(threngine);
 
   // const sceneRef = useRef<{ [key: string]: any }>({});
@@ -479,7 +480,7 @@ const Editor: React.FC = () => {
   );
 
   const initializeGraph = useCallback(
-    (newCtx: EngineContext<any>) => {
+    (newCtx: EngineContext<any>, graph: Graph) => {
       setGuiMsg(`🥸 Initializing ${engine.name}...`);
       setTimeout(() => {
         console.log('Initializing flow nodes and compiling graph!', { newCtx });
@@ -552,9 +553,13 @@ const Editor: React.FC = () => {
   const setCtx = useCallback(
     <T extends unknown>(newCtx: EngineContext<T>) => {
       if (newCtx.engine !== ctx?.engine) {
-        console.log('Setting new scene context!', newCtx);
+        console.log('Changing engines!', { ctx, newCtx });
         setCtxState(newCtx);
-        initializeGraph(newCtx);
+        let newGraph = graph;
+        if (ctx?.engine) {
+          newGraph = klaph(newCtx, ctx.engine, newCtx.engine, graph);
+        }
+        initializeGraph(newCtx, newGraph);
       } else {
         console.log(
           'Ignoring scene context update because we already have one for',

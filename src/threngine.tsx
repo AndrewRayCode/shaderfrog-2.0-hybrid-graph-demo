@@ -374,11 +374,7 @@ export const threngine: Engine<RuntimeContext> = {
 
           convert300MainToReturn(fragmentAst);
           renameBindings(fragmentAst.scopes[0], (name) =>
-            threngine.preserve.has(name)
-              ? name
-              : name === 'vMainUV1'
-              ? 'vUv'
-              : `${name}_${node.id}`
+            threngine.preserve.has(name) ? name : `${name}_${node.id}`
           );
           renameFunctions(fragmentAst.scopes[0], (name) =>
             name === 'main' ? nodeName(node) : `${name}_${node.id}`

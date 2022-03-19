@@ -103,6 +103,68 @@ export type ProgramParser<T> = {
   vertex: ShaderParser<T>;
 };
 
+type Korben = {
+  importers: {
+    [engine: string]: {
+      convertAst(ast: ParserProgram, type?: ShaderStage): void;
+    };
+  };
+};
+const korben: { [engine: string]: Korben } = {
+  three: {
+    importers: {
+      babylon: {
+        convertAst(ast, type) {
+          renameBindings(ast.scopes[0], (name) =>
+            name === 'vMainUV1' ? 'vUv' : name === 'vNormalW' ? 'vNormal' : name
+          );
+        },
+      },
+    },
+  },
+  babylon: {
+    importers: {
+      three: {
+        convertAst(ast, type) {
+          renameBindings(ast.scopes[0], (name) =>
+            name === 'vUv' ? 'vMainUV1' : name === 'vNormal' ? 'vNormalW' : name
+          );
+        },
+      },
+    },
+  },
+};
+
+export const klaph = <T>(
+  engineContext: EngineContext<T>,
+  engine: string,
+  newEngine: string,
+  graph: Graph
+): Graph => {
+  const converter = korben[newEngine]?.importers?.[engine];
+  if (!converter) {
+    throw new Error(`The engine ${newEngine} has no importer for ${engine}`);
+  }
+
+  console.log(`Attempting to convert from ${newEngine} to ${engine}`);
+
+  graph.nodes.forEach((node) => {
+    if ([ShaderType.shader].includes(node.type)) {
+      const preprocessed = preprocess(node.source, {
+        preserveComments: true,
+        preserve: {
+          version: () => true,
+          define: () => true,
+        },
+      });
+      const ast = parser.parse(preprocessed);
+      converter.convertAst(ast, node.stage);
+      node.source = generate(ast);
+    }
+  });
+  return graph;
+};
+
 export type NodeParser<T> = ProgramParser<T> | ShaderParser<T>;
 
 export type Parser<T> = Partial<Record<ShaderType, NodeParser<T>>>;
@@ -233,13 +295,6 @@ export const parsers: Parser<Runtime> = {
         });
         const fragmentAst = parser.parse(fragmentPreprocessed);
         from2To3(fragmentAst, 'fragment');
-
-        // Total hack for now
-        if (node.originalEngine === 'three' && engine.name === 'babylon') {
-          renameBindings(fragmentAst.scopes[0], (name) =>
-            name === 'vUv' ? 'vMainUV1' : name === 'vNormal' ? 'vNormalW' : name
-          );
-        }
 
         convert300MainToReturn(fragmentAst);
         renameBindings(fragmentAst.scopes[0], (name) =>

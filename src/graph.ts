@@ -41,6 +41,7 @@ export interface Engine<T> {
   // Component: FunctionComponent<{ engine: Engine; parsers: NodeParsers }>;
   // nodes: NodeParsers;
   parsers: Parser<T>;
+  importers: EngineImporters;
 }
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyz';
@@ -103,50 +104,29 @@ export type ProgramParser<T> = {
   vertex: ShaderParser<T>;
 };
 
-type Korben = {
-  importers: {
-    [engine: string]: {
-      convertAst(ast: ParserProgram, type?: ShaderStage): void;
-    };
-  };
+export type EngineImporter = {
+  convertAst(ast: ParserProgram, type?: ShaderStage): void;
 };
-const korben: { [engine: string]: Korben } = {
-  three: {
-    importers: {
-      babylon: {
-        convertAst(ast, type) {
-          renameBindings(ast.scopes[0], (name) =>
-            name === 'vMainUV1' ? 'vUv' : name === 'vNormalW' ? 'vNormal' : name
-          );
-        },
-      },
-    },
-  },
-  babylon: {
-    importers: {
-      three: {
-        convertAst(ast, type) {
-          renameBindings(ast.scopes[0], (name) =>
-            name === 'vUv' ? 'vMainUV1' : name === 'vNormal' ? 'vNormalW' : name
-          );
-        },
-      },
-    },
-  },
+export type EngineImporters = {
+  [engine: string]: EngineImporter;
 };
 
-export const klaph = <T>(
+export const convertToEngine = <T>(
   engineContext: EngineContext<T>,
-  engine: string,
-  newEngine: string,
+  oldEngine: Engine<T>,
+  newEngine: Engine<T>,
   graph: Graph
 ): Graph => {
-  const converter = korben[newEngine]?.importers?.[engine];
+  const converter = newEngine.importers[oldEngine.name];
   if (!converter) {
-    throw new Error(`The engine ${newEngine} has no importer for ${engine}`);
+    throw new Error(
+      `The engine ${newEngine.name} has no importer for ${oldEngine.name}`
+    );
   }
 
-  console.log(`Attempting to convert from ${newEngine} to ${engine}`);
+  console.log(
+    `Attempting to convert from ${newEngine.name} to ${oldEngine.name}`
+  );
 
   graph.nodes.forEach((node) => {
     if ([ShaderType.shader].includes(node.type)) {

@@ -40,7 +40,7 @@ import {
   computeGraphContext,
   Engine,
   EngineContext,
-  klaph,
+  convertToEngine,
   NodeInputs,
 } from './graph';
 
@@ -68,11 +68,12 @@ import FlowNodeComponent, { FlowNodeData } from './flow/FlowNode';
 import { Tabs, Tab, TabGroup, TabPanel, TabPanels } from './Tabs';
 import Monaco from './Monaco';
 
-import ThreeComponent from './ThreeComponent';
-import { threngine } from './threngine';
+import { Editor as ThreeComponent, engine as threngine } from './plugins/three';
 
-import BabylonComponent from './BabylonComponent';
-import { babylengine } from './bablyengine';
+import {
+  Editor as BabylonComponent,
+  engine as babylengine,
+} from './plugins/babylon';
 
 let counter = 0;
 const id = () => '' + counter++;
@@ -344,8 +345,14 @@ const setBiStages = (flowElements: FlowElement[]) => {
 };
 
 const Editor: React.FC = () => {
-  const [engine, setEngine] = useState<Engine<any>>(threngine);
-  // const [engine, setEngine] = useState<Engine<any>>(threngine);
+  const [{ lastEngine, engine }, setEngine] = useState<{
+    lastEngine: Engine<any> | null;
+    engine: Engine<any>;
+  }>({
+    lastEngine: null,
+    engine: threngine,
+  });
+  // const [engine, setEngine] = useState<Engine<any>>(babylengine);
 
   // const sceneRef = useRef<{ [key: string]: any }>({});
   const rightSplit = useRef<HTMLDivElement>(null);
@@ -399,6 +406,8 @@ const Editor: React.FC = () => {
     [extendState]
   );
 
+  // Store the engine context in state. There's a separate function for passing
+  // to children to update the engine context, which has more side effects
   const [ctx, setCtxState] = useState<EngineContext<any>>();
 
   // Compile function, meant to be called manually in places where we want to
@@ -549,15 +558,16 @@ const Editor: React.FC = () => {
     [compile, engine, extendState, pauseCompile]
   );
 
-  // Once we receive a new engine context, re-initialize the graph
+  // Once we receive a new engine context, re-initialize the graph. This method
+  // is passed to engine specific editor components
   const setCtx = useCallback(
     <T extends unknown>(newCtx: EngineContext<T>) => {
       if (newCtx.engine !== ctx?.engine) {
         console.log('Changing engines!', { ctx, newCtx });
         setCtxState(newCtx);
         let newGraph = graph;
-        if (ctx?.engine) {
-          newGraph = klaph(newCtx, ctx.engine, newCtx.engine, graph);
+        if (lastEngine) {
+          newGraph = convertToEngine(newCtx, lastEngine, engine, graph);
         }
         initializeGraph(newCtx, newGraph);
       } else {
@@ -568,7 +578,7 @@ const Editor: React.FC = () => {
         );
       }
     },
-    [ctx, setCtxState, initializeGraph]
+    [ctx, lastEngine, engine, setCtxState, initializeGraph]
   );
 
   const addConnection = (edge: FlowEdge | Connection) => {
@@ -749,11 +759,11 @@ const Editor: React.FC = () => {
                 }
                 if (engine === babylengine) {
                   setCompileResult(undefined);
-                  setEngine(threngine);
+                  setEngine({ lastEngine: engine, engine: threngine });
                   // compile(threngine, ctx, pauseCompile, state.flowElements);
                 } else {
                   setCompileResult(undefined);
-                  setEngine(babylengine);
+                  setEngine({ lastEngine: engine, engine: babylengine });
                   // compile(babylengine, ctx, pauseCompile, state.flowElements);
                 }
               }}

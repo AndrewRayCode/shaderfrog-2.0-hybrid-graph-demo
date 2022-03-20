@@ -6,7 +6,8 @@ import {
 } from '@shaderfrog/glsl-parser/dist/parser/utils';
 import { visit, AstNode, NodeVisitors } from '@shaderfrog/glsl-parser/dist/ast';
 import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor';
-import { Engine, nodeName, EngineContext } from './graph';
+import { Engine, nodeName, EngineContext } from '../../graph';
+import importers from './importers';
 
 import {
   ShaderType,
@@ -19,10 +20,8 @@ import {
   Graph,
   returnGlPositionHardCoded,
   returnGlPosition,
-} from './nodestuff';
+} from '../../nodestuff';
 
-import babf from './babylon-fragment';
-import babv from './babylon-vertex';
 import { MutableRefObject } from 'react';
 
 export type RuntimeContext = {
@@ -284,6 +283,7 @@ const texture2DInputFinder = (
 
 export const babylengine: Engine<RuntimeContext> = {
   name: 'babylon',
+  importers,
   mergeOptions: {
     includePrecisions: true,
     includeVersion: false,

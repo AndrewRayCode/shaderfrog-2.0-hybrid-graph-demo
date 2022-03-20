@@ -1,7 +1,6 @@
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as three from 'three';
-import useOnce from './useOnce';
 
 type Callback = (time: number) => void;
 
@@ -11,8 +10,8 @@ export const useThree = (callback: Callback) => {
 
   const frameRef = useRef<number>(0);
   const controlsRef = useRef<OrbitControls>();
-  const scene = useOnce(() => new three.Scene());
-  const camera = useOnce(
+  const [scene] = useState(() => new three.Scene());
+  const [camera] = useState(
     () => new three.PerspectiveCamera(75, 1 / 1, 0.1, 1000)
   );
 
@@ -24,7 +23,7 @@ export const useThree = (callback: Callback) => {
     }
   }, [scene, camera]);
 
-  const renderer = useOnce(() => new three.WebGLRenderer());
+  const [renderer] = useState(() => new three.WebGLRenderer());
 
   const savedCallback = useRef<Callback>(callback);
   // Remember the latest callback.

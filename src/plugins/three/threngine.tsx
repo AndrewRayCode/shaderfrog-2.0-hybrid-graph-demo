@@ -5,7 +5,8 @@ import {
 } from '@shaderfrog/glsl-parser/dist/parser/utils';
 import { visit, AstNode, NodeVisitors } from '@shaderfrog/glsl-parser/dist/ast';
 import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor';
-import { Engine, nodeName, EngineContext } from './graph';
+import { Engine, nodeName, EngineContext } from '../../graph';
+import importers from './importers';
 
 import {
   ShaderType,
@@ -18,7 +19,7 @@ import {
   Graph,
   returnGlPositionHardCoded,
   returnGlPosition,
-} from './nodestuff';
+} from '../../nodestuff';
 
 export type RuntimeContext = {
   scene: any;
@@ -200,6 +201,7 @@ const texture2DInputFinder = (
 
 export const threngine: Engine<RuntimeContext> = {
   name: 'three',
+  importers,
   mergeOptions: {
     includePrecisions: true,
     includeVersion: true,

@@ -1,19 +1,15 @@
 import * as BABYLON from 'babylonjs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import babf from './babylon-fragment';
-import babv from './babylon-vertex';
+import { Graph } from '../../nodestuff';
 
-import { Graph } from './nodestuff';
-
-import { EngineContext } from './graph';
+import { EngineContext } from '../../graph';
 import { babylengine, RuntimeContext } from './bablyengine';
 
-import styles from '../pages/editor/editor.module.css';
+import styles from '../../../pages/editor/editor.module.css';
 
-import { UICompileGraphResult } from './Editor';
+import { UICompileGraphResult } from '../../Editor';
 import { useBabylon } from './useBabylon';
-import useOnce from './useOnce';
 
 // const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
 
@@ -93,13 +89,6 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       }
     }
   );
-
-  useOnce(() => {
-    // Create a basic light, aiming 0, 1, 0 - meaning, to the sky
-    // new BABYLON.HemisphericLight('light1', new BABYLON.Vector3(0, 2, 0), scene);
-    // Create a built-in "ground" shape; its constructor takes 6 params : name, width, height, subdivision, scene, updatable
-    // BABYLON.Mesh.CreateGround('ground1', 6, 6, 2, scene, false);
-  });
 
   const os1: any = graph.nodes.find(
     (node) => node.name === 'Outline Shader F'

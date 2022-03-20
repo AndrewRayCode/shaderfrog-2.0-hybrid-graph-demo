@@ -1,6 +1,6 @@
-import styles from '../pages/editor/editor.module.css';
+import styles from '../../../pages/editor/editor.module.css';
 
-import { UICompileGraphResult } from './Editor';
+import { UICompileGraphResult } from '../../Editor';
 
 import React, {
   ReactNode,
@@ -22,14 +22,14 @@ import {
   ShaderType,
   Edge,
   ShaderStage,
-} from './nodestuff';
+} from '../../nodestuff';
 import {
   compileGraph,
   computeAllContexts,
   computeGraphContext,
   EngineContext,
   NodeInputs,
-} from './graph';
+} from '../../graph';
 
 import { threngine, RuntimeContext } from './threngine';
 

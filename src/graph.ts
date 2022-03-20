@@ -106,6 +106,7 @@ export type ProgramParser<T> = {
 
 export type EngineImporter = {
   convertAst(ast: ParserProgram, type?: ShaderStage): void;
+  edgeMap: { [oldInput: string]: string };
 };
 export type EngineImporters = {
   [engine: string]: EngineImporter;
@@ -140,6 +141,14 @@ export const convertToEngine = <T>(
       const ast = parser.parse(preprocessed);
       converter.convertAst(ast, node.stage);
       node.source = generate(ast);
+
+      graph.edges
+        .filter((edge) => edge.to === node.id)
+        .forEach((edge) => {
+          if (edge.input in converter.edgeMap) {
+            edge.input = converter.edgeMap[edge.input];
+          }
+        });
     }
   });
   return graph;

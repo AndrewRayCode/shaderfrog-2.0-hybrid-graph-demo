@@ -377,6 +377,8 @@ const Editor: React.FC = () => {
   const [finalFragment, setFinalFragment] = useState<string | undefined>('');
   const [compileResult, setCompileResult] = useState<UICompileGraphResult>();
 
+  const [flowElements, setFlowElements] = useState<FlowElement[]>([]);
+
   const [state, setState, extendState] = useAsyncExtendedState<{
     fragError: string | null;
     vertError: string | null;
@@ -384,7 +386,6 @@ const Editor: React.FC = () => {
     compileMs: string | null;
     width: number;
     height: number;
-    flowElements: FlowElement[];
   }>({
     fragError: null,
     vertError: null,
@@ -392,7 +393,6 @@ const Editor: React.FC = () => {
     compileMs: null,
     width: 0,
     height: 0,
-    flowElements: [],
   });
 
   const setGlResult = useCallback(
@@ -452,9 +452,8 @@ const Editor: React.FC = () => {
         setPreprocessedVert(ctx.debuggingNonsense.vertexPreprocessed);
         setOriginal(ctx.debuggingNonsense.fragmentSource);
         setOriginalVert(ctx.debuggingNonsense.vertexSource);
-        extendState((state) => ({
-          // compileMs,
-          flowElements: (state.flowElements || []).map((node) =>
+        setFlowElements((flowElements) =>
+          (flowElements || []).map((node) =>
             node.data && 'inputs' in node.data
               ? {
                   ...node,
@@ -469,11 +468,11 @@ const Editor: React.FC = () => {
                   },
                 }
               : node
-          ),
-        }));
+          )
+        );
       });
     },
-    [extendState]
+    []
   );
 
   // Let child components call compile after, say, their lighting has finished
@@ -483,9 +482,9 @@ const Editor: React.FC = () => {
   const childCompile = useCallback(
     (ctx: EngineContext<any>) => {
       console.log('childCompile', ctx.nodes);
-      return compile(engine, ctx, pauseCompile, state.flowElements);
+      return compile(engine, ctx, pauseCompile, flowElements);
     },
-    [engine, compile, pauseCompile, state.flowElements]
+    [engine, compile, pauseCompile, flowElements]
   );
 
   const initializeGraph = useCallback(
@@ -551,11 +550,11 @@ const Editor: React.FC = () => {
         ]);
 
         compile(engine, newCtx, pauseCompile, flowElements);
-        extendState({ flowElements });
+        setFlowElements(flowElements);
         setGuiMsg('');
       }, 10);
     },
-    [compile, engine, extendState, pauseCompile]
+    [compile, engine, pauseCompile]
   );
 
   // Once we receive a new engine context, re-initialize the graph. This method
@@ -582,11 +581,11 @@ const Editor: React.FC = () => {
   );
 
   const addConnection = (edge: FlowEdge | Connection) => {
-    const stage = state.flowElements.find((elem) => elem.id === edge.source)
-      ?.data?.stage;
+    const stage = flowElements.find((elem) => elem.id === edge.source)?.data
+      ?.stage;
 
-    const flowElements = setBiStages([
-      ...state.flowElements.filter(
+    const updatedFlowElements = setBiStages([
+      ...flowElements.filter(
         (element) =>
           // Prevent one input handle from having multiple inputs
           !(
@@ -611,8 +610,13 @@ const Editor: React.FC = () => {
         type: 'special',
       } as FlowEdge<FlowEdgeData>,
     ]);
-    extendState({ flowElements });
-    compile(engine, ctx as EngineContext<any>, pauseCompile, flowElements);
+    setFlowElements(updatedFlowElements);
+    compile(
+      engine,
+      ctx as EngineContext<any>,
+      pauseCompile,
+      updatedFlowElements
+    );
   };
 
   const onConnect = (edge: FlowEdge | Connection) => addConnection(edge);
@@ -623,11 +627,16 @@ const Editor: React.FC = () => {
   const onElementsRemove = (params: any) => {
     const ids = new Set(params.map(({ id }: any) => id));
 
-    const flowElements: any = setBiStages([
-      ...state.flowElements.filter(({ id }: any) => !ids.has(id)),
+    const updatedFlowElements = setBiStages([
+      ...flowElements.filter(({ id }: any) => !ids.has(id)),
     ]);
-    extendState({ flowElements });
-    compile(engine, ctx as EngineContext<any>, pauseCompile, flowElements);
+    setFlowElements(flowElements);
+    compile(
+      engine,
+      ctx as EngineContext<any>,
+      pauseCompile,
+      updatedFlowElements
+    );
   };
 
   const onNodeDoubleClick = (event: any, node: any) => {
@@ -667,61 +676,57 @@ const Editor: React.FC = () => {
   useEffect(() => onSplitResize(), [defaultMainSplitSize, onSplitResize]);
 
   const setTargets = (nodeId: string, handleType: string) => {
-    extendState(({ flowElements }) => {
+    setFlowElements((flowElements) => {
       const source = graph.nodes.find(({ id }) => id === nodeId) as Node;
-      return {
-        flowElements: (flowElements || []).map((element) => {
-          if (
-            element.data &&
-            'label' in element.data &&
-            (element.data.stage === source.stage ||
-              !source.stage ||
-              !element.data.stage) &&
-            element.id !== nodeId
-          ) {
-            return {
-              ...element,
-              data: {
-                ...element.data,
-                inputs: element.data.inputs.map((input) => ({
-                  ...input,
-                  validTarget: handleType === 'source',
-                })),
-                outputs: element.data.outputs.map((output) => ({
-                  ...output,
-                  validTarget: handleType === 'target',
-                })),
-              },
-            };
-          }
-          return element;
-        }),
-      };
+      return (flowElements || []).map((element) => {
+        if (
+          element.data &&
+          'label' in element.data &&
+          (element.data.stage === source.stage ||
+            !source.stage ||
+            !element.data.stage) &&
+          element.id !== nodeId
+        ) {
+          return {
+            ...element,
+            data: {
+              ...element.data,
+              inputs: element.data.inputs.map((input) => ({
+                ...input,
+                validTarget: handleType === 'source',
+              })),
+              outputs: element.data.outputs.map((output) => ({
+                ...output,
+                validTarget: handleType === 'target',
+              })),
+            },
+          };
+        }
+        return element;
+      });
     });
   };
   const resetTargets = () => {
-    extendState(({ flowElements }) => {
-      return {
-        flowElements: (flowElements || []).map((element) => {
-          if (element.data && 'label' in element.data) {
-            return {
-              ...element,
-              data: {
-                ...element.data,
-                inputs: element.data.inputs.map((input) => ({
-                  ...input,
-                  validTarget: false,
-                })),
-                outputs: element.data.outputs.map((output) => ({
-                  ...output,
-                  validTarget: false,
-                })),
-              },
-            };
-          }
-          return element;
-        }),
-      };
+    setFlowElements((flowElements) => {
+      return (flowElements || []).map((element) => {
+        if (element.data && 'label' in element.data) {
+          return {
+            ...element,
+            data: {
+              ...element.data,
+              inputs: element.data.inputs.map((input) => ({
+                ...input,
+                validTarget: false,
+              })),
+              outputs: element.data.outputs.map((output) => ({
+                ...output,
+                validTarget: false,
+              })),
+            },
+          };
+        }
+        return element;
+      });
     });
   };
 
@@ -783,7 +788,7 @@ const Editor: React.FC = () => {
             <TabPanels>
               <TabPanel>
                 <ReactFlow
-                  elements={state.flowElements}
+                  elements={flowElements}
                   style={flowStyles}
                   onConnect={onConnect}
                   onEdgeUpdate={onEdgeUpdate}
@@ -814,7 +819,7 @@ const Editor: React.FC = () => {
                         engine,
                         ctx as EngineContext<any>,
                         pauseCompile,
-                        state.flowElements
+                        flowElements
                       )
                     }
                   >
@@ -829,7 +834,7 @@ const Editor: React.FC = () => {
                       engine,
                       ctx as EngineContext<any>,
                       pauseCompile,
-                      state.flowElements
+                      flowElements
                     )
                   }
                   onChange={(value, event) => {

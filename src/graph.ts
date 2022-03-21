@@ -112,12 +112,13 @@ export type EngineImporters = {
   [engine: string]: EngineImporter;
 };
 
+type EdgeUpdates = { [edgeId: string]: { oldInput: string; newInput: string } };
 export const convertToEngine = <T>(
   engineContext: EngineContext<T>,
   oldEngine: Engine<T>,
   newEngine: Engine<T>,
   graph: Graph
-): Graph => {
+): [Graph, EdgeUpdates] => {
   const converter = newEngine.importers[oldEngine.name];
   if (!converter) {
     throw new Error(
@@ -128,6 +129,8 @@ export const convertToEngine = <T>(
   console.log(
     `Attempting to convert from ${newEngine.name} to ${oldEngine.name}`
   );
+
+  const edgeUpdates: EdgeUpdates = {};
 
   graph.nodes.forEach((node) => {
     if ([ShaderType.shader].includes(node.type)) {
@@ -141,17 +144,29 @@ export const convertToEngine = <T>(
       const ast = parser.parse(preprocessed);
       converter.convertAst(ast, node.stage);
       node.source = generate(ast);
-
-      graph.edges
-        .filter((edge) => edge.to === node.id)
-        .forEach((edge) => {
-          if (edge.input in converter.edgeMap) {
-            edge.input = converter.edgeMap[edge.input];
-          }
-        });
     }
+
+    graph.edges
+      .filter((edge) => edge.to === node.id)
+      .forEach((edge) => {
+        if (edge.input in converter.edgeMap) {
+          console.log(
+            'converting',
+            edge.input,
+            'to',
+            converter.edgeMap[edge.input]
+          );
+          edge.input = converter.edgeMap[edge.input];
+          edgeUpdates[edge.input] = {
+            oldInput: edge.input,
+            newInput: converter.edgeMap[edge.input],
+          };
+        } else {
+          console.log(edge.input, 'was not in ', converter.edgeMap);
+        }
+      });
   });
-  return graph;
+  return [graph, edgeUpdates];
 };
 
 export type NodeParser<T> = ProgramParser<T> | ShaderParser<T>;
@@ -584,7 +599,7 @@ const computeNodeContext = <T>(
   return nodeContext;
 };
 
-const computeSideContext = <T>(
+const computeContextForNodes = <T>(
   engineContext: EngineContext<T>,
   engine: Engine<T>,
   graph: Graph,
@@ -640,7 +655,7 @@ export const computeAllContexts = <T>(
   engine: Engine<T>,
   graph: Graph
 ) => {
-  computeSideContext(engineContext, engine, graph, graph.nodes);
+  computeContextForNodes(engineContext, engine, graph, graph.nodes);
 };
 
 export const computeGraphContext = <T>(
@@ -671,11 +686,11 @@ export const computeGraphContext = <T>(
       !vertexIds[node.id]
   );
 
-  computeSideContext(engineContext, engine, graph, [
+  computeContextForNodes(engineContext, engine, graph, [
     outputFrag,
     ...Object.values(fragmentIds),
   ]);
-  computeSideContext(engineContext, engine, graph, [
+  computeContextForNodes(engineContext, engine, graph, [
     outputVert,
     ...Object.values(vertexIds),
     ...additionalIds,

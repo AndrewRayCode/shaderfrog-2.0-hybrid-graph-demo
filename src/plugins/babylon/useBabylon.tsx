@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as BABYLON from 'babylonjs';
-import useOnce from './useOnce';
 
 type Callback = (time: number) => void;
 
@@ -12,13 +11,13 @@ export const useBabylon = (callback: Callback) => {
 
   const frameRef = useRef<number>(0);
 
-  const [engine] = useState(() => {
-    console.log('CREATING NEW ENGINE', babylonCanvas);
-    return new BABYLON.Engine(babylonCanvas, true, {
-      preserveDrawingBuffer: true,
-      stencil: true,
-    });
-  });
+  const [engine] = useState(
+    () =>
+      new BABYLON.Engine(babylonCanvas, true, {
+        preserveDrawingBuffer: true,
+        stencil: true,
+      })
+  );
 
   const [scene] = useState(() => new BABYLON.Scene(engine));
 
@@ -35,7 +34,6 @@ export const useBabylon = (callback: Callback) => {
   );
 
   useEffect(() => {
-    console.log('targeting camera at 0');
     // Target the camera to scene origin
     camera.setTarget(BABYLON.Vector3.Zero());
     // Attach the camera to the canvas

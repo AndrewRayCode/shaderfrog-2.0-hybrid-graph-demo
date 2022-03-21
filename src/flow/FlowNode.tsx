@@ -17,6 +17,9 @@ type NodeHandle = {
 export type FlowNodeData = {
   label: string;
   stage?: ShaderStage;
+  /**
+   * Whether or not this node can be used for both shader fragment and vertex
+   */
   biStage: boolean;
   outputs: NodeHandle[];
   inputs: NodeHandle[];
@@ -25,6 +28,9 @@ type NodeProps = {
   data: FlowNodeData;
 };
 const CustomNodeComponent = ({ data }: NodeProps) => {
+  // TODO: can we make a test case react flow sandbox of chaning a node's
+  // named inputs and handles and it failing?
+  // console.log('rendering custom node component for ', data.label, data);
   return (
     <div
       className={'flownode ' + data.stage}

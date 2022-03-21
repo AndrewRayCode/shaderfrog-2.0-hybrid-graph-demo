@@ -18,6 +18,7 @@ import ReactFlow, {
   Node as FlowNode,
   Edge as FlowEdge,
   Connection,
+  applyNodeChanges,
   // FlowElement,
 } from 'react-flow-renderer';
 
@@ -184,13 +185,13 @@ const graph: Graph = {
     //   input: 'texture2d_0',
     //   stage: 'fragment',
     // },
-    {
-      from: purpleNoise.id,
-      to: physicalF.id,
-      output: 'out',
-      input: 'albedo',
-      stage: 'fragment',
-    },
+    // {
+    //   from: purpleNoise.id,
+    //   to: physicalF.id,
+    //   output: 'out',
+    //   input: 'albedo',
+    //   stage: 'fragment',
+    // },
     // {
     //   from: heatShaderF.id,
     //   to: add.id,
@@ -210,6 +211,17 @@ const graph: Graph = {
 
 const flowStyles = { height: '100vh', background: '#111' };
 export type FlowElement = FlowNode<FlowNodeData> | FlowEdge<FlowEdgeData>;
+export type FlowElements = {
+  nodes: FlowNode<FlowNodeData>[];
+  edges: FlowEdge<FlowEdgeData>[];
+};
+
+const isEdge = (elem: FlowElement): elem is FlowEdge => {
+  return 'source' in elem;
+};
+const isNode = (elem: FlowElement): elem is FlowNode => {
+  return !('source' in elem);
+};
 
 const nodeTypes = {
   special: FlowNodeComponent,
@@ -258,90 +270,142 @@ total: ${(now - allStart).toFixed(3)}ms
   });
 
 const findInputStage = (
-  byIds: IndexedByTarget,
+  ids: Record<string, FlowNode<FlowNodeData>>,
+  targets: Record<string, FlowEdge<FlowEdgeData>[]>,
   node: FlowNode<FlowNodeData>
 ): ShaderStage | undefined => {
   return (
     (!node.data?.biStage && node.data?.stage) ||
-    (byIds.targets[node.id] || []).reduce<ShaderStage | undefined>(
-      (found, edge) => {
-        return (
-          found ||
-          edge.data?.stage ||
-          findInputStage(byIds, byIds.ids[edge.source])
-        );
-      },
+    (targets[node.id] || []).reduce<ShaderStage | undefined>(
+      (found, edge) =>
+        found ||
+        edge.data?.stage ||
+        findInputStage(ids, targets, ids[edge.source]),
       undefined
     )
   );
 };
 
-type IndexedByTarget = {
-  targets: Record<string, FlowEdge<FlowEdgeData>[]>;
-  ids: Record<string, FlowNode<FlowNodeData>>;
-};
+// type IndexedByTarget = {
+//   targets: Record<string, FlowEdge<FlowEdgeData>[]>;
+//   ids: Record<string, FlowNode<FlowNodeData>>;
+// };
+
 // Some nodes, like add, can be used for either fragment or vertex stage. When
 // we connect edges in the graph, update it to figure out which stage we should
 // set the add node to based on inputs to the node.
-const setBiStages = (flowElements: FlowElement[]) => {
-  const byIds = flowElements.reduce(
-    (acc, element) => ({
+const setBiStages = (flowElements: FlowElements) => {
+  const targets = flowElements.edges.reduce<Record<string, FlowEdge[]>>(
+    (acc, edge) => ({
       ...acc,
-      ...('target' in element
-        ? {
-            targets: {
-              ...acc.targets,
-              [element.target]: [
-                ...(acc.targets[element.target] || []),
-                element,
-              ],
-            },
-          }
-        : {
-            ids: {
-              ...acc.ids,
-              [element.id]: element,
-            },
-          }),
+      [edge.target]: [...(acc[edge.target] || []), edge],
     }),
-    { targets: {}, ids: {} } as IndexedByTarget
+    {}
+  );
+  const ids = flowElements.nodes.reduce<Record<string, FlowNode>>(
+    (acc, node) => ({
+      ...acc,
+      [node.id]: node,
+    }),
+    {}
   );
 
   const updatedSides: Record<string, FlowElement> = {};
   // Update the node stages by looking at their inputs
-  return (
-    flowElements
-      .map((element) => {
-        if (!element.data || !('biStage' in element.data)) {
-          return element;
-        }
-        if (!element.data.biStage && element.data.stage) {
-          return element;
-        }
-        return (updatedSides[element.id] = {
-          ...element,
-          data: {
-            ...element.data,
-            stage: findInputStage(byIds, element as FlowNode<FlowNodeData>),
+  return {
+    nodes: flowElements.nodes.map((node) => {
+      if (!node.data || !('biStage' in node.data)) {
+        return node;
+      }
+      if (!node.data.biStage && node.data.stage) {
+        return node;
+      }
+      return (updatedSides[node.id] = {
+        ...node,
+        data: {
+          ...node.data,
+          stage: findInputStage(ids, targets, node),
+        },
+      });
+    }),
+    // Set the stage for edges connected to nodes whose stage changed
+    edges: flowElements.edges.map((element) => {
+      if (!('source' in element) || !(element.source in updatedSides)) {
+        return element;
+      }
+      const { stage } = updatedSides[element.source].data as FlowNodeData;
+      return {
+        ...element,
+        className: stage,
+        data: {
+          ...element.data,
+          stage,
+        },
+      };
+    }),
+  };
+};
+
+const initializeFlowElementsFromGraph = (
+  graph: Graph,
+  ctx: EngineContext<any>
+): FlowElements => {
+  let engines = 0;
+  let maths = 0;
+  let outputs = 0;
+  let shaders = 0;
+  const spacing = 200;
+  const maxHeight = 4;
+  console.log('Initializing flow elements from', { graph });
+
+  const updatedNodes = graph.nodes.map((node) => ({
+    id: node.id,
+    data: {
+      label: node.name,
+      stage: node.stage,
+      biStage: node.biStage || false,
+      inputs: Object.keys(ctx.nodes[node.id]?.inputs || []).map((name) => ({
+        name,
+        validTarget: false,
+      })),
+      outputs: [
+        {
+          validTarget: false,
+          name: 'out',
+        },
+      ],
+    },
+    type: 'special',
+    position:
+      node.type === ShaderType.output
+        ? { x: spacing * 2, y: outputs++ * 100 }
+        : node.type === ShaderType.phong ||
+          node.type === ShaderType.toon ||
+          node.type === ShaderType.physical
+        ? { x: spacing, y: engines++ * 100 }
+        : node.type === ShaderType.add || node.type === ShaderType.multiply
+        ? { x: 0, y: maths++ * 100 }
+        : {
+            x: -spacing - spacing * Math.floor(shaders / maxHeight),
+            y: (shaders++ % maxHeight) * 100,
           },
-        });
-      })
-      // Set the stage for edges connected to nodes whose stage changed
-      .map((element) => {
-        if (!('source' in element) || !(element.source in updatedSides)) {
-          return element;
-        }
-        const { stage } = updatedSides[element.source].data as FlowNodeData;
-        return {
-          ...element,
-          className: stage,
-          data: {
-            ...element.data,
-            stage,
-          },
-        };
-      })
-  );
+  }));
+
+  const updatedEdges = graph.edges.map((edge) => ({
+    id: `${edge.to}-${edge.from}`,
+    source: edge.from,
+    sourceHandle: edge.output,
+    targetHandle: edge.input,
+    target: edge.to,
+    data: { stage: edge.stage },
+    className: edge.stage,
+    type: 'special',
+  }));
+
+  return setBiStages({
+    nodes: updatedNodes,
+    edges: updatedEdges,
+  });
 };
 
 const Editor: React.FC = () => {
@@ -352,9 +416,7 @@ const Editor: React.FC = () => {
     lastEngine: null,
     engine: threngine,
   });
-  // const [engine, setEngine] = useState<Engine<any>>(babylengine);
 
-  // const sceneRef = useRef<{ [key: string]: any }>({});
   const rightSplit = useRef<HTMLDivElement>(null);
   const [pauseCompile, setPauseCompile] = useState(false);
 
@@ -377,7 +439,10 @@ const Editor: React.FC = () => {
   const [finalFragment, setFinalFragment] = useState<string | undefined>('');
   const [compileResult, setCompileResult] = useState<UICompileGraphResult>();
 
-  const [flowElements, setFlowElements] = useState<FlowElement[]>([]);
+  const [flowElements, setFlowElements] = useState<FlowElements>({
+    nodes: [],
+    edges: [],
+  });
 
   const [state, setState, extendState] = useAsyncExtendedState<{
     fragError: string | null;
@@ -418,7 +483,7 @@ const Editor: React.FC = () => {
       engine: Engine<any>,
       ctx: EngineContext<any>,
       pauseCompile: boolean,
-      flowElements: FlowElement[]
+      flowElements: FlowElements
     ) => {
       // if (!ctx || pauseCompile || !flowElements.length) {
       //   return;
@@ -426,17 +491,14 @@ const Editor: React.FC = () => {
 
       // Convert the flow edges into the graph edges, to reflect the latest
       // user's changes
-      graph.edges = flowElements
-        .filter(
-          (element): element is FlowEdge<FlowEdgeData> => 'source' in element
-        )
-        .map((element) => ({
-          from: element.source,
-          to: element.target,
-          output: 'out',
-          input: element.targetHandle as string,
-          stage: element.data?.stage as ShaderStage,
-        }));
+      graph.edges = flowElements.edges.map((edge) => ({
+        from: edge.source,
+        to: edge.target,
+        output: 'out',
+        input: edge.targetHandle as string,
+        stage: edge.data?.stage as ShaderStage,
+      }));
+      console.log('set graph.edges', graph.edges, 'from', flowElements);
 
       setGuiMsg('Compiling!');
 
@@ -452,24 +514,27 @@ const Editor: React.FC = () => {
         setPreprocessedVert(ctx.debuggingNonsense.vertexPreprocessed);
         setOriginal(ctx.debuggingNonsense.fragmentSource);
         setOriginalVert(ctx.debuggingNonsense.vertexSource);
-        setFlowElements((flowElements) =>
-          (flowElements || []).map((node) =>
-            node.data && 'inputs' in node.data
-              ? {
-                  ...node,
-                  data: {
-                    ...node.data,
-                    inputs: Object.keys(ctx.nodes[node.id]?.inputs || []).map(
-                      (name) => ({
-                        validTarget: false,
-                        name,
-                      })
-                    ),
-                  },
-                }
-              : node
-          )
-        );
+
+        // Update the available inputs from the node after the compile
+        const updatedNodeInputs = flowElements.nodes.map((node) => ({
+          ...node,
+          data: {
+            ...node.data,
+            inputs: Object.keys(ctx.nodes[node.id]?.inputs || []).map(
+              (name) => ({
+                validTarget: false,
+                name,
+              })
+            ),
+          },
+        }));
+        console.log('settign flow elements after compile', {
+          updatedNodeInputs,
+        });
+        setFlowElements({
+          ...flowElements,
+          nodes: updatedNodeInputs,
+        });
       });
     },
     []
@@ -491,66 +556,21 @@ const Editor: React.FC = () => {
     (newCtx: EngineContext<any>, graph: Graph) => {
       setGuiMsg(`🥸 Initializing ${engine.name}...`);
       setTimeout(() => {
-        console.log('Initializing flow nodes and compiling graph!', { newCtx });
         computeAllContexts(newCtx, engine, graph);
+        console.log('Initializing flow nodes and compiling graph!', { newCtx });
 
-        let engines = 0;
-        let maths = 0;
-        let outputs = 0;
-        let shaders = 0;
-        const spacing = 200;
-        const maxHeight = 4;
-
-        const flowElements = setBiStages([
-          ...graph.nodes.map((node: any, index) => ({
-            id: node.id,
-            data: {
-              label: node.name,
-              stage: node.stage,
-              biStage: node.biStage,
-              inputs: Object.keys(newCtx.nodes[node.id]?.inputs || []).map(
-                (name) => ({
-                  name,
-                  validTarget: false,
-                })
-              ),
-              outputs: [
-                {
-                  validTarget: false,
-                  name: 'out',
-                },
-              ],
-            },
-            type: 'special',
-            position:
-              node.type === ShaderType.output
-                ? { x: spacing * 2, y: outputs++ * 100 }
-                : node.type === ShaderType.phong ||
-                  node.type === ShaderType.toon ||
-                  node.type === ShaderType.physical
-                ? { x: spacing, y: engines++ * 100 }
-                : node.type === ShaderType.add ||
-                  node.type === ShaderType.multiply
-                ? { x: 0, y: maths++ * 100 }
-                : {
-                    x: -spacing - spacing * Math.floor(shaders / maxHeight),
-                    y: (shaders++ % maxHeight) * 100,
-                  },
-          })),
-          ...graph.edges.map((edge) => ({
-            id: `${edge.to}-${edge.from}`,
-            source: edge.from,
-            sourceHandle: edge.output,
-            targetHandle: edge.input,
-            target: edge.to,
-            data: { stage: edge.stage },
-            className: edge.stage,
-            type: 'special',
-          })),
-        ]);
+        // TODO: After mutating the source code and recomputing inputs, and
+        // mapping inputs from one flowelement to another, we need to do this
+        // again to recompute node heights. Also do we need to do this FIRST to
+        // get the inputs on the node? No, we can modify the edges I bet, and
+        // then do this
+        const flowElements = initializeFlowElementsFromGraph(graph, newCtx);
+        console.log('after initialize from graph, new flowElements', {
+          flowElements,
+        });
 
         compile(engine, newCtx, pauseCompile, flowElements);
-        setFlowElements(flowElements);
+        // setFlowElements(flowElements);
         setGuiMsg('');
       }, 10);
     },
@@ -566,7 +586,8 @@ const Editor: React.FC = () => {
         setCtxState(newCtx);
         let newGraph = graph;
         if (lastEngine) {
-          newGraph = convertToEngine(newCtx, lastEngine, engine, graph);
+          const result = convertToEngine(newCtx, lastEngine, engine, graph);
+          newGraph = result[0];
         }
         initializeGraph(newCtx, newGraph);
       } else {
@@ -580,37 +601,47 @@ const Editor: React.FC = () => {
     [ctx, lastEngine, engine, setCtxState, initializeGraph]
   );
 
-  const addConnection = (edge: FlowEdge | Connection) => {
-    const stage = flowElements.find((elem) => elem.id === edge.source)?.data
-      ?.stage;
+  const addConnection = (newEdge: FlowEdge | Connection) => {
+    const stage = flowElements.nodes.find((elem) => elem.id === newEdge.source)
+      ?.data?.stage;
 
-    const updatedFlowElements = setBiStages([
-      ...flowElements.filter(
-        (element) =>
-          // Prevent one input handle from having multiple inputs
-          !(
-            (
-              'targetHandle' in element &&
-              element.targetHandle === edge.targetHandle &&
-              element.target === edge.target
-            )
-            // Prevent one output handle from having multiple lines out
-          ) &&
-          !(
-            'sourceHandle' in element &&
-            element.sourceHandle === edge.sourceHandle &&
-            element.source === edge.source
+    if (newEdge.source === null || newEdge.target === null) {
+      throw new Error('No source or target');
+    }
+
+    const addedEdge: FlowEdge<FlowEdgeData> = {
+      ...newEdge,
+      id: `${newEdge.source}-${newEdge.target}`,
+      source: newEdge.source,
+      target: newEdge.target,
+      data: { stage },
+      className: stage,
+      type: 'special',
+    };
+    const updatedEdges = flowElements.edges.filter(
+      (element) =>
+        // Prevent one input handle from having multiple inputs
+        !(
+          (
+            'targetHandle' in element &&
+            element.targetHandle === newEdge.targetHandle &&
+            element.target === newEdge.target
           )
-      ),
-      {
-        ...edge,
-        id: `${edge.source}-${edge.target}`,
-        data: { stage },
-        className: stage,
-        type: 'special',
-      } as FlowEdge<FlowEdgeData>,
-    ]);
-    setFlowElements(updatedFlowElements);
+          // Prevent one output handle from having multiple lines out
+        ) &&
+        !(
+          'sourceHandle' in element &&
+          element.sourceHandle === newEdge.sourceHandle &&
+          element.source === newEdge.source
+        )
+    );
+
+    const updatedFlowElements = setBiStages({
+      edges: [...updatedEdges, addedEdge],
+      nodes: flowElements.nodes,
+    });
+
+    // setFlowElements(updatedFlowElements);
     compile(
       engine,
       ctx as EngineContext<any>,
@@ -624,12 +655,14 @@ const Editor: React.FC = () => {
   const onEdgeUpdate = (oldEdge: FlowEdge, newConnection: Connection) =>
     addConnection(newConnection);
 
-  const onElementsRemove = (params: any) => {
+  const onEdgesChange = (params: any) => {
+    console.log('???? onEdgesChange', params);
     const ids = new Set(params.map(({ id }: any) => id));
 
-    const updatedFlowElements = setBiStages([
-      ...flowElements.filter(({ id }: any) => !ids.has(id)),
-    ]);
+    const updatedFlowElements = setBiStages({
+      nodes: flowElements.nodes,
+      edges: flowElements.edges.filter(({ id }: any) => !ids.has(id)),
+    });
     setFlowElements(flowElements);
     compile(
       engine,
@@ -675,58 +708,61 @@ const Editor: React.FC = () => {
 
   useEffect(() => onSplitResize(), [defaultMainSplitSize, onSplitResize]);
 
+  // TODO: Try bumping react flow to latest version and using edges and nodes?
   const setTargets = (nodeId: string, handleType: string) => {
     setFlowElements((flowElements) => {
       const source = graph.nodes.find(({ id }) => id === nodeId) as Node;
-      return (flowElements || []).map((element) => {
-        if (
-          element.data &&
-          'label' in element.data &&
-          (element.data.stage === source.stage ||
-            !source.stage ||
-            !element.data.stage) &&
-          element.id !== nodeId
-        ) {
-          return {
-            ...element,
-            data: {
-              ...element.data,
-              inputs: element.data.inputs.map((input) => ({
-                ...input,
-                validTarget: handleType === 'source',
-              })),
-              outputs: element.data.outputs.map((output) => ({
-                ...output,
-                validTarget: handleType === 'target',
-              })),
-            },
-          };
-        }
-        return element;
-      });
+      return {
+        edges: flowElements.edges,
+        nodes: flowElements.nodes.map((node) => {
+          if (
+            node.data &&
+            'label' in node.data &&
+            (node.data.stage === source.stage ||
+              !source.stage ||
+              !node.data.stage) &&
+            node.id !== nodeId
+          ) {
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                inputs: node.data.inputs.map((input) => ({
+                  ...input,
+                  validTarget: handleType === 'source',
+                })),
+                outputs: node.data.outputs.map((output) => ({
+                  ...output,
+                  validTarget: handleType === 'target',
+                })),
+              },
+            };
+          }
+          return node;
+        }),
+      };
     });
   };
+
   const resetTargets = () => {
     setFlowElements((flowElements) => {
-      return (flowElements || []).map((element) => {
-        if (element.data && 'label' in element.data) {
-          return {
-            ...element,
-            data: {
-              ...element.data,
-              inputs: element.data.inputs.map((input) => ({
-                ...input,
-                validTarget: false,
-              })),
-              outputs: element.data.outputs.map((output) => ({
-                ...output,
-                validTarget: false,
-              })),
-            },
-          };
-        }
-        return element;
-      });
+      return {
+        edges: flowElements.edges,
+        nodes: flowElements.nodes.map((node) => ({
+          ...node,
+          data: {
+            ...node.data,
+            inputs: node.data.inputs.map((input) => ({
+              ...input,
+              validTarget: false,
+            })),
+            outputs: node.data.outputs.map((output) => ({
+              ...output,
+              validTarget: false,
+            })),
+          },
+        })),
+      };
     });
   };
 
@@ -738,11 +774,19 @@ const Editor: React.FC = () => {
     setTargets(nodeId, handleType);
   };
   const onConnectStart = (params: any, { nodeId, handleType }: any) => {
-    console.log({ nodeId, handleType });
     setTargets(nodeId, handleType);
   };
   const onEdgeUpdateEnd = () => resetTargets();
   const onConnectStop = () => resetTargets();
+
+  const onNodesChange = useCallback(
+    (changes) =>
+      setFlowElements((elements) => ({
+        nodes: applyNodeChanges(changes, elements.nodes),
+        edges: elements.edges,
+      })),
+    [setFlowElements]
+  );
 
   return (
     <div className={styles.container}>
@@ -788,11 +832,13 @@ const Editor: React.FC = () => {
             <TabPanels>
               <TabPanel>
                 <ReactFlow
-                  elements={flowElements}
+                  nodes={flowElements.nodes}
+                  edges={flowElements.edges}
                   style={flowStyles}
                   onConnect={onConnect}
                   onEdgeUpdate={onEdgeUpdate}
-                  onElementsRemove={onElementsRemove}
+                  onEdgesChange={onEdgesChange}
+                  onNodesChange={onNodesChange}
                   onNodeDoubleClick={onNodeDoubleClick}
                   connectionLineComponent={ConnectionLine}
                   nodeTypes={nodeTypes}

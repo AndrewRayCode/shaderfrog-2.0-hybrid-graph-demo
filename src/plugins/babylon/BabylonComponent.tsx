@@ -11,6 +11,46 @@ import styles from '../../../pages/editor/editor.module.css';
 import { UICompileGraphResult } from '../../Editor';
 import { useBabylon } from './useBabylon';
 
+const usePrevious = (value: any) => {
+  const ref = useRef();
+  useEffect(() => {
+    ref.current = value;
+  });
+  return ref.current;
+};
+
+// const usePrevious = (value, initialValue) => {
+//   const ref = useRef(initialValue);
+//   useEffect(() => {
+//     ref.current = value;
+//   });
+//   return ref.current;
+// };
+// const useEffectDebugger = (effectHook, dependencies, dependencyNames = []) => {
+//   const previousDeps = usePrevious(dependencies, []);
+
+//   const changedDeps = dependencies.reduce((accum, dependency, index) => {
+//     if (dependency !== previousDeps[index]) {
+//       const keyName = dependencyNames[index] || index;
+//       return {
+//         ...accum,
+//         [keyName]: {
+//           before: previousDeps[index],
+//           after: dependency,
+//         },
+//       };
+//     }
+
+//     return accum;
+//   }, {});
+
+//   if (Object.keys(changedDeps).length) {
+//     console.log('[use-effect-debugger] ', changedDeps);
+//   }
+
+//   useEffect(effectHook, dependencies);
+// };
+
 // const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
 
 let mIdx = 0;
@@ -109,7 +149,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
   )?.id;
 
   const meshRef = useRef<BABYLON.Mesh>();
-  useMemo(() => {
+  useEffect(() => {
     if (meshRef.current) {
       meshRef.current.dispose();
     }
@@ -290,7 +330,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       }
 
       // TODO: No Time?
-      uniforms.push('time');
+      // uniforms.push('time');
 
       uniforms.push(`speed_${pu}`);
       uniforms.push(`brightnessX_${pu}`);
@@ -366,7 +406,6 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       capture = [];
       shadersRef.current = true;
       return shaderName;
-      // return pbrName;
     };
 
     if (meshRef.current) {
@@ -377,15 +416,18 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
   }, [pu, scene, compileResult, ctx.compileCount]);
 
   const lightsRef = useRef<BABYLON.Light[]>([]);
-  useMemo(() => {
+  useEffect(() => {
     // Hack to let this hook get the latest state like ctx, but only update
     // if a certain dependency has changed
     // @ts-ignore
-    if (scene.lights === lights) {
+    if (scene.lightsStore === lights) {
       return;
     }
     //   lightsRef.current.forEach((light) => scene.remove(light));
 
+    // TODO: Lights aren't getting applied in babylengine now, or it's all
+    // too dark?
+    console.log('NEW LIGHTS');
     if (lights === 'point') {
       const pointLight = new BABYLON.PointLight(
         'p1',
@@ -427,10 +469,13 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     //   compile(ctx);
     // }
     // // @ts-ignore
-    // scene.lights = lights;
+
+    // This is a hack, maybe should be usePrevious
+    scene.lightsStore = lights;
   }, [lights, scene, compile, ctx]);
 
   useEffect(() => {
+    console.log('resize');
     babylonCanvas.width = width;
     babylonCanvas.height = height;
     engine.resize();

@@ -19,6 +19,11 @@ import ReactFlow, {
   Edge as FlowEdge,
   Connection,
   applyNodeChanges,
+  applyEdgeChanges,
+  EdgeChange,
+  Edge,
+  ReactFlowProvider,
+  useUpdateNodeInternals,
   // FlowElement,
 } from 'react-flow-renderer';
 
@@ -409,6 +414,8 @@ const initializeFlowElementsFromGraph = (
 };
 
 const Editor: React.FC = () => {
+  const updateNodeInternals = useUpdateNodeInternals();
+
   const [{ lastEngine, engine }, setEngine] = useState<{
     lastEngine: Engine<any> | null;
     engine: Engine<any>;
@@ -438,6 +445,12 @@ const Editor: React.FC = () => {
   const [originalVert, setOriginalVert] = useState<string | undefined>('');
   const [finalFragment, setFinalFragment] = useState<string | undefined>('');
   const [compileResult, setCompileResult] = useState<UICompileGraphResult>();
+
+  // React-flow apparently needs(?) the useState callback to ensure the latest
+  // flow elements are in state. We can no longer easily access the "latest"
+  // flow elements in react-flow callbacks. To get the latest state, this
+  // flag is set, and read in a useEffect
+  const [needsCompile, setNeedsCompile] = useState<boolean>(false);
 
   const [flowElements, setFlowElements] = useState<FlowElements>({
     nodes: [],
@@ -503,6 +516,7 @@ const Editor: React.FC = () => {
       setGuiMsg('Compiling!');
 
       compileGraphAsync(engine, ctx).then((compileResult) => {
+        setNeedsCompile(false);
         console.log('comple async complete!', { compileResult });
         // sceneRef.current.shadersUpdated = true;
         setGuiMsg('');
@@ -516,25 +530,30 @@ const Editor: React.FC = () => {
         setOriginalVert(ctx.debuggingNonsense.vertexSource);
 
         // Update the available inputs from the node after the compile
-        const updatedNodeInputs = flowElements.nodes.map((node) => ({
-          ...node,
-          data: {
-            ...node.data,
-            inputs: Object.keys(ctx.nodes[node.id]?.inputs || []).map(
-              (name) => ({
-                validTarget: false,
-                name,
-              })
-            ),
-          },
-        }));
+        const updatedNodes = flowElements.nodes.map((node) => {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              inputs: Object.keys(ctx.nodes[node.id]?.inputs || []).map(
+                (name) => ({
+                  validTarget: false,
+                  name,
+                })
+              ),
+            },
+          };
+        });
         console.log('settign flow elements after compile', {
-          updatedNodeInputs,
+          updatedNodes,
         });
         setFlowElements({
           ...flowElements,
-          nodes: updatedNodeInputs,
+          nodes: updatedNodes,
         });
+        setTimeout(() => {
+          updatedNodes.forEach((node) => updateNodeInternals(node.id));
+        }, 500);
       });
     },
     []
@@ -601,81 +620,9 @@ const Editor: React.FC = () => {
     [ctx, lastEngine, engine, setCtxState, initializeGraph]
   );
 
-  const addConnection = (newEdge: FlowEdge | Connection) => {
-    const stage = flowElements.nodes.find((elem) => elem.id === newEdge.source)
-      ?.data?.stage;
-
-    if (newEdge.source === null || newEdge.target === null) {
-      throw new Error('No source or target');
-    }
-
-    const addedEdge: FlowEdge<FlowEdgeData> = {
-      ...newEdge,
-      id: `${newEdge.source}-${newEdge.target}`,
-      source: newEdge.source,
-      target: newEdge.target,
-      data: { stage },
-      className: stage,
-      type: 'special',
-    };
-    const updatedEdges = flowElements.edges.filter(
-      (element) =>
-        // Prevent one input handle from having multiple inputs
-        !(
-          (
-            'targetHandle' in element &&
-            element.targetHandle === newEdge.targetHandle &&
-            element.target === newEdge.target
-          )
-          // Prevent one output handle from having multiple lines out
-        ) &&
-        !(
-          'sourceHandle' in element &&
-          element.sourceHandle === newEdge.sourceHandle &&
-          element.source === newEdge.source
-        )
-    );
-
-    const updatedFlowElements = setBiStages({
-      edges: [...updatedEdges, addedEdge],
-      nodes: flowElements.nodes,
-    });
-
-    // setFlowElements(updatedFlowElements);
-    compile(
-      engine,
-      ctx as EngineContext<any>,
-      pauseCompile,
-      updatedFlowElements
-    );
-  };
-
-  const onConnect = (edge: FlowEdge | Connection) => addConnection(edge);
-
-  const onEdgeUpdate = (oldEdge: FlowEdge, newConnection: Connection) =>
-    addConnection(newConnection);
-
-  const onEdgesChange = (params: any) => {
-    console.log('???? onEdgesChange', params);
-    const ids = new Set(params.map(({ id }: any) => id));
-
-    const updatedFlowElements = setBiStages({
-      nodes: flowElements.nodes,
-      edges: flowElements.edges.filter(({ id }: any) => !ids.has(id)),
-    });
-    setFlowElements(flowElements);
-    compile(
-      engine,
-      ctx as EngineContext<any>,
-      pauseCompile,
-      updatedFlowElements
-    );
-  };
-
-  const onNodeDoubleClick = (event: any, node: any) => {
-    setActiveShader(graph.nodes.find((n) => n.id === node.id) as Node);
-    setEditorTabIndex(1);
-  };
+  /**
+   * Split state mgmt
+   */
 
   const [defaultMainSplitSize, setDefaultMainSplitSize] = useState<
     number[] | undefined
@@ -708,7 +655,94 @@ const Editor: React.FC = () => {
 
   useEffect(() => onSplitResize(), [defaultMainSplitSize, onSplitResize]);
 
-  // TODO: Try bumping react flow to latest version and using edges and nodes?
+  /**
+   * React flow
+   */
+
+  const addConnection = (newEdge: FlowEdge | Connection) => {
+    const stage = flowElements.nodes.find((elem) => elem.id === newEdge.source)
+      ?.data?.stage;
+
+    if (newEdge.source === null || newEdge.target === null) {
+      throw new Error('No source or target');
+    }
+
+    const addedEdge: FlowEdge<FlowEdgeData> = {
+      ...newEdge,
+      id: `${newEdge.source}-${newEdge.target}`,
+      source: newEdge.source,
+      target: newEdge.target,
+      data: { stage },
+      className: stage,
+      type: 'special',
+    };
+    console.log({ newEdge, addedEdge });
+    const updatedEdges = flowElements.edges.filter(
+      (element) =>
+        // Prevent one input handle from having multiple inputs
+        !(
+          (
+            'targetHandle' in element &&
+            element.targetHandle === newEdge.targetHandle &&
+            element.target === newEdge.target
+          )
+          // Prevent one output handle from having multiple lines out
+        ) &&
+        !(
+          'sourceHandle' in element &&
+          element.sourceHandle === newEdge.sourceHandle &&
+          element.source === newEdge.source
+        )
+    );
+
+    setFlowElements((flowElements) =>
+      setBiStages({
+        edges: [...updatedEdges, addedEdge],
+        nodes: flowElements.nodes,
+      })
+    );
+    setNeedsCompile(true);
+  };
+
+  const onConnect = (edge: FlowEdge | Connection) => addConnection(edge);
+
+  const onEdgeUpdate = (oldEdge: FlowEdge, newConnection: Connection) =>
+    addConnection(newConnection);
+
+  const onEdgesDelete = (edges: Edge[]) => {
+    setNeedsCompile(true);
+  };
+
+  // TODO: this seems to work, at least 3 issues:
+  // 1. Graph can get into a state where an edge isn't deletable with backspace (v10 bug?)
+  // 2. Graph stopped responding entirely at one point
+  // 3. switching to babylon still has issue of not having right input
+  // 4. switching to babylno doesn't keep purple noise as input?
+  const onEdgesChange = useCallback(
+    (changes) =>
+      setFlowElements((flowElements) =>
+        setBiStages({
+          nodes: flowElements.nodes,
+          edges: applyEdgeChanges(changes, flowElements.edges),
+        })
+      ),
+    []
+  );
+
+  const onNodesChange = useCallback(
+    (changes) =>
+      setFlowElements((elements) => ({
+        nodes: applyNodeChanges(changes, elements.nodes),
+        edges: elements.edges,
+      })),
+    [setFlowElements]
+  );
+
+  const onNodeDoubleClick = (event: any, node: any) => {
+    setActiveShader(graph.nodes.find((n) => n.id === node.id) as Node);
+    setEditorTabIndex(1);
+  };
+
   const setTargets = (nodeId: string, handleType: string) => {
     setFlowElements((flowElements) => {
       const source = graph.nodes.find(({ id }) => id === nodeId) as Node;
@@ -779,14 +813,11 @@ const Editor: React.FC = () => {
   const onEdgeUpdateEnd = () => resetTargets();
   const onConnectStop = () => resetTargets();
 
-  const onNodesChange = useCallback(
-    (changes) =>
-      setFlowElements((elements) => ({
-        nodes: applyNodeChanges(changes, elements.nodes),
-        edges: elements.edges,
-      })),
-    [setFlowElements]
-  );
+  useEffect(() => {
+    if (needsCompile) {
+      compile(engine, ctx as EngineContext<any>, pauseCompile, flowElements);
+    }
+  }, [needsCompile, flowElements, ctx, pauseCompile, compile, engine]);
 
   return (
     <div className={styles.container}>
@@ -809,11 +840,9 @@ const Editor: React.FC = () => {
                 if (engine === babylengine) {
                   setCompileResult(undefined);
                   setEngine({ lastEngine: engine, engine: threngine });
-                  // compile(threngine, ctx, pauseCompile, state.flowElements);
                 } else {
                   setCompileResult(undefined);
                   setEngine({ lastEngine: engine, engine: babylengine });
-                  // compile(babylengine, ctx, pauseCompile, state.flowElements);
                 }
               }}
             >
@@ -832,6 +861,9 @@ const Editor: React.FC = () => {
             <TabPanels>
               <TabPanel>
                 <ReactFlow
+                  // Possible fix for this being broken in dev+hot reload mode
+                  // https://discord.com/channels/771389069270712320/859774873500778517/956225780252291112
+                  multiSelectionKeyCode={null}
                   nodes={flowElements.nodes}
                   edges={flowElements.edges}
                   style={flowStyles}
@@ -840,6 +872,7 @@ const Editor: React.FC = () => {
                   onEdgesChange={onEdgesChange}
                   onNodesChange={onNodesChange}
                   onNodeDoubleClick={onNodeDoubleClick}
+                  onEdgesDelete={onEdgesDelete}
                   connectionLineComponent={ConnectionLine}
                   nodeTypes={nodeTypes}
                   edgeTypes={edgeTypes}
@@ -1022,4 +1055,10 @@ const CodeEditor = (props: any) => (
   </div>
 );
 
-export default Editor;
+const WithProvider = () => (
+  <ReactFlowProvider>
+    <Editor />
+  </ReactFlowProvider>
+);
+
+export default WithProvider;

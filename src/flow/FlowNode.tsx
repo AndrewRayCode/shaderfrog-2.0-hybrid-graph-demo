@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import cx from 'classnames';
 import {
   Handle,
   Position,
   Node as FlowNode,
   Edge as FlowEdge,
+  HandleProps,
 } from 'react-flow-renderer';
 import { ShaderStage } from '../nodestuff';
+
+import { useUpdateNodeInternals } from 'react-flow-renderer';
 
 const handleTop = 40;
 const textHeight = 10;
@@ -25,9 +28,41 @@ export type FlowNodeData = {
   inputs: NodeHandle[];
 };
 type NodeProps = {
+  id: string;
   data: FlowNodeData;
 };
-const CustomNodeComponent = ({ data }: NodeProps) => {
+
+// interface NodeProp {
+//   nodeId: string;
+// }
+// interface CustomHandleProps extends HandleProps, NodeProp {}
+
+const CustomHandle = ({ nodeId, id, handleIndex, ...props }: any) => {
+  // const updateNodeInternals = useUpdateNodeInternals();
+  // useEffect(() => {
+  //   // Hack for handle updating
+  //   setTimeout(() => {
+  //     updateNodeInternals(nodeId);
+  //   }, 0);
+  // }, [nodeId, updateNodeInternals, handleIndex, id]);
+
+  return <Handle id={id} {...props} />;
+};
+
+const computeIOKey = (arr: NodeHandle[]) => arr.map((a) => a.name).join(',');
+
+const CustomNodeComponent = ({ id, data }: NodeProps) => {
+  // const updateNodeInternals = useUpdateNodeInternals();
+  // const key = `${computeIOKey(data.inputs)}${computeIOKey(data.outputs)}`;
+
+  // useEffect(() => {
+  //   console.log('Effect running', { id });
+  //   updateNodeInternals(id);
+  //   return () => {
+  //     updateNodeInternals(id);
+  //   };
+  // }, [id, updateNodeInternals, key]);
+
   // TODO: can we make a test case react flow sandbox of chaning a node's
   // named inputs and handles and it failing?
   // console.log('rendering custom node component for ', data.label, data);
@@ -51,7 +86,9 @@ const CustomNodeComponent = ({ data }: NodeProps) => {
             >
               {input.name}
             </div>
-            <Handle
+            <CustomHandle
+              handleIndex={index}
+              nodeId={id}
               id={input.name}
               className={cx({ validTarget: input.validTarget })}
               type="target"
@@ -72,7 +109,9 @@ const CustomNodeComponent = ({ data }: NodeProps) => {
             >
               {output.name}
             </div>
-            <Handle
+            <CustomHandle
+              handleIndex={index}
+              nodeId={id}
               id={output.name}
               className={cx({ validTarget: output.validTarget })}
               type="source"

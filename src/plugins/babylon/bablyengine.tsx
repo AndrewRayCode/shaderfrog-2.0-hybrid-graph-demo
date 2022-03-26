@@ -27,8 +27,8 @@ import { MutableRefObject } from 'react';
 export type RuntimeContext = {
   scene: BABYLON.Scene;
   camera: BABYLON.Camera;
-  meshRef: MutableRefObject<BABYLON.Mesh | undefined>;
   BABYLON: any;
+  sceneData: any;
   // material: any;
   // index: number;
   // threeTone: any;
@@ -50,7 +50,7 @@ const onBeforeCompileMegaShader = (
   engineContext: EngineContext<RuntimeContext>,
   node: Node
 ) => {
-  const { scene, meshRef } = engineContext.runtime;
+  const { scene, sceneData } = engineContext.runtime;
 
   // TODO: match what's in threngine, where they comment this out? Maybe to
   // support changing lights?
@@ -126,23 +126,23 @@ const onBeforeCompileMegaShader = (
     return shaderName;
   };
 
-  if (meshRef.current) {
+  if (sceneData.mesh) {
     console.log('🍃 Calling forceCompilation()....');
-    // meshRef.current.material = shaderMaterial;
-    shaderMaterial.forceCompilation(meshRef.current);
+    // sceneData.mesh.material = shaderMaterial;
+    shaderMaterial.forceCompilation(sceneData.mesh);
     scene.render();
   } else {
     console.log('🍃 FCUK no MESHREF RENDER()....');
   }
   console.log('🍃 BABYLERN forceCompilation done()....');
-  // shaderMaterial.forceCompilation(meshRef.current);
+  // shaderMaterial.forceCompilation(sceneData.mesh);
   // scene.render();
   console.log('🍃 BABYLERN RENDER done', { vertexSource, fragmentSource });
 
   // const { nodes } = engineContext.runtime.cache;
   // const { renderer, meshRef, scene, camera, material, threeTone, three } =
   //   engineContext.runtime;
-  // const mesh = meshRef.current;
+  // const mesh = sceneData.mesh;
 
   // mesh.material = newMat;
   // console.log('scene', JSON.parse(JSON.stringify(scene)));

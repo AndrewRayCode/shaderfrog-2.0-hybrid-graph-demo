@@ -1,44 +1,95 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useContext } from 'react';
 import * as BABYLON from 'babylonjs';
+import { HoistedRef, HoistedRefGetter } from '../../Editor';
+
+type SceneData = {
+  lights: BABYLON.Light[];
+  mesh?: BABYLON.Mesh;
+};
+type ScenePersistence = {
+  sceneData: SceneData;
+  canvas: HTMLCanvasElement;
+  engine: BABYLON.Engine;
+  scene: BABYLON.Scene;
+  camera: BABYLON.ArcRotateCamera;
+};
 
 type Callback = (time: number) => void;
 
 export const useBabylon = (callback: Callback) => {
-  const [babylonCanvas] = useState(() => document.createElement('canvas'));
+  const { getRefData } = useContext(HoistedRef) as {
+    getRefData: HoistedRefGetter;
+  };
+
+  const { engine, camera, sceneData, canvas, scene } =
+    getRefData<ScenePersistence>('babylon', () => {
+      const canvas = document.createElement('canvas');
+      const engine = new BABYLON.Engine(canvas, true, {
+        preserveDrawingBuffer: true,
+        stencil: true,
+      });
+      return {
+        sceneData: {
+          lights: [],
+        },
+        canvas,
+        engine,
+        scene: new BABYLON.Scene(engine),
+        camera: new BABYLON.ArcRotateCamera(
+          'camera1',
+          0,
+          Math.PI,
+          5,
+          new BABYLON.Vector3(0, 0, 0),
+          scene
+        ),
+        // scene: new three.Scene(),
+        // camera: new three.PerspectiveCamera(75, 1 / 1, 0.1, 1000),
+        // renderer: new three.WebGLRenderer(),
+        // destroy: (data: ScenePersistence) => {
+        //   console.log('👋🏻 Bye Bye Three.js!');
+        //   data.renderer.forceContextLoss();
+        //   // @ts-ignore
+        //   data.renderer.domElement = null;
+        // },
+      };
+    });
+
+  // const [babylonCanvas] = useState(() => document.createElement('canvas'));
 
   const [babylonDom, setBabylonDom] = useState<HTMLCanvasElement | null>(null);
   const babylonDomRef = useCallback((node) => setBabylonDom(node), []);
 
   const frameRef = useRef<number>(0);
 
-  const [engine] = useState(
-    () =>
-      new BABYLON.Engine(babylonCanvas, true, {
-        preserveDrawingBuffer: true,
-        stencil: true,
-      })
-  );
+  // const [engine] = useState(
+  //   () =>
+  //     new BABYLON.Engine(babylonCanvas, true, {
+  //       preserveDrawingBuffer: true,
+  //       stencil: true,
+  //     })
+  // );
 
-  const [scene] = useState(() => new BABYLON.Scene(engine));
+  // const [scene] = useState(() => new BABYLON.Scene(engine));
 
-  const [camera] = useState(
-    () =>
-      new BABYLON.ArcRotateCamera(
-        'camera1',
-        0,
-        Math.PI,
-        5,
-        new BABYLON.Vector3(0, 0, 0),
-        scene
-      )
-  );
+  // const [camera] = useState(
+  //   () =>
+  //     new BABYLON.ArcRotateCamera(
+  //       'camera1',
+  //       0,
+  //       Math.PI,
+  //       5,
+  //       new BABYLON.Vector3(0, 0, 0),
+  //       scene
+  //     )
+  // );
 
   useEffect(() => {
     // Target the camera to scene origin
     camera.setTarget(BABYLON.Vector3.Zero());
     // Attach the camera to the canvas
-    camera.attachControl(babylonCanvas, false);
-  }, [scene, camera, babylonCanvas]);
+    camera.attachControl(canvas, false);
+  }, [scene, camera, canvas]);
 
   const savedCallback = useRef<Callback>(callback);
   // Remember the latest callback.
@@ -48,10 +99,10 @@ export const useBabylon = (callback: Callback) => {
 
   useEffect(() => {
     if (babylonDom && !babylonDom.childNodes.length) {
-      console.log('Re-attaching Babylon DOM', babylonCanvas, 'to', babylonDom);
-      babylonDom.appendChild(babylonCanvas);
+      console.log('Re-attaching Babylon DOM', canvas, 'to', babylonDom);
+      babylonDom.appendChild(canvas);
     }
-  }, [babylonCanvas, babylonDom]);
+  }, [canvas, babylonDom]);
 
   const animate = useCallback(
     (time: number) => {
@@ -79,5 +130,5 @@ export const useBabylon = (callback: Callback) => {
     };
   }, [engine, animate, babylonDom]);
 
-  return { babylonCanvas, babylonDomRef, engine, scene, camera };
+  return { canvas, babylonDomRef, engine, scene, camera, sceneData };
 };

@@ -22,6 +22,7 @@ export const useThree = (callback: Callback) => {
     getRefData: HoistedRefGetter;
   };
   const { sceneData, scene, camera, renderer } = getRefData<ScenePersistence>(
+    'three',
     () => {
       return {
         sceneData: {

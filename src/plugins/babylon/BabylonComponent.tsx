@@ -10,48 +10,7 @@ import styles from '../../../pages/editor/editor.module.css';
 
 import { UICompileGraphResult } from '../../Editor';
 import { useBabylon } from './useBabylon';
-
-const usePrevious = (value: any) => {
-  const ref = useRef();
-  useEffect(() => {
-    ref.current = value;
-  });
-  return ref.current;
-};
-
-// const usePrevious = (value, initialValue) => {
-//   const ref = useRef(initialValue);
-//   useEffect(() => {
-//     ref.current = value;
-//   });
-//   return ref.current;
-// };
-// const useEffectDebugger = (effectHook, dependencies, dependencyNames = []) => {
-//   const previousDeps = usePrevious(dependencies, []);
-
-//   const changedDeps = dependencies.reduce((accum, dependency, index) => {
-//     if (dependency !== previousDeps[index]) {
-//       const keyName = dependencyNames[index] || index;
-//       return {
-//         ...accum,
-//         [keyName]: {
-//           before: previousDeps[index],
-//           after: dependency,
-//         },
-//       };
-//     }
-
-//     return accum;
-//   }, {});
-
-//   if (Object.keys(changedDeps).length) {
-//     console.log('[use-effect-debugger] ', changedDeps);
-//   }
-
-//   useEffect(effectHook, dependencies);
-// };
-
-// const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
+import { usePrevious } from '../../usePrevious';
 
 let mIdx = 0;
 let id = () => mIdx++;
@@ -101,11 +60,11 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
 }) => {
   const shadersRef = useRef<boolean>(false);
 
-  const { babylonCanvas, babylonDomRef, scene, camera, engine } = useBabylon(
-    (time) => {
+  const { canvas, sceneData, babylonDomRef, scene, camera, engine } =
+    useBabylon((time) => {
       if (shadersRef.current) {
-        // console.log(meshRef.current?.material);
-        // const effect = meshRef.current?.material?.getEffect();
+        // console.log(sceneData.mesh?.material);
+        // const effect = sceneData.mesh?.material?.getEffect();
         // const y = BABYLON.Logger._pipelineContext;
         // const t = capture;
         // capture.FRAGMENT SHADER ERROR
@@ -119,16 +78,15 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
         shadersRef.current = false;
       }
 
-      const light = lightsRef.current[0];
+      const light = sceneData.lights[0];
       if (light) {
         (light as BABYLON.PointLight).position.x = 1 * Math.sin(time * 0.001);
         (light as BABYLON.PointLight).position.y = 1 * Math.cos(time * 0.001);
       }
-      if (meshRef.current && meshRef.current.material) {
-        meshRef.current.material.getEffect()?.setFloat('time', time * 0.001);
+      if (sceneData.mesh && sceneData.mesh.material) {
+        sceneData.mesh.material.getEffect()?.setFloat('time', time * 0.001);
       }
-    }
-  );
+    });
 
   const os1: any = graph.nodes.find(
     (node) => node.name === 'Outline Shader F'
@@ -148,10 +106,10 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     (node) => node.name === 'Fake Heatmap V'
   )?.id;
 
-  const meshRef = useRef<BABYLON.Mesh>();
+  // const meshRef = useRef<BABYLON.Mesh>();
   useEffect(() => {
-    if (meshRef.current) {
-      meshRef.current.dispose();
+    if (sceneData.mesh) {
+      sceneData.mesh.dispose();
     }
 
     let mesh;
@@ -177,10 +135,10 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     } else {
       throw new Error('fffffff');
     }
-    if (meshRef.current) {
-      mesh.material = meshRef.current.material;
+    if (sceneData.mesh) {
+      mesh.material = sceneData.mesh.material;
     }
-    meshRef.current = mesh;
+    sceneData.mesh = mesh;
 
     mesh.onBeforeDrawObservable.add((mesh) => {
       if (mesh && mesh.material) {
@@ -251,7 +209,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       BABYLON,
       scene,
       camera,
-      meshRef,
+      sceneData,
       cache: { nodes: {} },
     },
     nodes: {},
@@ -408,22 +366,26 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       return shaderName;
     };
 
-    if (meshRef.current) {
+    if (sceneData.mesh) {
       console.log('👩‍🚀 👩‍🚀 reassigning shader');
-      meshRef.current.material = shaderMaterial;
+      sceneData.mesh.material = shaderMaterial;
     }
     // sceneRef.current.shadersUpdated = true;
   }, [pu, scene, compileResult, ctx.compileCount]);
 
-  const lightsRef = useRef<BABYLON.Light[]>([]);
+  // const lightsRef = useRef<BABYLON.Light[]>([]);
+  const prevLights = usePrevious(lights);
   useEffect(() => {
     // Hack to let this hook get the latest state like ctx, but only update
     // if a certain dependency has changed
     // @ts-ignore
-    if (scene.lightsStore === lights) {
+    if (
+      prevLights === lights ||
+      (prevLights === undefined && sceneData.lights.length)
+    ) {
       return;
     }
-    //   lightsRef.current.forEach((light) => scene.remove(light));
+    sceneData.lights.forEach((light) => light.dispose());
 
     // TODO: Lights aren't getting applied in babylengine now, or it's all
     // too dark?
@@ -439,11 +401,11 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       pointLight.diffuse = new BABYLON.Color3(1, 1, 1);
       pointLight.specular = new BABYLON.Color3(1, 1, 1);
 
-      lightsRef.current = [pointLight];
+      sceneData.lights = [pointLight];
     }
 
-    //   if (meshRef.current) {
-    //     meshRef.current.material = loadingMaterial;
+    //   if (sceneData.mesh) {
+    //     sceneData.mesh.material = loadingMaterial;
     //   }
 
     // @ts-ignore
@@ -453,15 +415,15 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     // // @ts-ignore
 
     // This is a hack, maybe should be usePrevious
-    scene.lightsStore = lights;
-  }, [lights, scene, compile, ctx]);
+    // scene.lightsStore = lights;
+  }, [sceneData, prevLights, lights, scene, compile, ctx]);
 
   useEffect(() => {
     console.log('resize');
-    babylonCanvas.width = width;
-    babylonCanvas.height = height;
+    canvas.width = width;
+    canvas.height = height;
     engine.resize();
-  }, [engine, babylonCanvas, width, height, ctx.runtime]);
+  }, [engine, canvas, width, height, ctx.runtime]);
 
   return (
     <div>

@@ -10,16 +10,9 @@ import { EngineContext } from '../../graph';
 import { RuntimeContext } from './threngine';
 
 import { useThree } from './useThree';
+import { usePrevious } from '../../usePrevious';
 
 const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
-
-const usePrevious = (value: any) => {
-  const ref = useRef();
-  useEffect(() => {
-    ref.current = value;
-  });
-  return ref.current;
-};
 
 type AnyFn = (...args: any) => any;
 type ThreeSceneProps = {
@@ -333,7 +326,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
     if (lights === 'point') {
       const pointLight = new three.PointLight(0xffffff, 1);
-      pointLight.position.set(0, 0, 1);
+      pointLight.position.set(0, 0, 2);
       scene.add(pointLight);
 
       const helper = new three.PointLightHelper(pointLight, 0.1);

@@ -106,16 +106,6 @@ const outlineF = outlineShaderF(id());
 const outlineV = outlineShaderV(id(), outlineF.id);
 const solidColorF = solidColorNode(id());
 
-// const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
-
-const usePrevious = <T extends unknown>(value: T): T | undefined => {
-  const ref = useRef<T>();
-  useEffect(() => {
-    ref.current = value;
-  });
-  return ref.current;
-};
-
 const graph: Graph = {
   nodes: [
     outputF,
@@ -415,15 +405,22 @@ const initializeFlowElementsFromGraph = (
 };
 
 export const HoistedRef = createContext<any>({});
-export type HoistedRefGetter = <T extends unknown>(setter?: () => T) => T;
+export type HoistedRefGetter = <T extends unknown>(
+  key: string,
+  setter?: () => T
+) => T;
 
 const Editor: React.FC = () => {
-  const refData = useRef<any>(null);
-  const getRefData: HoistedRefGetter = (setter) => {
-    if (!refData.current && setter) {
-      refData.current = setter();
+  const refData = useRef<{ [key: string]: any }>({});
+  // TODO: I've hard to hard code "three" / "babylon" in the respective places
+  // that use this hook, to keep the old context around to destroy it, and to
+  // prevent babylon calling this hook and getting a brand new context. Can I
+  // instead clear this, or forceUpdate?
+  const getRefData: HoistedRefGetter = (key, setter) => {
+    if (!refData.current[key] && setter) {
+      refData.current[key] = setter();
     }
-    return refData.current;
+    return refData.current[key];
   };
 
   const updateNodeInternals = useUpdateNodeInternals();
@@ -624,10 +621,12 @@ const Editor: React.FC = () => {
           const result = convertToEngine(newCtx, lastEngine, engine, graph);
           newGraph = result[0];
 
-          const currentScene = getRefData();
-          if (currentScene) {
-            // @ts-ignore
-            currentScene.destroy(currentScene);
+          if (ctx?.engine) {
+            const currentScene = getRefData(ctx.engine);
+            if (currentScene) {
+              // @ts-ignore
+              currentScene.destroy(currentScene);
+            }
           }
         }
         initializeGraph(newCtx, newGraph);

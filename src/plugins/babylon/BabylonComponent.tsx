@@ -121,8 +121,8 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
 
       const light = lightsRef.current[0];
       if (light) {
-        (light as BABYLON.PointLight).position.x = 5.2 * Math.sin(time * 0.001);
-        (light as BABYLON.PointLight).position.y = 5.2 * Math.cos(time * 0.001);
+        (light as BABYLON.PointLight).position.x = 1 * Math.sin(time * 0.001);
+        (light as BABYLON.PointLight).position.y = 1 * Math.cos(time * 0.001);
       }
       if (meshRef.current && meshRef.current.material) {
         meshRef.current.material.getEffect()?.setFloat('time', time * 0.001);
@@ -330,7 +330,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       }
 
       // TODO: No Time?
-      // uniforms.push('time');
+      uniforms.push('time');
 
       uniforms.push(`speed_${pu}`);
       uniforms.push(`brightnessX_${pu}`);
@@ -427,35 +427,17 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
 
     // TODO: Lights aren't getting applied in babylengine now, or it's all
     // too dark?
-    console.log('NEW LIGHTS');
+    console.log('Babylon NEW LIGHTS');
     if (lights === 'point') {
       const pointLight = new BABYLON.PointLight(
         'p1',
         new BABYLON.Vector3(1, 0, 0),
         scene
       );
+
+      pointLight.position = new BABYLON.Vector3(0, 0, 1);
       pointLight.diffuse = new BABYLON.Color3(1, 1, 1);
       pointLight.specular = new BABYLON.Color3(1, 1, 1);
-      //   } else {
-      //     const light = new three.SpotLight(0x00ff00, 1, 3, 0.4, 1);
-      //     light.position.set(0, 0, 2);
-      //     scene.add(light);
-
-      //     const helper = new three.SpotLightHelper(
-      //       light,
-      //       new three.Color(0x00ff00)
-      //     );
-      //     scene.add(helper);
-
-      //     const light2 = new three.SpotLight(0xff0000, 1, 4, 0.4, 1);
-      //     light2.position.set(0, 0, 2);
-      //     scene.add(light2);
-
-      //     const helper2 = new three.SpotLightHelper(
-      //       light2,
-      //       new three.Color(0xff0000)
-      //     );
-      //     scene.add(helper2);
 
       lightsRef.current = [pointLight];
     }
@@ -521,12 +503,6 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
         >
           {previewObject === 'sphere' ? 'Torus Knot' : 'Sphere'}
         </button>
-        {/* <button
-          className={styles.button}
-          onClick={() => setPauseCompile(!pauseCompile)}
-        >
-          {pauseCompile ? 'Unpause' : 'Pause'}
-        </button> */}
       </div>
     </div>
   );

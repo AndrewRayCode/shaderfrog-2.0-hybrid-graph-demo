@@ -56,6 +56,12 @@
   position: absolute;
 }
 
+.react-flow__handle.react-flow__handle-connecting + .react-flow_handle_label {
+  box-shadow: 0 0 10px 4px rgb(70, 70, 70);
+  background: rgb(70, 70, 70);
+  border-radius: 4px;
+}
+
 .react-flow__handle.validTarget {
   box-shadow: 0 0 10px #fff;
   border-color: #d4bcbc;

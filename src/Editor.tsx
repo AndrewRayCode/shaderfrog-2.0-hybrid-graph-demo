@@ -4,6 +4,7 @@ import { SplitPane } from 'react-multi-split-pane';
 import cx from 'classnames';
 import { generate } from '@shaderfrog/glsl-parser';
 import React, {
+  createContext,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -190,13 +191,13 @@ const graph: Graph = {
     //   input: 'texture2d_0',
     //   stage: 'fragment',
     // },
-    // {
-    //   from: purpleNoise.id,
-    //   to: physicalF.id,
-    //   output: 'out',
-    //   input: 'albedo',
-    //   stage: 'fragment',
-    // },
+    {
+      from: solidColorF.id,
+      to: physicalF.id,
+      output: 'out',
+      input: 'albedo',
+      stage: 'fragment',
+    },
     // {
     //   from: heatShaderF.id,
     //   to: add.id,
@@ -413,7 +414,18 @@ const initializeFlowElementsFromGraph = (
   });
 };
 
+export const HoistedRef = createContext<any>({});
+export type HoistedRefGetter = <T extends unknown>(setter?: () => T) => T;
+
 const Editor: React.FC = () => {
+  const refData = useRef<any>(null);
+  const getRefData: HoistedRefGetter = (setter) => {
+    if (!refData.current && setter) {
+      refData.current = setter();
+    }
+    return refData.current;
+  };
+
   const updateNodeInternals = useUpdateNodeInternals();
 
   const [{ lastEngine, engine }, setEngine] = useState<{
@@ -576,7 +588,10 @@ const Editor: React.FC = () => {
       setGuiMsg(`🥸 Initializing ${engine.name}...`);
       setTimeout(() => {
         computeAllContexts(newCtx, engine, graph);
-        console.log('Initializing flow nodes and compiling graph!', { newCtx });
+        console.log('Initializing flow nodes and compiling graph!', {
+          graph,
+          newCtx,
+        });
 
         // TODO: After mutating the source code and recomputing inputs, and
         // mapping inputs from one flowelement to another, we need to do this
@@ -586,6 +601,7 @@ const Editor: React.FC = () => {
         const flowElements = initializeFlowElementsFromGraph(graph, newCtx);
         console.log('after initialize from graph, new flowElements', {
           flowElements,
+          graph,
         });
 
         compile(engine, newCtx, pauseCompile, flowElements);
@@ -601,20 +617,22 @@ const Editor: React.FC = () => {
   const setCtx = useCallback(
     <T extends unknown>(newCtx: EngineContext<T>) => {
       if (newCtx.engine !== ctx?.engine) {
-        console.log('Changing engines!', { ctx, newCtx });
+        console.log('🔀 Changing engines!', { ctx, newCtx });
         setCtxState(newCtx);
         let newGraph = graph;
         if (lastEngine) {
           const result = convertToEngine(newCtx, lastEngine, engine, graph);
           newGraph = result[0];
+
+          const currentScene = getRefData();
+          if (currentScene) {
+            // @ts-ignore
+            currentScene.destroy(currentScene);
+          }
         }
         initializeGraph(newCtx, newGraph);
       } else {
-        console.log(
-          'Ignoring scene context update because we already have one for',
-          ctx.engine,
-          { ctx, newCtx }
-        );
+        console.log(ctx.engine, { ctx, newCtx });
       }
     },
     [ctx, lastEngine, engine, setCtxState, initializeGraph]
@@ -945,37 +963,39 @@ const Editor: React.FC = () => {
             </TabGroup>
             <TabPanels>
               <TabPanel className={styles.scene}>
-                {engine === threngine ? (
-                  <ThreeComponent
-                    setCtx={setCtx}
-                    graph={graph}
-                    lights={lights}
-                    setLights={setLights}
-                    previewObject={previewObject}
-                    setPreviewObject={setPreviewObject}
-                    compile={childCompile}
-                    guiMsg={guiMsg}
-                    compileResult={compileResult}
-                    setGlResult={setGlResult}
-                    width={state.width}
-                    height={state.height}
-                  />
-                ) : (
-                  <BabylonComponent
-                    setCtx={setCtx}
-                    graph={graph}
-                    lights={lights}
-                    setLights={setLights}
-                    previewObject={previewObject}
-                    setPreviewObject={setPreviewObject}
-                    compile={childCompile}
-                    guiMsg={guiMsg}
-                    compileResult={compileResult}
-                    setGlResult={setGlResult}
-                    width={state.width}
-                    height={state.height}
-                  />
-                )}
+                <HoistedRef.Provider value={{ refData, getRefData }}>
+                  {engine === threngine ? (
+                    <ThreeComponent
+                      setCtx={setCtx}
+                      graph={graph}
+                      lights={lights}
+                      setLights={setLights}
+                      previewObject={previewObject}
+                      setPreviewObject={setPreviewObject}
+                      compile={childCompile}
+                      guiMsg={guiMsg}
+                      compileResult={compileResult}
+                      setGlResult={setGlResult}
+                      width={state.width}
+                      height={state.height}
+                    />
+                  ) : (
+                    <BabylonComponent
+                      setCtx={setCtx}
+                      graph={graph}
+                      lights={lights}
+                      setLights={setLights}
+                      previewObject={previewObject}
+                      setPreviewObject={setPreviewObject}
+                      compile={childCompile}
+                      guiMsg={guiMsg}
+                      compileResult={compileResult}
+                      setGlResult={setGlResult}
+                      width={state.width}
+                      height={state.height}
+                    />
+                  )}
+                </HoistedRef.Provider>
               </TabPanel>
               <TabPanel>
                 <Tabs onSelect={setSceneTabIndex} selected={sceneTabIndex}>

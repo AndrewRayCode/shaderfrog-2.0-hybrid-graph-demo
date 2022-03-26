@@ -1,29 +1,58 @@
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useContext } from 'react';
 import * as three from 'three';
+
+import { HoistedRef, HoistedRefGetter } from '../../Editor';
 
 type Callback = (time: number) => void;
 
+type SceneData = {
+  lights: three.Object3D[];
+  mesh?: three.Mesh;
+};
+type ScenePersistence = {
+  sceneData: SceneData;
+  scene: three.Scene;
+  camera: three.Camera;
+  renderer: three.WebGLRenderer;
+};
+
 export const useThree = (callback: Callback) => {
+  const { getRefData } = useContext(HoistedRef) as {
+    getRefData: HoistedRefGetter;
+  };
+  const { sceneData, scene, camera, renderer } = getRefData<ScenePersistence>(
+    () => {
+      return {
+        sceneData: {
+          lights: [],
+        },
+        scene: new three.Scene(),
+        camera: new three.PerspectiveCamera(75, 1 / 1, 0.1, 1000),
+        renderer: new three.WebGLRenderer(),
+        destroy: (data: ScenePersistence) => {
+          console.log('👋🏻 Bye Bye Three.js!');
+          data.renderer.forceContextLoss();
+          // @ts-ignore
+          data.renderer.domElement = null;
+        },
+      };
+    }
+  );
+
   const [threeDom, setThreeDom] = useState<HTMLDivElement | null>(null);
   const threeDomRef = useCallback((node) => setThreeDom(node), []);
 
   const frameRef = useRef<number>(0);
   const controlsRef = useRef<OrbitControls>();
-  const [scene] = useState(() => new three.Scene());
-  const [camera] = useState(
-    () => new three.PerspectiveCamera(75, 1 / 1, 0.1, 1000)
-  );
 
   useEffect(() => {
-    if (!scene.children.find((child) => child === camera)) {
+    if (!scene.children.find((child: any) => child === camera)) {
       camera.position.set(0, 0, 3);
       camera.lookAt(0, 0, 0);
       scene.add(camera);
     }
   }, [scene, camera]);
-
-  const [renderer] = useState(() => new three.WebGLRenderer());
 
   const savedCallback = useRef<Callback>(callback);
   // Remember the latest callback.
@@ -46,10 +75,6 @@ export const useThree = (callback: Callback) => {
     }
   }, [camera, renderer, threeDom]);
 
-  // TODO: This is clearly wrong because the cleanup effect gets called
-  // way too often. It should onlmcay get called when - when the dom ref is
-  // unmounted? Also was initially thinking of a way to pause this renderer
-  // but I think it's solved by the
   const animate = useCallback(
     (time: number) => {
       if (controlsRef.current) {
@@ -80,5 +105,5 @@ export const useThree = (callback: Callback) => {
     };
   }, [animate, threeDom]);
 
-  return { threeDomRef, scene, camera, renderer };
+  return { sceneData, threeDomRef, scene, camera, renderer };
 };

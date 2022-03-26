@@ -2,40 +2,24 @@ import styles from '../../../pages/editor/editor.module.css';
 
 import { UICompileGraphResult } from '../../Editor';
 
-import React, {
-  ReactNode,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as three from 'three';
-import {
-  outputNode,
-  Graph,
-  shaderSectionsToAst,
-  Node,
-  addNode,
-  multiplyNode,
-  ShaderType,
-  Edge,
-  ShaderStage,
-} from '../../nodestuff';
-import {
-  compileGraph,
-  computeAllContexts,
-  computeGraphContext,
-  EngineContext,
-  NodeInputs,
-} from '../../graph';
+import { Graph } from '../../nodestuff';
+import { EngineContext } from '../../graph';
 
-import { threngine, RuntimeContext } from './threngine';
+import { RuntimeContext } from './threngine';
 
 import { useThree } from './useThree';
 
 const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
+
+const usePrevious = (value: any) => {
+  const ref = useRef();
+  useEffect(() => {
+    ref.current = value;
+  });
+  return ref.current;
+};
 
 type AnyFn = (...args: any) => any;
 type ThreeSceneProps = {
@@ -68,77 +52,83 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 }) => {
   const shadersUpdated = useRef<boolean>(false);
 
-  const { scene, camera, threeDomRef, renderer } = useThree((time) => {
-    const { current: mesh } = meshRef;
-    if (!mesh) {
+  const { sceneData, scene, camera, threeDomRef, renderer } = useThree(
+    (time) => {
+      const { mesh } = sceneData;
+      if (!mesh) {
+        return;
+      }
+
+      if (shadersUpdated.current) {
+        const gl = renderer.getContext();
+
+        const { fragmentShader, vertexShader, program } = renderer.properties
+          .get(mesh.material)
+          .programs.values()
+          .next().value;
+
+        const compiled = gl.getProgramParameter(program, gl.LINK_STATUS);
+        if (!compiled) {
+          const log = gl.getProgramInfoLog(program)?.trim();
+
+          setGlResult({
+            fragError: gl.getShaderInfoLog(fragmentShader)?.trim() || log,
+            vertError: gl.getShaderInfoLog(vertexShader)?.trim() || log,
+            programError: log,
+          });
+        } else {
+          setGlResult({
+            fragError: null,
+            vertError: null,
+            programError: null,
+          });
+        }
+
+        shadersUpdated.current = false;
+      }
+
+      if (sceneData.lights.length) {
+        const light = sceneData.lights[0];
+        light.position.x = 1.2 * Math.sin(time * 0.001);
+        light.position.y = 1.2 * Math.cos(time * 0.001);
+        light.lookAt(
+          new three.Vector3(Math.cos(time * 0.0015), Math.sin(time * 0.0015), 0)
+        );
+
+        if (sceneData.lights.length > 2) {
+          const light = sceneData.lights[1];
+          light.position.x = 1.3 * Math.cos(time * 0.0015);
+          light.position.y = 1.3 * Math.sin(time * 0.0015);
+
+          light.lookAt(
+            new three.Vector3(
+              Math.cos(time * 0.0025),
+              Math.sin(time * 0.0025),
+              0
+            )
+          );
+        }
+      }
+
+      // @ts-ignore
+      if (mesh.material?.uniforms?.time && !Array.isArray(mesh.material)) {
+        // @ts-ignore
+        mesh.material.uniforms.time.value = time * 0.001;
+      }
+    }
+  );
+
+  const previousPreviewObject = usePrevious(previewObject);
+  useEffect(() => {
+    if (previousPreviewObject === previewObject) {
       return;
     }
-
-    if (shadersUpdated.current) {
-      const gl = renderer.getContext();
-
-      const { fragmentShader, vertexShader, program } = renderer.properties
-        .get(mesh.material)
-        .programs.values()
-        .next().value;
-
-      const compiled = gl.getProgramParameter(program, gl.LINK_STATUS);
-      if (!compiled) {
-        const log = gl.getProgramInfoLog(program)?.trim();
-
-        setGlResult({
-          fragError: gl.getShaderInfoLog(fragmentShader)?.trim() || log,
-          vertError: gl.getShaderInfoLog(vertexShader)?.trim() || log,
-          programError: log,
-        });
-      } else {
-        setGlResult({
-          fragError: null,
-          vertError: null,
-          programError: null,
-        });
-      }
-
-      shadersUpdated.current = false;
-    }
-
-    if (lightsRef.current) {
-      const light = lightsRef.current[0];
-      light.position.x = 1.2 * Math.sin(time * 0.001);
-      light.position.y = 1.2 * Math.cos(time * 0.001);
-      light.lookAt(
-        new three.Vector3(Math.cos(time * 0.0015), Math.sin(time * 0.0015), 0)
-      );
-
-      if (lightsRef.current.length > 2) {
-        const light = lightsRef.current[1];
-        light.position.x = 1.3 * Math.cos(time * 0.0015);
-        light.position.y = 1.3 * Math.sin(time * 0.0015);
-
-        light.lookAt(
-          new three.Vector3(Math.cos(time * 0.0025), Math.sin(time * 0.0025), 0)
-        );
-      }
-    }
-
-    // @ts-ignore
-    if (mesh.material?.uniforms?.time && !Array.isArray(mesh.material)) {
-      // @ts-ignore
-      mesh.material.uniforms.time.value = time * 0.001;
-    }
-  });
-
-  const meshRef = useRef<three.Mesh>();
-  useMemo(() => {
-    if (meshRef.current) {
-      scene.remove(meshRef.current);
+    if (sceneData.mesh) {
+      scene.remove(sceneData.mesh);
     }
 
     let mesh;
     if (previewObject === 'torusknot') {
-      // const geometry = new three.TorusKnotGeometry(0.6, 0.25, 100, 16);
-      // geometry.computeVertexNormals();
-
       const geometry = new three.TorusKnotGeometry(0.6, 0.25, 200, 32);
 
       mesh = new three.Mesh(geometry);
@@ -148,12 +138,12 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     } else {
       throw new Error('fffffff');
     }
-    if (meshRef.current) {
-      mesh.material = meshRef.current.material;
+    if (sceneData.mesh) {
+      mesh.material = sceneData.mesh.material;
     }
-    meshRef.current = mesh;
+    sceneData.mesh = mesh;
     scene.add(mesh);
-  }, [previewObject, scene]);
+  }, [previousPreviewObject, sceneData, previewObject, scene]);
 
   const threeTone = useMemo(() => {
     const image = new three.TextureLoader().load('/3tone.jpg');
@@ -167,7 +157,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     runtime: {
       three,
       renderer,
-      meshRef: meshRef,
+      sceneData,
       scene,
       camera,
       index: 0,
@@ -187,7 +177,10 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     if (!compileResult?.fragmentResult) {
       return;
     }
-    const { threeTone, meshRef } = ctx.runtime;
+    const {
+      threeTone,
+      sceneData: { mesh },
+    } = ctx.runtime;
     console.log('oh hai birfday boi boi boiiiii');
 
     const os1: any = graph.nodes.find(
@@ -296,7 +289,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       [`alpha_${os1}`]: { value: 1 },
       [`alpha_${os2}`]: { value: 1 },
     };
-    console.log('applying uniforms', uniforms);
 
     // the before code
     const newMat = new three.RawShaderMaterial({
@@ -318,77 +310,82 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     // newMat.shading = three.SmoothShading;
     // newMat.flatShading = false;
 
-    meshRef.current.material = newMat;
-    // meshRef.current.material = mmm;
+    mesh.material = newMat;
+    // mesh.material = mmm;
     shadersUpdated.current = true;
   }, [compileResult, ctx.runtime, graph.nodes]);
 
-  const lightsRef = useRef<three.Object3D[]>([]);
-  useMemo(() => {
-    // Hack to let this hook get the latest state like ctx, but only update
-    // if a certain dependency has changed
-    // @ts-ignore
-    if (scene.lights === lights) {
+  // const lightsRef = useRef<three.Object3D[]>([]);
+  const prevLights = usePrevious(lights);
+  useEffect(() => {
+    if (
+      // If the lights are unchanged
+      prevLights === lights ||
+      // Or if there were no previous lights, but we already have them in the
+      // persisted sceneData, we already have three data in memory
+      (prevLights === undefined && sceneData.lights.length)
+    ) {
       return;
     }
-    lightsRef.current.forEach((light) => scene.remove(light));
+    sceneData.lights.forEach((light) => {
+      scene.remove(light);
+    });
 
     if (lights === 'point') {
       const pointLight = new three.PointLight(0xffffff, 1);
       pointLight.position.set(0, 0, 1);
       scene.add(pointLight);
+
       const helper = new three.PointLightHelper(pointLight, 0.1);
       scene.add(helper);
-      lightsRef.current = [pointLight, helper];
+      sceneData.lights = [pointLight, helper];
 
-      const light1 = new three.PointLight(0xffffff, 1, 0);
-      light1.position.set(0, 200, 0);
-      scene.add(light1);
+      // const light1 = new three.PointLight(0xffffff, 1, 0);
+      // light1.position.set(0, 200, 0);
+      // scene.add(light1);
 
-      const light2 = new three.PointLight(0xffffff, 1, 0);
-      light2.position.set(100, 200, 100);
-      scene.add(light2);
+      // const light2 = new three.PointLight(0xffffff, 1, 0);
+      // light2.position.set(100, 200, 100);
+      // scene.add(light2);
 
       // const light3 = new THREE.PointLight( 0xffffff, 1, 0 );
       // light3.position.set( - 100, - 200, - 100 );
       // scene.add( light3 );
 
-      lightsRef.current = [pointLight, helper, light1, light2];
+      sceneData.lights = [pointLight, helper];
+      // sceneData.lights = [pointLight, helper, light1, light2];
     } else {
-      const light = new three.SpotLight(0xddffdd, 1, 3, 0.4, 1);
+      const light = new three.SpotLight(0x00ff00, 1, 3, 0.4, 1);
       light.position.set(0, 0, 2);
       scene.add(light);
 
       const helper = new three.SpotLightHelper(
         light,
-        new three.Color(0xddffdd)
+        new three.Color(0x00ff00)
       );
       scene.add(helper);
 
-      const light2 = new three.SpotLight(0xffdddd, 1, 4, 0.4, 1);
+      const light2 = new three.SpotLight(0xff0000, 1, 4, 0.4, 1);
       light2.position.set(0, 0, 2);
       scene.add(light2);
 
       const helper2 = new three.SpotLightHelper(
         light2,
-        new three.Color(0xffdddd)
+        new three.Color(0xff0000)
       );
       scene.add(helper2);
 
-      lightsRef.current = [light, light2, helper, helper2];
+      sceneData.lights = [light, light2, helper, helper2];
     }
 
-    if (meshRef.current) {
-      meshRef.current.material = loadingMaterial;
+    if (sceneData.mesh) {
+      sceneData.mesh.material = loadingMaterial;
     }
 
-    // @ts-ignore
-    if (scene.lights) {
+    if (prevLights) {
       compile(ctx);
     }
-    // @ts-ignore
-    scene.lights = lights;
-  }, [lights, scene, compile, ctx]);
+  }, [sceneData, lights, scene, compile, ctx, prevLights]);
 
   useEffect(() => {
     if (ctx.runtime?.camera) {
@@ -433,12 +430,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         >
           {previewObject === 'sphere' ? 'Torus Knot' : 'Sphere'}
         </button>
-        {/* <button
-          className={styles.button}
-          onClick={() => setPauseCompile(!pauseCompile)}
-        >
-          {pauseCompile ? 'Unpause' : 'Pause'}
-        </button> */}
       </div>
     </div>
   );

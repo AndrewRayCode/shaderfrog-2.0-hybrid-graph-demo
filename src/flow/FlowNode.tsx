@@ -68,7 +68,7 @@ const CustomNodeComponent = ({ id, data }: NodeProps) => {
   // console.log('rendering custom node component for ', data.label, data);
   return (
     <div
-      className={'flownode ' + data.stage}
+      className={cx('flownode', data.stage)}
       style={{
         height: `${handleTop + Math.max(data.inputs.length, 1) * 20}px`,
       }}
@@ -77,15 +77,6 @@ const CustomNodeComponent = ({ id, data }: NodeProps) => {
       <div className="flowInputs">
         {data.inputs.map((input, index) => (
           <React.Fragment key={input.name}>
-            <div
-              className="react-flow_handle_label"
-              style={{
-                top: `${handleTop - textHeight + index * 20}px`,
-                left: 15,
-              }}
-            >
-              {input.name}
-            </div>
             <CustomHandle
               handleIndex={index}
               nodeId={id}
@@ -95,6 +86,17 @@ const CustomNodeComponent = ({ id, data }: NodeProps) => {
               position={Position.Left}
               style={{ top: `${handleTop + index * 20}px` }}
             />
+            <div
+              className={cx('react-flow_handle_label', {
+                validTarget: input.validTarget,
+              })}
+              style={{
+                top: `${handleTop - textHeight + index * 20}px`,
+                left: 15,
+              }}
+            >
+              {input.name}
+            </div>
           </React.Fragment>
         ))}
 

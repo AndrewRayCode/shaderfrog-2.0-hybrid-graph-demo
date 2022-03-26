@@ -25,8 +25,8 @@ export type RuntimeContext = {
   scene: any;
   camera: any;
   renderer: any;
-  meshRef: any;
   three: any;
+  sceneData: any;
   // material: any;
   index: number;
   threeTone: any;
@@ -52,9 +52,9 @@ const onBeforeCompileMegaShader = (
   // if (nodes[node.id] || (node.nextStageNodeId && nodes[node.nextStageNodeId])) {
   //   return;
   // }
-  const { renderer, meshRef, scene, camera, threeTone, three } =
+  const { renderer, sceneData, scene, camera, threeTone, three } =
     engineContext.runtime;
-  const mesh = meshRef.current;
+  const { mesh } = sceneData;
 
   mesh.material = newMat;
   // console.log('scene', JSON.parse(JSON.stringify(scene)));

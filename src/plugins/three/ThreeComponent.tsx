@@ -1,7 +1,5 @@
 import styles from '../../../pages/editor/editor.module.css';
 
-import { UICompileGraphResult } from '../../Editor';
-
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as three from 'three';
 import { Graph } from '../../nodestuff';
@@ -11,6 +9,7 @@ import { RuntimeContext } from './threngine';
 
 import { useThree } from './useThree';
 import { usePrevious } from '../../usePrevious';
+import { UICompileGraphResult } from '../../uICompileGraphResult';
 
 const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
 
@@ -163,6 +162,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
   // Inform parent our context is created
   useEffect(() => {
+    console.log('threecomponent setCtx called');
     setCtx<RuntimeContext>(ctx);
   }, [ctx, setCtx]);
 

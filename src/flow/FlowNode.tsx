@@ -37,19 +37,19 @@ type NodeProps = {
 // }
 // interface CustomHandleProps extends HandleProps, NodeProp {}
 
-const CustomHandle = ({ nodeId, id, handleIndex, ...props }: any) => {
-  // const updateNodeInternals = useUpdateNodeInternals();
-  // useEffect(() => {
-  //   // Hack for handle updating
-  //   setTimeout(() => {
-  //     updateNodeInternals(nodeId);
-  //   }, 0);
-  // }, [nodeId, updateNodeInternals, handleIndex, id]);
+// const CustomHandle = ({ nodeId, id, handleIndex, ...props }: any) => {
+//   // const updateNodeInternals = useUpdateNodeInternals();
+//   // useEffect(() => {
+//   //   // Hack for handle updating
+//   //   setTimeout(() => {
+//   //     updateNodeInternals(nodeId);
+//   //   }, 0);
+//   // }, [nodeId, updateNodeInternals, handleIndex, id]);
 
-  return <Handle id={id} {...props} />;
-};
+//   return <Handle id={id} {...props} />;
+// };
 
-const computeIOKey = (arr: NodeHandle[]) => arr.map((a) => a.name).join(',');
+// const computeIOKey = (arr: NodeHandle[]) => arr.map((a) => a.name).join(',');
 
 const CustomNodeComponent = ({ id, data }: NodeProps) => {
   // const updateNodeInternals = useUpdateNodeInternals();
@@ -77,9 +77,7 @@ const CustomNodeComponent = ({ id, data }: NodeProps) => {
       <div className="flowInputs">
         {data.inputs.map((input, index) => (
           <React.Fragment key={input.name}>
-            <CustomHandle
-              handleIndex={index}
-              nodeId={id}
+            <Handle
               id={input.name}
               className={cx({ validTarget: input.validTarget })}
               type="target"
@@ -111,9 +109,7 @@ const CustomNodeComponent = ({ id, data }: NodeProps) => {
             >
               {output.name}
             </div>
-            <CustomHandle
-              handleIndex={index}
-              nodeId={id}
+            <Handle
               id={output.name}
               className={cx({ validTarget: output.validTarget })}
               type="source"

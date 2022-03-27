@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, useContext } from 'react';
 import * as BABYLON from 'babylonjs';
-import { HoistedRef, HoistedRefGetter } from '../../Editor';
+import { HoistedRef, HoistedRefGetter } from '../../hoistedRefContext';
 
 type SceneData = {
-  lights: BABYLON.Light[];
+  lights: BABYLON.Node[];
   mesh?: BABYLON.Mesh;
 };
 type ScenePersistence = {

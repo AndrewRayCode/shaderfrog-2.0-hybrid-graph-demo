@@ -4,7 +4,6 @@ import { SplitPane } from 'react-multi-split-pane';
 import cx from 'classnames';
 import { generate } from '@shaderfrog/glsl-parser';
 import React, {
-  createContext,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -81,6 +80,8 @@ import {
   Editor as BabylonComponent,
   engine as babylengine,
 } from './plugins/babylon';
+import { HoistedRef, HoistedRefGetter } from './hoistedRefContext';
+import { UICompileGraphResult } from './uICompileGraphResult';
 
 let counter = 0;
 const id = () => '' + counter++;
@@ -206,17 +207,10 @@ const graph: Graph = {
 };
 
 const flowStyles = { height: '100vh', background: '#111' };
-export type FlowElement = FlowNode<FlowNodeData> | FlowEdge<FlowEdgeData>;
-export type FlowElements = {
+type FlowElement = FlowNode<FlowNodeData> | FlowEdge<FlowEdgeData>;
+type FlowElements = {
   nodes: FlowNode<FlowNodeData>[];
   edges: FlowEdge<FlowEdgeData>[];
-};
-
-const isEdge = (elem: FlowElement): elem is FlowEdge => {
-  return 'source' in elem;
-};
-const isNode = (elem: FlowElement): elem is FlowNode => {
-  return !('source' in elem);
 };
 
 const nodeTypes = {
@@ -225,12 +219,6 @@ const nodeTypes = {
 
 const edgeTypes = {
   special: FlowEdgeComponent,
-};
-
-export type UICompileGraphResult = {
-  compileMs: string;
-  fragmentResult: string;
-  vertexResult: string;
 };
 
 const compileGraphAsync = async (
@@ -383,7 +371,7 @@ const initializeFlowElementsFromGraph = (
         ? { x: 0, y: maths++ * 100 }
         : {
             x: -spacing - spacing * Math.floor(shaders / maxHeight),
-            y: (shaders++ % maxHeight) * 100,
+            y: (shaders++ % maxHeight) * 120,
           },
   }));
 
@@ -403,12 +391,6 @@ const initializeFlowElementsFromGraph = (
     edges: updatedEdges,
   });
 };
-
-export const HoistedRef = createContext<any>({});
-export type HoistedRefGetter = <T extends unknown>(
-  key: string,
-  setter?: () => T
-) => T;
 
 const Editor: React.FC = () => {
   const refData = useRef<{ [key: string]: any }>({});
@@ -507,10 +489,6 @@ const Editor: React.FC = () => {
       pauseCompile: boolean,
       flowElements: FlowElements
     ) => {
-      // if (!ctx || pauseCompile || !flowElements.length) {
-      //   return;
-      // }
-
       // Convert the flow edges into the graph edges, to reflect the latest
       // user's changes
       graph.edges = flowElements.edges.map((edge) => ({
@@ -520,14 +498,12 @@ const Editor: React.FC = () => {
         input: edge.targetHandle as string,
         stage: edge.data?.stage as ShaderStage,
       }));
-      console.log('set graph.edges', graph.edges, 'from', flowElements);
 
       setGuiMsg('Compiling!');
 
       compileGraphAsync(engine, ctx).then((compileResult) => {
         setNeedsCompile(false);
         console.log('comple async complete!', { compileResult });
-        // sceneRef.current.shadersUpdated = true;
         setGuiMsg('');
         setCompileResult(compileResult);
         setFinalFragment(compileResult.fragmentResult);
@@ -553,9 +529,7 @@ const Editor: React.FC = () => {
             },
           };
         });
-        console.log('settign flow elements after compile', {
-          updatedNodes,
-        });
+
         setFlowElements({
           ...flowElements,
           nodes: updatedNodes,
@@ -565,7 +539,7 @@ const Editor: React.FC = () => {
         }, 500);
       });
     },
-    []
+    [updateNodeInternals]
   );
 
   // Let child components call compile after, say, their lighting has finished
@@ -596,10 +570,6 @@ const Editor: React.FC = () => {
         // get the inputs on the node? No, we can modify the edges I bet, and
         // then do this
         const flowElements = initializeFlowElementsFromGraph(graph, newCtx);
-        console.log('after initialize from graph, new flowElements', {
-          flowElements,
-          graph,
-        });
 
         compile(engine, newCtx, pauseCompile, flowElements);
         // setFlowElements(flowElements);
@@ -614,7 +584,11 @@ const Editor: React.FC = () => {
   const setCtx = useCallback(
     <T extends unknown>(newCtx: EngineContext<T>) => {
       if (newCtx.engine !== ctx?.engine) {
-        console.log('🔀 Changing engines!', { ctx, newCtx });
+        ctx?.engine
+          ? console.log('🔀 Changing engines!', { ctx, newCtx })
+          : console.log('🌟 Initializing engine!', newCtx, '(no old context)', {
+              ctx,
+            });
         setCtxState(newCtx);
         let newGraph = graph;
         if (lastEngine) {
@@ -630,8 +604,6 @@ const Editor: React.FC = () => {
           }
         }
         initializeGraph(newCtx, newGraph);
-      } else {
-        console.log(ctx.engine, { ctx, newCtx });
       }
     },
     [ctx, lastEngine, engine, setCtxState, initializeGraph]

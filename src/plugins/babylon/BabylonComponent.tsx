@@ -8,9 +8,9 @@ import { babylengine, RuntimeContext } from './bablyengine';
 
 import styles from '../../../pages/editor/editor.module.css';
 
-import { UICompileGraphResult } from '../../Editor';
 import { useBabylon } from './useBabylon';
 import { usePrevious } from '../../usePrevious';
+import { UICompileGraphResult } from '../../uICompileGraphResult';
 
 let mIdx = 0;
 let id = () => mIdx++;
@@ -58,11 +58,13 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
   width,
   height,
 }) => {
-  const shadersRef = useRef<boolean>(false);
+  // TODO: Changing nodes in babylon land doesn't update babylon, and this
+  // ref is renamed
+  const shaderNeedsReApplying = useRef<boolean>(false);
 
   const { canvas, sceneData, babylonDomRef, scene, camera, engine } =
     useBabylon((time) => {
-      if (shadersRef.current) {
+      if (shaderNeedsReApplying.current) {
         // console.log(sceneData.mesh?.material);
         // const effect = sceneData.mesh?.material?.getEffect();
         // const y = BABYLON.Logger._pipelineContext;
@@ -75,13 +77,43 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
           vertError: capture.find((str) => str.includes('VERTEX SHADER ERROR')),
           programError: '',
         });
-        shadersRef.current = false;
+        shaderNeedsReApplying.current = false;
       }
 
-      const light = sceneData.lights[0];
-      if (light) {
-        (light as BABYLON.PointLight).position.x = 1 * Math.sin(time * 0.001);
-        (light as BABYLON.PointLight).position.y = 1 * Math.cos(time * 0.001);
+      const { lights } = sceneData;
+      if (lights.length === 2) {
+        (lights[0] as BABYLON.PointLight).position.x =
+          1 * Math.sin(time * 0.001);
+        (lights[0] as BABYLON.PointLight).position.y =
+          1 * Math.cos(time * 0.001);
+        (lights[1] as BABYLON.PointLight).position.x =
+          1 * Math.sin(time * 0.001);
+        (lights[1] as BABYLON.PointLight).position.y =
+          1 * Math.cos(time * 0.001);
+      } else if (lights.length > 2) {
+        (lights[0] as BABYLON.PointLight).position.x =
+          1 * Math.sin(time * 0.001);
+        (lights[0] as BABYLON.PointLight).position.y =
+          1 * Math.cos(time * 0.001);
+        (lights[0] as BABYLON.PointLight).setDirectionToTarget(
+          new BABYLON.Vector3(0, 0, 0)
+        );
+        (lights[1] as BABYLON.PointLight).position.x =
+          1 * Math.sin(time * 0.001);
+        (lights[1] as BABYLON.PointLight).position.y =
+          1 * Math.cos(time * 0.001);
+
+        (lights[2] as BABYLON.PointLight).position.x =
+          1 * Math.cos(time * 0.001);
+        (lights[2] as BABYLON.PointLight).position.y =
+          1 * Math.sin(time * 0.001);
+        (lights[2] as BABYLON.PointLight).setDirectionToTarget(
+          new BABYLON.Vector3(0, 0, 0)
+        );
+        (lights[3] as BABYLON.PointLight).position.x =
+          1 * Math.cos(time * 0.001);
+        (lights[3] as BABYLON.PointLight).position.y =
+          1 * Math.sin(time * 0.001);
       }
       if (sceneData.mesh && sceneData.mesh.material) {
         sceneData.mesh.material.getEffect()?.setFloat('time', time * 0.001);
@@ -202,19 +234,23 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     });
   }, [previewObject, scene]);
 
-  const [ctx] = useState<EngineContext<RuntimeContext>>({
-    engine: 'babylon',
-    compileCount: 0,
-    runtime: {
-      BABYLON,
-      scene,
-      camera,
-      sceneData,
-      cache: { nodes: {} },
-    },
-    nodes: {},
-    debuggingNonsense: {},
+  const [ctx] = useState<EngineContext<RuntimeContext>>(() => {
+    console.log('Babylon re-creating ctx!!! 🍠🍠🍠🍠🍠');
+    return {
+      engine: 'babylon',
+      compileCount: 0,
+      runtime: {
+        BABYLON,
+        scene,
+        camera,
+        sceneData,
+        cache: { nodes: {} },
+      },
+      nodes: {},
+      debuggingNonsense: {},
+    };
   });
+  console.log('ctx babyloncomponent renderx', { ctx });
 
   // Inform parent our context is created
   useEffect(() => {
@@ -250,7 +286,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     const brickTexture = new BABYLON.Texture('/brick-texture.jpeg', scene);
     shaderMaterial.albedoTexture = brickTexture;
 
-    const brickNormal = new BABYLON.Texture('/brick-texture.jpeg', scene);
+    const brickNormal = new BABYLON.Texture('/bricknormal.png', scene);
     shaderMaterial.bumpTexture = brickNormal;
 
     shaderMaterial.albedoColor = new BABYLON.Color3(1.0, 1.0, 1.0);
@@ -362,7 +398,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
         };
       }
       capture = [];
-      shadersRef.current = true;
+      shaderNeedsReApplying.current = true;
       return shaderName;
     };
 
@@ -396,12 +432,68 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
         new BABYLON.Vector3(1, 0, 0),
         scene
       );
-
       pointLight.position = new BABYLON.Vector3(0, 0, 1);
       pointLight.diffuse = new BABYLON.Color3(1, 1, 1);
       pointLight.specular = new BABYLON.Color3(1, 1, 1);
 
-      sceneData.lights = [pointLight];
+      const sphere1 = BABYLON.MeshBuilder.CreateSphere(
+        'sphere',
+        { segments: 1, diameter: 0.2 },
+        scene
+      );
+      sphere1.position = new BABYLON.Vector3(0, 0, 2);
+      const mat1 = new BABYLON.StandardMaterial('mat1', scene);
+      mat1.emissiveColor = new BABYLON.Color3(1, 1, 1);
+      mat1.wireframe = true;
+      sphere1.material = mat1;
+
+      sceneData.lights = [pointLight, sphere1];
+    } else if (lights === 'spot') {
+      const spot1 = new BABYLON.SpotLight(
+        'spotLight',
+        new BABYLON.Vector3(0, 0, 2),
+        new BABYLON.Vector3(0, 0, -1),
+        Math.PI,
+        0.1,
+        scene
+      );
+      spot1.position = new BABYLON.Vector3(0, 0, 2);
+      spot1.diffuse = new BABYLON.Color3(0, 1, 0);
+      spot1.specular = new BABYLON.Color3(0, 1, 0);
+      const sphere1 = BABYLON.MeshBuilder.CreateSphere(
+        'sphere',
+        { segments: 1, diameter: 0.2 },
+        scene
+      );
+      sphere1.position = new BABYLON.Vector3(0, 0, 2);
+      const mat1 = new BABYLON.StandardMaterial('mat1', scene);
+      mat1.emissiveColor = new BABYLON.Color3(0, 1, 0);
+      mat1.wireframe = true;
+      sphere1.material = mat1;
+
+      const spot2 = new BABYLON.SpotLight(
+        'spotLight2',
+        new BABYLON.Vector3(0, 0, 2),
+        new BABYLON.Vector3(0, 0, -1),
+        Math.PI,
+        0.1,
+        scene
+      );
+      spot2.position = new BABYLON.Vector3(0, 0, 2);
+      spot2.diffuse = new BABYLON.Color3(1, 0, 0);
+      spot2.specular = new BABYLON.Color3(1, 0, 0);
+      const sphere2 = BABYLON.MeshBuilder.CreateSphere(
+        'sphere',
+        { segments: 1, diameter: 0.2 },
+        scene
+      );
+      sphere2.position = new BABYLON.Vector3(0, 0, 2);
+      const mat2 = new BABYLON.StandardMaterial('mat2', scene);
+      mat2.emissiveColor = new BABYLON.Color3(1, 0, 0);
+      mat2.wireframe = true;
+      sphere2.material = mat2;
+
+      sceneData.lights = [spot1, sphere1, spot2, sphere2];
     }
 
     //   if (sceneData.mesh) {
@@ -410,7 +502,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
 
     // @ts-ignore
     // if (scene.lights) {
-    //   compile(ctx);
+    compile(ctx);
     // }
     // // @ts-ignore
 

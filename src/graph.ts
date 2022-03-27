@@ -134,6 +134,7 @@ export const convertToEngine = <T>(
 
   graph.nodes.forEach((node) => {
     if ([ShaderType.shader].includes(node.type)) {
+      console.log(`Converting ${node.name} (${node.id})`);
       const preprocessed = preprocess(node.source, {
         preserveComments: true,
         preserve: {

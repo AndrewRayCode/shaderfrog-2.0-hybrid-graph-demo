@@ -21,12 +21,6 @@
   width: 100%;
 }
 
-.flownode .react-flow__handle {
-  width: 12px;
-  height: 12px;
-  transition: 0.1s all ease-out;
-}
-
 .react-flow__edgeupdater {
   opacity: 0.5;
   r: 4;
@@ -56,6 +50,21 @@
   position: absolute;
 }
 
+.flownode .react-flow__handle {
+  width: 14px;
+  height: 14px;
+  transition: 0.1s all ease-out;
+  z-index: 10;
+}
+
+.flownode .react-flow__handle .react-flow__handle-left {
+  left: -7px;
+}
+
+.flownode .react-flow__handle .react-flow__handle-right {
+  right: -7px;
+}
+
 .react-flow__handle.react-flow__handle-connecting + .react-flow_handle_label {
   box-shadow: 0 0 10px 4px rgb(70, 70, 70);
   background: rgb(70, 70, 70);
@@ -70,7 +79,7 @@
 
 .react-flow__handle.react-flow__handle-connecting {
   box-shadow: 0 0 10px #fff;
-  border-color: #fff;
+  border: 4px solid #fff;
   background: #fff;
 }
 
@@ -123,7 +132,7 @@
 .fragment.flownode .react-flow__handle {
   border-color: #d4ff00;
   background: #333d00;
-  transition: all 0.2s ease-in;
+  /* transition: box-shadow 0.2s ease-in; */
 }
 
 .fragment .react-flow__handle.validTarget {

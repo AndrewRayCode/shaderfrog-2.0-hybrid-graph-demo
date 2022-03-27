@@ -85,6 +85,8 @@ import { HoistedRef, HoistedRefGetter, Hoisty } from './hoistedRefContext';
 import { UICompileGraphResult } from './uICompileGraphResult';
 import { useLocalStorage } from './useLocalStorage';
 
+export type PreviewLight = 'point' | '3point' | 'spot';
+
 const useFlef = () => {
   const [flowElements, setFlowElements, resetFlowElements] =
     useLocalStorage<FlowElements>('flow', {
@@ -451,7 +453,7 @@ const Editor: React.FC = () => {
   const [sceneTabIndex, setSceneTabIndex] = useState<number>(0);
   const [editorTabIndex, setEditorTabIndex] = useState<number>(0);
   const [guiMsg, setGuiMsg] = useState<string>('');
-  const [lights, setLights] = useState<string>('point');
+  const [lights, setLights] = useState<PreviewLight>('point');
   const [previewObject, setPreviewObject] = useState('torusknot');
 
   const [activeShader, setActiveShader] = useState<Node>(graph.nodes[0]);

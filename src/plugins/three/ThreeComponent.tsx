@@ -10,6 +10,7 @@ import { RuntimeContext } from './threngine';
 import { useThree } from './useThree';
 import { usePrevious } from '../../usePrevious';
 import { UICompileGraphResult } from '../../uICompileGraphResult';
+import { PreviewLight } from '../../Editor';
 
 const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
 
@@ -19,7 +20,7 @@ type ThreeSceneProps = {
   guiMsg: string;
   compileResult: UICompileGraphResult | undefined;
   graph: Graph;
-  lights: string;
+  lights: PreviewLight;
   previewObject: string;
   setCtx: <T extends unknown>(ctx: EngineContext<T>) => void;
   setGlResult: AnyFn;
@@ -79,27 +80,21 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         shadersUpdated.current = false;
       }
 
-      if (sceneData.lights.length) {
+      if (sceneData.lights.length === 2) {
         const light = sceneData.lights[0];
         light.position.x = 1.2 * Math.sin(time * 0.001);
         light.position.y = 1.2 * Math.cos(time * 0.001);
-        light.lookAt(
-          new three.Vector3(Math.cos(time * 0.0015), Math.sin(time * 0.0015), 0)
-        );
+      } else if (sceneData.lights.length === 4) {
+        const light = sceneData.lights[0];
+        light.position.x = 1.2 * Math.sin(time * 0.001);
+        light.position.y = 1.2 * Math.cos(time * 0.001);
+        light.lookAt(new three.Vector3(0, 0, 0));
 
-        if (sceneData.lights.length > 2) {
-          const light = sceneData.lights[1];
-          light.position.x = 1.3 * Math.cos(time * 0.0015);
-          light.position.y = 1.3 * Math.sin(time * 0.0015);
+        const light1 = sceneData.lights[1];
+        light1.position.x = 1.3 * Math.cos(time * 0.0015);
+        light1.position.y = 1.3 * Math.sin(time * 0.0015);
 
-          light.lookAt(
-            new three.Vector3(
-              Math.cos(time * 0.0025),
-              Math.sin(time * 0.0025),
-              0
-            )
-          );
-        }
+        light1.lookAt(new three.Vector3(0, 0, 0));
       }
 
       // @ts-ignore
@@ -125,7 +120,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
       mesh = new three.Mesh(geometry);
     } else if (previewObject === 'sphere') {
-      const geometry = new three.SphereBufferGeometry(1, 32, 32);
+      const geometry = new three.SphereBufferGeometry(1, 64, 64);
       mesh = new three.Mesh(geometry);
     } else {
       throw new Error('fffffff');
@@ -216,16 +211,10 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
       // map: { value: new three.TextureLoader().load('/contrast-noise.png') },
       normalMap: {
-        value: new three.TextureLoader().load('/bricknormal.png'),
+        value: new three.TextureLoader().load('/blank-normal-map.png'),
       },
       image: {
         value: new three.TextureLoader().load('/contrast-noise.png'),
-      },
-      [`tExplosion_${fs1}`]: {
-        value: new three.TextureLoader().load('/explosion.png'),
-      },
-      [`tExplosion_${fs2}`]: {
-        value: new three.TextureLoader().load('/explosion.png'),
       },
       time: { value: 0 },
       resolution: { value: 0.5 },
@@ -253,12 +242,18 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       [`variation_${fc}`]: { value: 8 },
       [`backgroundColor_${fc}`]: { value: new three.Vector3(0.0, 0.0, 0.5) },
 
+      [`tExplosion_${fs1}`]: {
+        value: new three.TextureLoader().load('/explosion.png'),
+      },
+      [`tExplosion_${fs2}`]: {
+        value: new three.TextureLoader().load('/explosion.png'),
+      },
       [`fireSpeed_${fs1}`]: { value: 0.6 },
       [`fireSpeed_${fs2}`]: { value: 0.6 },
       [`pulseHeight_${fs1}`]: { value: 0.1 },
       [`pulseHeight_${fs2}`]: { value: 0.1 },
-      [`displacementHeight_${fs1}`]: { value: 0.2 },
-      [`displacementHeight_${fs2}`]: { value: 0.2 },
+      [`displacementHeight_${fs1}`]: { value: 0.6 },
+      [`displacementHeight_${fs2}`]: { value: 0.6 },
       [`turbulenceDetail_${fs1}`]: { value: 0.8 },
       [`turbulenceDetail_${fs2}`]: { value: 0.8 },
       [`brightness`]: { value: 0.8 },
@@ -324,6 +319,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       scene.remove(light);
     });
 
+    // todo 3point
     if (lights === 'point') {
       const pointLight = new three.PointLight(0xffffff, 1);
       pointLight.position.set(0, 0, 2);
@@ -332,22 +328,27 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       const helper = new three.PointLightHelper(pointLight, 0.1);
       scene.add(helper);
       sceneData.lights = [pointLight, helper];
+    } else if (lights === '3point') {
+      const light1 = new three.PointLight(0xffffff, 1, 0);
+      light1.position.set(0, 200, 0);
+      scene.add(light1);
+      const helper1 = new three.PointLightHelper(light1, 0.1);
+      scene.add(helper1);
 
-      // const light1 = new three.PointLight(0xffffff, 1, 0);
-      // light1.position.set(0, 200, 0);
-      // scene.add(light1);
+      const light2 = new three.PointLight(0xffffff, 1, 0);
+      light2.position.set(100, 200, 100);
+      scene.add(light2);
+      const helper2 = new three.PointLightHelper(light2, 0.1);
+      scene.add(helper2);
 
-      // const light2 = new three.PointLight(0xffffff, 1, 0);
-      // light2.position.set(100, 200, 100);
-      // scene.add(light2);
+      const light3 = new three.PointLight(0xffffff, 1, 0);
+      light3.position.set(-100, -200, -100);
+      scene.add(light3);
+      const helper3 = new three.PointLightHelper(light3, 0.1);
+      scene.add(helper3);
 
-      // const light3 = new THREE.PointLight( 0xffffff, 1, 0 );
-      // light3.position.set( - 100, - 200, - 100 );
-      // scene.add( light3 );
-
-      sceneData.lights = [pointLight, helper];
-      // sceneData.lights = [pointLight, helper, light1, light2];
-    } else {
+      sceneData.lights = [light1, helper1, light2, helper2, light3, helper3];
+    } else if (lights === 'spot') {
       const light = new three.SpotLight(0x00ff00, 1, 3, 0.4, 1);
       light.position.set(0, 0, 2);
       scene.add(light);
@@ -399,6 +400,13 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
           `Complile took ${compileResult?.compileMs}ms`}
       </div>
       <div className={styles.sceneControls}>
+        <button
+          className={styles.button}
+          onClick={() => setLights('3point')}
+          disabled={lights === '3point'}
+        >
+          3 Points
+        </button>
         <button
           className={styles.button}
           onClick={() => setLights('point')}

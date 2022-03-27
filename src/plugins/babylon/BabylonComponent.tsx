@@ -375,11 +375,13 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       uniforms.push(`alpha_${os1}`);
       uniforms.push(`alpha_${os2}`);
 
+      // todo lights are at 90 degree angle and something switches engine back
+      // to three lolå
       if (options) {
         console.log('Babylon scene setting processFinalCode...');
         options.processFinalCode = (type, code) => {
           console.log(
-            '😮😮😮 Babylon scene processFinalCode called, setting shader source!'
+            '😮 Babylon scene processFinalCode called, setting shader source!'
           );
           if (type === 'vertex') {
             console.log('processFinalCode', {

@@ -5,6 +5,7 @@ import cx from 'classnames';
 import { generate } from '@shaderfrog/glsl-parser';
 import React, {
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -80,130 +81,155 @@ import {
   Editor as BabylonComponent,
   engine as babylengine,
 } from './plugins/babylon';
-import { HoistedRef, HoistedRefGetter } from './hoistedRefContext';
+import { HoistedRef, HoistedRefGetter, Hoisty } from './hoistedRefContext';
 import { UICompileGraphResult } from './uICompileGraphResult';
+import { useLocalStorage } from './useLocalStorage';
 
-let counter = 0;
-const id = () => '' + counter++;
-const outputF = outputNode(id(), 'Output F', {}, 'fragment');
-const outputV = outputNode(id(), 'Output V', {}, 'vertex', outputF.id);
-const phongF = phongNode(id(), 'Phong F', {}, 'fragment');
-const phongV = phongNode(id(), 'Phong V', {}, 'vertex', phongF.id);
-const physicalF = physicalNode(id(), 'Physical F', {}, 'fragment');
-const physicalV = physicalNode(id(), 'Physical V', {}, 'vertex', physicalF.id);
-const toonF = toonNode(id(), 'Toon F', {}, 'fragment');
-const toonV = toonNode(id(), 'Toon V', {}, 'vertex', toonF.id);
-const fluidF = fluidCirclesNode(id());
-const staticShader = staticShaderNode(id());
-const purpleNoise = purpleNoiseNode(id());
-const heatShaderF = heatShaderFragmentNode(id());
-const heatShaderV = heatShaderVertexNode(id(), heatShaderF.id);
-const fireF = fireFrag(id());
-const fireV = fireVert(id(), fireF.id);
-const add = addNode(id(), {});
-const add2 = addNode(id(), {});
-const multiply = multiplyNode(id(), {});
-const outlineF = outlineShaderF(id());
-const outlineV = outlineShaderV(id(), outlineF.id);
-const solidColorF = solidColorNode(id());
+const useFlef = () => {
+  const [flowElements, setFlowElements, resetFlowElements] =
+    useLocalStorage<FlowElements>('flow', {
+      nodes: [],
+      edges: [],
+    });
 
-const graph: Graph = {
-  nodes: [
-    outputF,
-    outputV,
-    // phongF,
-    // phongV,
-    physicalF,
-    physicalV,
-    // toonF,
-    // toonV,
-    fluidF,
-    staticShader,
-    purpleNoise,
-    heatShaderF,
-    heatShaderV,
-    fireF,
-    fireV,
-    add,
-    add2,
-    multiply,
-    outlineF,
-    outlineV,
-    solidColorF,
-  ],
-  edges: [
-    // TODO: Put other images in the graph like the toon step shader
-    // TODO: Could be cool to try outline shader https://shaderfrog.com/app/view/4876
-    // TODO: Have uniforms added per shader in the graph
-    // TODO: Try plugging into normal map
-    // TODO: AnyCode node to try manipulating above shader for normal map
-    // TODO: Make uniforms like map: change the uniforms
-    // TODO: Add 1.00 / 3.00 switch
-    // TODO: Fix adding / changing edges not auto-removing previous edges
-    // TOOD: Highlight drop targets on drag
-    // TOOD: Name inputs, nomralmap/roughnessMap based on uniform name?
-    // TODO: Here we hardcode "out" for the inputs which needs to line up with
-    //       the custom handles.
-    // TODO: Fix moving add node inputs causing missing holes
-    // TODO: Highlight inputs and outputs in the shader editor
-    // TODO: Add more syntax highlighting to the GLSL editor, look at vscode
-    //       plugin? https://github.com/stef-levesque/vscode-shader/tree/master/syntaxes
-    // - Look into why the linked vertex node is no longer found
-    // - Related to above - highlight nodes in use by graph, maybe edges too
-    // TODO: Plugging into bumpSampler and switching back to three from babylon
-    //       breaks as three doesn't have this input (and vice versa)
-    // TODO: Babylon.js light doesn't seem to animate
-    // TODO: Babylon.js shader doesn't seem to get re-applied until I leave
-    //       and come back to the scene
-    // TODO: Opposite of above, dragging in solid color to albedo, leaving and
-    //       coming back to scene, shader is black
-    // TODO: After above, dragging a graph connection line makes the shader
-    //       brighter. What the FUC/Kz
-    // TODO: Adding shader inputs like bumpTexture should not require
-    //       duplicating that manually into babylengine
-    {
-      from: physicalV.id,
-      to: outputV.id,
-      output: 'out',
-      input: 'position',
-      stage: 'vertex',
-    },
-    {
-      from: physicalF.id,
-      to: outputF.id,
-      output: 'out',
-      input: 'color',
-      stage: 'fragment',
-    },
-    // {
-    //   from: add.id,
-    //   to: physicalF.id,
-    //   output: 'out',
-    //   input: 'texture2d_0',
-    //   stage: 'fragment',
-    // },
-    {
-      from: solidColorF.id,
-      to: physicalF.id,
-      output: 'out',
-      input: 'albedo',
-      stage: 'fragment',
-    },
-    // {
-    //   from: heatShaderF.id,
-    //   to: add.id,
-    //   output: 'out',
-    //   input: 'b',
-    //   stage: 'fragment',
-    // },
-    // {
-    //   from: heatShaderV.id,
-    //   to: phongV.id,
-    //   output: 'out',
-    //   input: 'position',
-    //   stage: 'vertex',
-    // },
-  ],
+  const [graph, setGraph, resetGraph] = useLocalStorage<Graph>('graph', () => {
+    let counter = 0;
+    const id = () => '' + counter++;
+    const outputF = outputNode(id(), 'Output F', {}, 'fragment');
+    const outputV = outputNode(id(), 'Output V', {}, 'vertex', outputF.id);
+    const phongF = phongNode(id(), 'Phong F', {}, 'fragment');
+    const phongV = phongNode(id(), 'Phong V', {}, 'vertex', phongF.id);
+    const physicalF = physicalNode(id(), 'Physical F', {}, 'fragment');
+    const physicalV = physicalNode(
+      id(),
+      'Physical V',
+      {},
+      'vertex',
+      physicalF.id
+    );
+    const toonF = toonNode(id(), 'Toon F', {}, 'fragment');
+    const toonV = toonNode(id(), 'Toon V', {}, 'vertex', toonF.id);
+    const fluidF = fluidCirclesNode(id());
+    const staticShader = staticShaderNode(id());
+    const purpleNoise = purpleNoiseNode(id());
+    const heatShaderF = heatShaderFragmentNode(id());
+    const heatShaderV = heatShaderVertexNode(id(), heatShaderF.id);
+    const fireF = fireFrag(id());
+    const fireV = fireVert(id(), fireF.id);
+    const add = addNode(id(), {});
+    const add2 = addNode(id(), {});
+    const multiply = multiplyNode(id(), {});
+    const outlineF = outlineShaderF(id());
+    const outlineV = outlineShaderV(id(), outlineF.id);
+    const solidColorF = solidColorNode(id());
+    return {
+      nodes: [
+        outputF,
+        outputV,
+        // phongF,
+        // phongV,
+        physicalF,
+        physicalV,
+        // toonF,
+        // toonV,
+        fluidF,
+        staticShader,
+        purpleNoise,
+        heatShaderF,
+        heatShaderV,
+        fireF,
+        fireV,
+        add,
+        add2,
+        multiply,
+        outlineF,
+        outlineV,
+        solidColorF,
+      ],
+      edges: [
+        // TODO: Put other images in the graph like the toon step shader
+        // TODO: Could be cool to try outline shader https://shaderfrog.com/app/view/4876
+        // TODO: Have uniforms added per shader in the graph
+        // TODO: Try plugging into normal map
+        // TODO: AnyCode node to try manipulating above shader for normal map
+        // TODO: Make uniforms like map: change the uniforms
+        // TODO: Add 1.00 / 3.00 switch
+        // TODO: Fix adding / changing edges not auto-removing previous edges
+        // TOOD: Highlight drop targets on drag
+        // TOOD: Name inputs, nomralmap/roughnessMap based on uniform name?
+        // TODO: Here we hardcode "out" for the inputs which needs to line up with
+        //       the custom handles.
+        // TODO: Fix moving add node inputs causing missing holes
+        // TODO: Highlight inputs and outputs in the shader editor
+        // TODO: Add more syntax highlighting to the GLSL editor, look at vscode
+        //       plugin? https://github.com/stef-levesque/vscode-shader/tree/master/syntaxes
+        // - Look into why the linked vertex node is no longer found
+        // - Related to above - highlight nodes in use by graph, maybe edges too
+        // TODO: Plugging into bumpSampler and switching back to three from babylon
+        //       breaks as three doesn't have this input (and vice versa)
+        // TODO: Babylon.js light doesn't seem to animate
+        // TODO: Babylon.js shader doesn't seem to get re-applied until I leave
+        //       and come back to the scene
+        // TODO: Opposite of above, dragging in solid color to albedo, leaving and
+        //       coming back to scene, shader is black
+        // TODO: After above, dragging a graph connection line makes the shader
+        //       brighter. What the FUC/Kz
+        // TODO: Adding shader inputs like bumpTexture should not require
+        //       duplicating that manually into babylengine
+        {
+          from: physicalV.id,
+          to: outputV.id,
+          output: 'out',
+          input: 'position',
+          stage: 'vertex',
+        },
+        {
+          from: physicalF.id,
+          to: outputF.id,
+          output: 'out',
+          input: 'color',
+          stage: 'fragment',
+        },
+        // {
+        //   from: add.id,
+        //   to: physicalF.id,
+        //   output: 'out',
+        //   input: 'texture2d_0',
+        //   stage: 'fragment',
+        // },
+        {
+          from: solidColorF.id,
+          to: physicalF.id,
+          output: 'out',
+          input: 'albedo',
+          stage: 'fragment',
+        },
+        // {
+        //   from: heatShaderF.id,
+        //   to: add.id,
+        //   output: 'out',
+        //   input: 'b',
+        //   stage: 'fragment',
+        // },
+        // {
+        //   from: heatShaderV.id,
+        //   to: phongV.id,
+        //   output: 'out',
+        //   input: 'position',
+        //   stage: 'vertex',
+        // },
+      ],
+    };
+  });
+
+  return {
+    flowElements,
+    setFlowElements,
+    graph,
+    setGraph,
+    resetFlowElements,
+    resetGraph,
+  };
 };
 
 const flowStyles = { height: '100vh', background: '#111' };
@@ -222,6 +248,7 @@ const edgeTypes = {
 };
 
 const compileGraphAsync = async (
+  graph: Graph,
   engine: Engine<any>,
   ctx: EngineContext<any>
 ): Promise<UICompileGraphResult> =>
@@ -393,16 +420,8 @@ const initializeFlowElementsFromGraph = (
 };
 
 const Editor: React.FC = () => {
-  const refData = useRef<{ [key: string]: any }>({});
-  // TODO: I've hard to hard code "three" / "babylon" in the respective places
-  // that use this hook, to keep the old context around to destroy it, and to
-  // prevent babylon calling this hook and getting a brand new context. Can I
-  // instead clear this, or forceUpdate?
-  const getRefData: HoistedRefGetter = (key, setter) => {
-    if (!refData.current[key] && setter) {
-      refData.current[key] = setter();
-    }
-    return refData.current[key];
+  const { getRefData } = useContext(HoistedRef) as {
+    getRefData: HoistedRefGetter;
   };
 
   const updateNodeInternals = useUpdateNodeInternals();
@@ -414,6 +433,15 @@ const Editor: React.FC = () => {
     lastEngine: null,
     engine: threngine,
   });
+
+  const {
+    graph,
+    setGraph,
+    flowElements,
+    setFlowElements,
+    resetFlowElements,
+    resetGraph,
+  } = useFlef();
 
   const rightSplit = useRef<HTMLDivElement>(null);
   const [pauseCompile, setPauseCompile] = useState(false);
@@ -442,11 +470,6 @@ const Editor: React.FC = () => {
   // flow elements in react-flow callbacks. To get the latest state, this
   // flag is set, and read in a useEffect
   const [needsCompile, setNeedsCompile] = useState<boolean>(false);
-
-  const [flowElements, setFlowElements] = useState<FlowElements>({
-    nodes: [],
-    edges: [],
-  });
 
   const [state, setState, extendState] = useAsyncExtendedState<{
     fragError: string | null;
@@ -501,7 +524,7 @@ const Editor: React.FC = () => {
 
       setGuiMsg('Compiling!');
 
-      compileGraphAsync(engine, ctx).then((compileResult) => {
+      compileGraphAsync(graph, engine, ctx).then((compileResult) => {
         setNeedsCompile(false);
         console.log('comple async complete!', { compileResult });
         setGuiMsg('');
@@ -539,7 +562,7 @@ const Editor: React.FC = () => {
         }, 500);
       });
     },
-    [updateNodeInternals]
+    [updateNodeInternals, graph, setFlowElements]
   );
 
   // Let child components call compile after, say, their lighting has finished
@@ -555,7 +578,11 @@ const Editor: React.FC = () => {
   );
 
   const initializeGraph = useCallback(
-    (newCtx: EngineContext<any>, graph: Graph) => {
+    (
+      initialElements: FlowElements,
+      newCtx: EngineContext<any>,
+      graph: Graph
+    ) => {
       setGuiMsg(`🥸 Initializing ${engine.name}...`);
       setTimeout(() => {
         computeAllContexts(newCtx, engine, graph);
@@ -569,9 +596,11 @@ const Editor: React.FC = () => {
         // again to recompute node heights. Also do we need to do this FIRST to
         // get the inputs on the node? No, we can modify the edges I bet, and
         // then do this
-        const flowElements = initializeFlowElementsFromGraph(graph, newCtx);
+        const initFlowElements = initialElements.nodes.length
+          ? initialElements
+          : initializeFlowElementsFromGraph(graph, newCtx);
 
-        compile(engine, newCtx, pauseCompile, flowElements);
+        compile(engine, newCtx, pauseCompile, initFlowElements);
         // setFlowElements(flowElements);
         setGuiMsg('');
       }, 10);
@@ -603,10 +632,19 @@ const Editor: React.FC = () => {
             }
           }
         }
-        initializeGraph(newCtx, newGraph);
+        initializeGraph(flowElements, newCtx, newGraph);
       }
     },
-    [ctx, lastEngine, engine, setCtxState, initializeGraph]
+    [
+      ctx,
+      lastEngine,
+      engine,
+      setCtxState,
+      initializeGraph,
+      getRefData,
+      graph,
+      flowElements,
+    ]
   );
 
   /**
@@ -703,10 +741,7 @@ const Editor: React.FC = () => {
   };
 
   // TODO: this seems to work, at least 3 issues:
-  // 1. Graph can get into a state where an edge isn't deletable with backspace (v10 bug?)
-  // 2. Graph stopped responding entirely at one point
-  // 3. switching to babylon still has issue of not having right input
-  // 4. switching to babylno doesn't keep purple noise as input?
+  // 4. switching to babylno doesn't keep purple noise as inp ut?
   const onEdgesChange = useCallback(
     (changes) =>
       setFlowElements((flowElements) =>
@@ -715,7 +750,7 @@ const Editor: React.FC = () => {
           edges: applyEdgeChanges(changes, flowElements.edges),
         })
       ),
-    []
+    [setFlowElements]
   );
 
   const onNodesChange = useCallback(
@@ -839,6 +874,18 @@ const Editor: React.FC = () => {
                 ? 'Switch to Three.js'
                 : 'Switch to Babylon.js'}
             </button>
+            <button
+              className={styles.tabButton}
+              onClick={() => {
+                if (ctx) {
+                  const rGraph = resetGraph();
+                  const rElements = resetFlowElements();
+                  initializeGraph(rElements, ctx, rGraph);
+                }
+              }}
+            >
+              Reset
+            </button>
           </div>
           <Tabs onSelect={setEditorTabIndex} selected={editorTabIndex}>
             <TabGroup className={styles.tabs}>
@@ -934,39 +981,37 @@ const Editor: React.FC = () => {
             </TabGroup>
             <TabPanels>
               <TabPanel className={styles.scene}>
-                <HoistedRef.Provider value={{ refData, getRefData }}>
-                  {engine === threngine ? (
-                    <ThreeComponent
-                      setCtx={setCtx}
-                      graph={graph}
-                      lights={lights}
-                      setLights={setLights}
-                      previewObject={previewObject}
-                      setPreviewObject={setPreviewObject}
-                      compile={childCompile}
-                      guiMsg={guiMsg}
-                      compileResult={compileResult}
-                      setGlResult={setGlResult}
-                      width={state.width}
-                      height={state.height}
-                    />
-                  ) : (
-                    <BabylonComponent
-                      setCtx={setCtx}
-                      graph={graph}
-                      lights={lights}
-                      setLights={setLights}
-                      previewObject={previewObject}
-                      setPreviewObject={setPreviewObject}
-                      compile={childCompile}
-                      guiMsg={guiMsg}
-                      compileResult={compileResult}
-                      setGlResult={setGlResult}
-                      width={state.width}
-                      height={state.height}
-                    />
-                  )}
-                </HoistedRef.Provider>
+                {engine === threngine ? (
+                  <ThreeComponent
+                    setCtx={setCtx}
+                    graph={graph}
+                    lights={lights}
+                    setLights={setLights}
+                    previewObject={previewObject}
+                    setPreviewObject={setPreviewObject}
+                    compile={childCompile}
+                    guiMsg={guiMsg}
+                    compileResult={compileResult}
+                    setGlResult={setGlResult}
+                    width={state.width}
+                    height={state.height}
+                  />
+                ) : (
+                  <BabylonComponent
+                    setCtx={setCtx}
+                    graph={graph}
+                    lights={lights}
+                    setLights={setLights}
+                    previewObject={previewObject}
+                    setPreviewObject={setPreviewObject}
+                    compile={childCompile}
+                    guiMsg={guiMsg}
+                    compileResult={compileResult}
+                    setGlResult={setGlResult}
+                    width={state.width}
+                    height={state.height}
+                  />
+                )}
               </TabPanel>
               <TabPanel>
                 <Tabs onSelect={setSceneTabIndex} selected={sceneTabIndex}>
@@ -1048,7 +1093,9 @@ const CodeEditor = (props: any) => (
 
 const WithProvider = () => (
   <ReactFlowProvider>
-    <Editor />
+    <Hoisty>
+      <Editor />
+    </Hoisty>
   </ReactFlowProvider>
 );
 

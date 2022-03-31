@@ -319,7 +319,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       scene.remove(light);
     });
 
-    // todo 3point
     if (lights === 'point') {
       const pointLight = new three.PointLight(0xffffff, 1);
       pointLight.position.set(0, 0, 2);
@@ -330,19 +329,19 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       sceneData.lights = [pointLight, helper];
     } else if (lights === '3point') {
       const light1 = new three.PointLight(0xffffff, 1, 0);
-      light1.position.set(0, 200, 0);
+      light1.position.set(0, 20, 0);
       scene.add(light1);
       const helper1 = new three.PointLightHelper(light1, 0.1);
       scene.add(helper1);
 
       const light2 = new three.PointLight(0xffffff, 1, 0);
-      light2.position.set(100, 200, 100);
+      light2.position.set(10, 20, 10);
       scene.add(light2);
       const helper2 = new three.PointLightHelper(light2, 0.1);
       scene.add(helper2);
 
       const light3 = new three.PointLight(0xffffff, 1, 0);
-      light3.position.set(-100, -200, -100);
+      light3.position.set(-10, -20, -10);
       scene.add(light3);
       const helper3 = new three.PointLightHelper(light3, 0.1);
       scene.add(helper3);

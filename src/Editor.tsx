@@ -81,7 +81,7 @@ import {
   Editor as BabylonComponent,
   engine as babylengine,
 } from './plugins/babylon';
-import { HoistedRef, HoistedRefGetter, Hoisty } from './hoistedRefContext';
+import { Hoisty, useHoisty } from './hoistedRefContext';
 import { UICompileGraphResult } from './uICompileGraphResult';
 import { useLocalStorage } from './useLocalStorage';
 
@@ -152,32 +152,27 @@ const useFlef = () => {
         // TODO: Put other images in the graph like the toon step shader
         // TODO: Could be cool to try outline shader https://shaderfrog.com/app/view/4876
         // TODO: Have uniforms added per shader in the graph
-        // TODO: Try plugging into normal map
         // TODO: AnyCode node to try manipulating above shader for normal map
         // TODO: Make uniforms like map: change the uniforms
         // TODO: Add 1.00 / 3.00 switch
-        // TODO: Fix adding / changing edges not auto-removing previous edges
-        // TOOD: Highlight drop targets on drag
-        // TOOD: Name inputs, nomralmap/roughnessMap based on uniform name?
         // TODO: Here we hardcode "out" for the inputs which needs to line up with
         //       the custom handles.
         // TODO: Fix moving add node inputs causing missing holes
         // TODO: Highlight inputs and outputs in the shader editor
         // TODO: Add more syntax highlighting to the GLSL editor, look at vscode
         //       plugin? https://github.com/stef-levesque/vscode-shader/tree/master/syntaxes
-        // - Look into why the linked vertex node is no longer found
-        // - Related to above - highlight nodes in use by graph, maybe edges too
-        // TODO: Plugging into bumpSampler and switching back to three from babylon
-        //       breaks as three doesn't have this input (and vice versa)
+        // TODO: Highlight nodes in use by graph, maybe edges too
         // TODO: Babylon.js light doesn't seem to animate
         // TODO: Babylon.js shader doesn't seem to get re-applied until I leave
         //       and come back to the scene
         // TODO: Opposite of above, dragging in solid color to albedo, leaving and
         //       coming back to scene, shader is black
-        // TODO: After above, dragging a graph connection line makes the shader
-        //       brighter. What the FUC/Kz
         // TODO: Adding shader inputs like bumpTexture should not require
         //       duplicating that manually into babylengine
+        // TODO: I hard code varying uniforms like fNormal for the use between
+        //       the vertex and fragment shader. I need to normalize the names
+        //       across both shaders, and also remove duplicate uniform name
+        //       setting in the runtime components
         {
           from: physicalV.id,
           to: outputV.id,
@@ -422,9 +417,7 @@ const initializeFlowElementsFromGraph = (
 };
 
 const Editor: React.FC = () => {
-  const { getRefData } = useContext(HoistedRef) as {
-    getRefData: HoistedRefGetter;
-  };
+  const { getRefData } = useHoisty();
 
   const updateNodeInternals = useUpdateNodeInternals();
 
@@ -559,6 +552,9 @@ const Editor: React.FC = () => {
           ...flowElements,
           nodes: updatedNodes,
         });
+
+        // This is a hack to make the edges update to their handles if they move
+        // https://github.com/wbkd/react-flow/issues/2008
         setTimeout(() => {
           updatedNodes.forEach((node) => updateNodeInternals(node.id));
         }, 500);
@@ -593,17 +589,11 @@ const Editor: React.FC = () => {
           newCtx,
         });
 
-        // TODO: After mutating the source code and recomputing inputs, and
-        // mapping inputs from one flowelement to another, we need to do this
-        // again to recompute node heights. Also do we need to do this FIRST to
-        // get the inputs on the node? No, we can modify the edges I bet, and
-        // then do this
         const initFlowElements = initialElements.nodes.length
           ? initialElements
           : initializeFlowElementsFromGraph(graph, newCtx);
 
         compile(engine, newCtx, pauseCompile, initFlowElements);
-        // setFlowElements(flowElements);
         setGuiMsg('');
       }, 10);
     },
@@ -742,8 +732,6 @@ const Editor: React.FC = () => {
     setNeedsCompile(true);
   };
 
-  // TODO: this seems to work, at least 3 issues:
-  // 4. switching to babylno doesn't keep purple noise as inp ut?
   const onEdgesChange = useCallback(
     (changes) =>
       setFlowElements((flowElements) =>

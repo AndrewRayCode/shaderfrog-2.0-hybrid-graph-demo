@@ -1,10 +1,16 @@
-import { createContext, useRef } from 'react';
+import { createContext, useContext, useRef } from 'react';
 
 export const HoistedRef = createContext<any>({});
 export type HoistedRefGetter = <T extends unknown>(
   key: string,
   setter?: () => T
 ) => T;
+
+export const useHoisty = () => {
+  return useContext(HoistedRef) as {
+    getRefData: HoistedRefGetter;
+  };
+};
 
 export const Hoisty: React.FC = ({ children }) => {
   const refData = useRef<{ [key: string]: any }>({});

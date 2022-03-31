@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useContext } from 'react';
 import * as BABYLON from 'babylonjs';
-import { HoistedRef, HoistedRefGetter } from '../../hoistedRefContext';
+import { useHoisty } from '../../hoistedRefContext';
 
 type SceneData = {
   lights: BABYLON.Node[];
@@ -17,9 +17,7 @@ type ScenePersistence = {
 type Callback = (time: number) => void;
 
 export const useBabylon = (callback: Callback) => {
-  const { getRefData } = useContext(HoistedRef) as {
-    getRefData: HoistedRefGetter;
-  };
+  const { getRefData } = useHoisty();
 
   const { engine, camera, sceneData, canvas, scene } =
     getRefData<ScenePersistence>('babylon', () => {
@@ -43,15 +41,11 @@ export const useBabylon = (callback: Callback) => {
           new BABYLON.Vector3(0, 0, 0),
           scene
         ),
-        // scene: new three.Scene(),
-        // camera: new three.PerspectiveCamera(75, 1 / 1, 0.1, 1000),
-        // renderer: new three.WebGLRenderer(),
-        // destroy: (data: ScenePersistence) => {
-        //   console.log('👋🏻 Bye Bye Three.js!');
-        //   data.renderer.forceContextLoss();
-        //   // @ts-ignore
-        //   data.renderer.domElement = null;
-        // },
+        destroy: (data: ScenePersistence) => {
+          console.log('👋🏻 Bye Bye Babylon!');
+          data.scene.dispose();
+          data.engine.dispose();
+        },
       };
     });
 

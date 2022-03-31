@@ -72,8 +72,12 @@ uniform vec3 a;
   expect(mergeBlocks(vec2Arr1, vec2Arr2)).toEqual(`uniform vec2 y[10];
 `);
 
-  // This shouldn't go through uniform merging, this test verifies it doesn't
-  // crash
+  const block1 = parser.parse(`uniform Scene { mat4 view; };`);
+  const block2 = parser.parse(`uniform Scene { mat4 view; };`);
+  expect(mergeBlocks(block1, block2)).toEqual(`uniform Scene { mat4 view; };
+`);
+
+  // Verify these lines are preserved (they go through dedupeUniforms)
   expect(dedupe(`layout(std140,column_major) uniform;`)).toEqual(
     `layout(std140,column_major) uniform;`
   );

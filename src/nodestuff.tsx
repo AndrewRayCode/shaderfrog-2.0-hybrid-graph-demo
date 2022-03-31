@@ -535,9 +535,11 @@ export const makeExpression = (expr: string): AstNode => {
   return ast.program[0].body.statements[0].expression.right;
 };
 
+/**
+ * Group an AST into logical sections. The output of this funciton is consumed
+ * by the dedupe methods, namely dedupeUniforms, so the data shapes are coupled
+ */
 export const findShaderSections = (ast: ParserProgram): ShaderSections => {
-  // console.log(util.inspect(ast, false, null, true));
-
   const initialValue: ShaderSections = {
     precision: [],
     preprocessor: [],
@@ -580,13 +582,18 @@ export const findShaderSections = (ast: ParserProgram): ShaderSections => {
       // dedupeUniforms
     } else if (
       node.type === 'declaration_statement' &&
+      // Ignore lines like "layout(std140,column_major) uniform;"
+      !node.declaration?.qualifiers?.find(
+        (q: AstNode) => q.layout?.token === 'layout'
+      ) &&
+      // One of these checks is for a uniform with an interface block, and the
+      // other is for vanilla uniforms. I don't remember which is which
       (node.declaration?.specified_type?.qualifiers?.find(
         (n: AstNode) => n.token === 'uniform'
       ) ||
-        (node.declaration?.qualifiers?.find(
+        node.declaration?.qualifiers?.find(
           (n: AstNode) => n.token === 'uniform'
-        ) &&
-          node.declaration.identifier))
+        ))
     ) {
       return {
         ...sections,
@@ -695,7 +702,10 @@ type UniformGroup = Record<string, UniformName>;
  * Merge uniforms together into lists of identifiers under the same type.
  * There's special case handling for mixing of uniforms with "interface blocks"
  * and those without when merging to make sure the interface block definition is
- * preserved. Check out the tests for more
+ * preserved. Check out the tests for more.
+ *
+ * This function consumes uniforms as found by findShaderSections, so the
+ * definitions must line up
  */
 export const dedupeUniforms = (statements: AstNode[]): any => {
   const groupedByTypeName = Object.entries(
@@ -745,16 +755,20 @@ export const dedupeUniforms = (statements: AstNode[]): any => {
         };
         // This is the less common case, a uniform like "uniform Light { vec3 position; } name"
       } else if (interface_type) {
+        // If this is an interface block only, like uniform Scene { mat4 view; };
+        // then group the interface block declaration under ''
+        const interfaceDeclaredUniform =
+          (identifier?.identifier?.identifier as string) || '';
         return {
           ...stmts,
           [interface_type.identifier as string]: {
-            [identifier.identifier.identifier as string]: {
+            [interfaceDeclaredUniform]: {
               generated: `${generate({
                 type: 'interface_declarator',
                 lp: stmt.declaration.lp,
                 declarations: stmt.declaration.declarations,
                 rp: stmt.declaration.rp,
-              })}${identifier.identifier.identifier}`,
+              })}${interfaceDeclaredUniform}`,
               hasInterface: true,
             },
           },

@@ -290,6 +290,7 @@ export const babylengine: Engine<RuntimeContext> = {
   },
   // TODO: Get from uniform lib?
   preserve: new Set<string>([
+    'viewProjection',
     'normalMatrix',
     'vAmbientInfos',
     'vOpacityInfos',

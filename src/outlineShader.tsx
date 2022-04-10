@@ -1,10 +1,10 @@
-import { sourceNode } from './nodestuff';
+import { sourceNode } from './core/node';
 
 const outlineShaderF = (id: string) =>
   sourceNode(
     id,
     'Outline Shader F',
-    {},
+    { version: 2, preprocess: true, strategies: [] },
     `
 precision highp float;
 
@@ -31,7 +31,7 @@ const outlineShaderV = (id: string, nextStageNodeId: string) =>
   sourceNode(
     id,
     'Outline Shader V',
-    {},
+    { version: 2, preprocess: true, strategies: [] },
     `
 precision highp float;
 

@@ -1,10 +1,10 @@
-import { sourceNode } from './nodestuff';
+import { sourceNode } from './core/node';
 
 const fluidCirclesNode = (id: string) =>
   sourceNode(
     id,
     'Fluid Circles',
-    {},
+    { version: 2, preprocess: true, strategies: [] },
     `
     // Original https://www.shadertoy.com/view/MljSzW - Imported with permission
     // Created by Stefan Draganov - vortex/2015

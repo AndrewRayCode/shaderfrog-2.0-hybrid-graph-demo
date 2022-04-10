@@ -1,10 +1,10 @@
-import { sourceNode } from './nodestuff';
+import { sourceNode } from './core/node';
 
 const hellOnEarthFrag = (id: string) =>
   sourceNode(
     id,
     'Hell F',
-    {},
+    { version: 2, preprocess: true, strategies: [] },
     `
     /**
      * Example Fragment Shader
@@ -199,7 +199,7 @@ const hellOnEarthVert = (id: string) =>
   sourceNode(
     id,
     'Hell V',
-    {},
+    { version: 2, preprocess: true, strategies: [] },
     `
 /**
 * Example Vertex Shader

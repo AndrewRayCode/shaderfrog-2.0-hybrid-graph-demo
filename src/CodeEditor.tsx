@@ -2,24 +2,28 @@ import MonacoEditor, { Monaco } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { monacoGlsl } from './monaco-glsl';
 
-import { Engine } from './graph';
+import { Engine } from './core/engine';
 
 type AnyFn = (...args: any) => any;
 
 type MonacoProps<T> = {
   engine: Engine<T>;
-  defaultValue: string;
-  onChange: AnyFn;
-  onSave: AnyFn;
+  defaultValue?: string;
+  value?: string;
+  readOnly?: boolean;
+  onChange?: AnyFn;
+  onSave?: AnyFn;
 };
-const MonacoComponent = <T extends unknown>({
+const CodeEditor = <T extends unknown>({
   engine,
+  value,
   defaultValue,
+  readOnly,
   onChange,
   onSave,
 }: MonacoProps<T>) => {
   const beforeMount = (monaco: Monaco) => {
-    monaco.editor.defineTheme('myCustomTheme', {
+    monaco.editor.defineTheme('frogTheme', {
       base: 'vs-dark', // can also be vs-dark or hc-black
       inherit: true, // can also be false to completely replace the builtin rules
       rules: [
@@ -61,46 +65,51 @@ const MonacoComponent = <T extends unknown>({
     editor: monaco.editor.IStandaloneCodeEditor,
     monaco: Monaco
   ) => {
-    editor.addAction({
-      // An unique identifier of the contributed action.
-      id: 'my-unique-id',
+    if (onSave) {
+      editor.addAction({
+        // An unique identifier of the contributed action.
+        id: 'my-unique-id',
 
-      // A label of the action that will be presented to the user.
-      label: 'My Label!!!',
+        // A label of the action that will be presented to the user.
+        label: 'My Label!!!',
 
-      // An optional array of keybindings for the action.
-      // @ts-ignore https://github.com/suren-atoyan/monaco-react/issues/338
-      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_S],
+        // An optional array of keybindings for the action.
+        // @ts-ignore https://github.com/suren-atoyan/monaco-react/issues/338
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_S],
 
-      // A precondition for this action.
-      // precondition: null,
+        // A precondition for this action.
+        // precondition: null,
 
-      // A rule to evaluate on top of the precondition in order to dispatch the keybindings.
-      // keybindingContext: null,
+        // A rule to evaluate on top of the precondition in order to dispatch the keybindings.
+        // keybindingContext: null,
 
-      contextMenuGroupId: 'navigation',
+        contextMenuGroupId: 'navigation',
 
-      contextMenuOrder: 1.5,
+        contextMenuOrder: 1.5,
 
-      // Method that will be executed when the action is triggered.
-      // @param editor The editor instance is passed in as a convenience
-      run: function (ed: any) {
-        console.log(
-          'Monaco command-s run() called at editor position ' + ed.getPosition()
-        );
-        onSave();
-      },
-    });
+        // Method that will be executed when the action is triggered.
+        // @param editor The editor instance is passed in as a convenience
+        run: function (ed: any) {
+          console.log(
+            'Monaco command-s run() called at editor position ' +
+              ed.getPosition()
+          );
+          onSave();
+        },
+      });
+    }
   };
 
   return (
     <MonacoEditor
       height="100vh"
       language="glsl"
-      theme="myCustomTheme"
+      theme="frogTheme"
+      {...(value !== undefined ? { value } : {})}
       defaultValue={defaultValue}
       onChange={onChange}
       options={{
+        readOnly,
         minimap: { enabled: false },
       }}
       onMount={onMount}
@@ -109,4 +118,4 @@ const MonacoComponent = <T extends unknown>({
   );
 };
 
-export default MonacoComponent;
+export default CodeEditor;

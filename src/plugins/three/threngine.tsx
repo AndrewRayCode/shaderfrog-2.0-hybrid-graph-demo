@@ -1,25 +1,13 @@
-import { parser, generate } from '@shaderfrog/glsl-parser';
-import {
-  renameBindings,
-  renameFunctions,
-} from '@shaderfrog/glsl-parser/dist/parser/utils';
-import { visit, AstNode, NodeVisitors } from '@shaderfrog/glsl-parser/dist/ast';
-import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor';
-import { Engine, nodeName, EngineContext } from '../../graph';
+import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
+import { NodeParser, NodeType } from '../../core/graph';
 import importers from './importers';
-
+import { Engine, EngineContext, EngineNodeType } from '../../core/engine';
+import { GraphNode, doesLinkThruShader, nodeName } from '../../core/graph';
 import {
-  ShaderType,
-  convert300MainToReturn,
-  makeExpression,
-  Node,
-  Edge,
-  ShaderStage,
-  doesLinkThruShader,
-  Graph,
-  returnGlPositionHardCoded,
   returnGlPosition,
-} from '../../nodestuff';
+  returnGlPositionHardCoded,
+  returnGlPositionVec3Right,
+} from '../../ast/manipulate';
 
 export type RuntimeContext = {
   scene: any;
@@ -44,20 +32,26 @@ export type RuntimeContext = {
 
 const onBeforeCompileMegaShader = (
   engineContext: EngineContext<RuntimeContext>,
-  node: Node,
+  node: GraphNode,
   newMat: any
 ) => {
   // const { nodes } = engineContext.runtime.cache;
   // TODO: Update cache based on lights (or other, like mesh + lights?)
-  // if (nodes[node.id] || (node.nextStageNodeId && nodes[node.nextStageNodeId])) {
+  // if (node.nextStageNodeId && nodes[node.nextStageNodeId] && node.stage) {
+  //   console.log('loading cached source from next stage', { node });
+  //   node.source =
+  //     engineContext.runtime.cache.nodes[node.nextStageNodeId][node.stage];
   //   return;
   // }
+
+  // TODO: This gets called 4 times currently, twice for compute initial
+  // context, and twice for compilation
+
   const { renderer, sceneData, scene, camera, threeTone, three } =
     engineContext.runtime;
   const { mesh } = sceneData;
 
   mesh.material = newMat;
-  // console.log('scene', JSON.parse(JSON.stringify(scene)));
   renderer.compile(scene, camera);
 
   // The references to the compiled shaders in WebGL
@@ -74,6 +68,8 @@ const onBeforeCompileMegaShader = (
   const fragment = gl.getShaderSource(fragmentRef);
   const vertex = gl.getShaderSource(vertexRef);
 
+  node.source = node.stage === 'fragment' ? fragment : vertex;
+
   engineContext.runtime.cache.nodes[node.id] = {
     fragmentRef,
     vertexRef,
@@ -82,121 +78,24 @@ const onBeforeCompileMegaShader = (
   };
 };
 
-const xxy =
-  () =>
-  (a: EngineContext<RuntimeContext>, b: any, c: Graph, d: Node, e: Edge[]) =>
-    megaShaderProduceVertexAst(a, b, c, d, e, true);
-const megaShaderProduceVertexAst = (
-  // todo: help
-  engineContext: EngineContext<RuntimeContext>,
-  engine: any,
-  graph: Graph,
-  node: Node,
-  inputEdges: Edge[],
-  inc?: boolean
+const megaShaderMainpulateAst: NodeParser<any>['manipulateAst'] = (
+  engineContext,
+  engine,
+  graph,
+  node,
+  ast,
+  inputEdges
 ) => {
-  const { nodes } = engineContext.runtime.cache;
-  const { vertex } =
-    nodes[node.id] || (node.nextStageNodeId && nodes[node.nextStageNodeId]);
-
-  engineContext.debuggingNonsense.vertexSource = vertex;
-
-  const vertexPreprocessed = preprocess(vertex, {
-    preserve: {
-      version: () => true,
-    },
-  });
-
-  const vertexAst = parser.parse(vertexPreprocessed);
-  if (inc) {
-    engineContext.debuggingNonsense.vertexPreprocessed = vertexPreprocessed;
+  const programAst = ast as ParserProgram;
+  const mainName = nodeName(node);
+  if (node.stage === 'vertex') {
+    if (doesLinkThruShader(graph, node)) {
+      returnGlPositionHardCoded(mainName, programAst, 'vec3', 'transformed');
+    } else {
+      returnGlPosition(mainName, programAst);
+    }
   }
-
-  // Do I need this? Is threejs shader already in 3.00 mode?
-  // from2To3(vertexAst);
-
-  if (doesLinkThruShader(graph, node)) {
-    returnGlPositionHardCoded(vertexAst, 'vec3', 'transformed');
-  } else {
-    returnGlPosition(vertexAst);
-  }
-
-  renameBindings(vertexAst.scopes[0], (name) =>
-    threngine.preserve.has(name) ? name : `${name}_${node.id}`
-  );
-  renameFunctions(vertexAst.scopes[0], (name) =>
-    name === 'main' ? nodeName(node) : `${name}_${node.id}`
-  );
-  return vertexAst;
-};
-
-const megaShaderFindPositionInputs = (
-  engineContext: EngineContext<RuntimeContext>,
-  node: Node,
-  ast: AstNode
-) => ({
-  position: (fillerAst: AstNode) => {
-    Object.entries(ast.scopes[0].bindings).forEach(
-      ([name, binding]: [string, any]) => {
-        binding.references.forEach((ref: AstNode) => {
-          if (ref.type === 'identifier' && ref.identifier === 'position') {
-            ref.identifier = generate(fillerAst);
-          } else if (
-            ref.type === 'parameter_declaration' &&
-            ref.declaration.identifier.identifier === 'position'
-          ) {
-            ref.declaration.identifier.identifier = generate(fillerAst);
-          }
-        });
-      }
-    );
-  },
-});
-
-const inputNameMap: { [key: string]: string } = {
-  map: 'albedo',
-};
-const texture2DInputFinder = (
-  engineContext: EngineContext<RuntimeContext>,
-  node: Node,
-  ast: AstNode
-) => {
-  let texture2Dcalls: [string, AstNode, string][] = [];
-  const visitors: NodeVisitors = {
-    function_call: {
-      enter: (path) => {
-        if (
-          // TODO: 100 vs 300
-          (path.node.identifier?.specifier?.identifier === 'texture2D' ||
-            path.node.identifier?.specifier?.identifier === 'texture') &&
-          path.key
-        ) {
-          if (!path.parent) {
-            throw new Error(
-              'This is impossible a function call always has a parent'
-            );
-          }
-          texture2Dcalls.push([
-            generate(path.node.args[0]),
-            path.parent,
-            path.key,
-          ]);
-        }
-      },
-    },
-  };
-  visit(ast, visitors);
-  const inputs = texture2Dcalls.reduce(
-    (inputs, [name, parent, key], index) => ({
-      ...inputs,
-      [inputNameMap[name] || name]: (fillerAst: AstNode) => {
-        parent[key] = fillerAst;
-      },
-    }),
-    {}
-  );
-
-  return inputs;
+  return programAst;
 };
 
 export const threngine: Engine<RuntimeContext> = {
@@ -272,7 +171,23 @@ export const threngine: Engine<RuntimeContext> = {
     'clearcoatRoughness',
   ]),
   parsers: {
-    [ShaderType.phong]: {
+    [NodeType.SOURCE]: {
+      manipulateAst: (engineContext, engine, graph, node, ast, inputEdges) => {
+        const programAst = ast as ParserProgram;
+        const mainName = nodeName(node);
+
+        // This hinges on the vertex shader calling vec3(p)
+        if (node.stage === 'vertex') {
+          if (doesLinkThruShader(graph, node)) {
+            returnGlPositionVec3Right(mainName, programAst);
+          } else {
+            returnGlPosition(mainName, programAst);
+          }
+        }
+        return ast;
+      },
+    },
+    [EngineNodeType.phong]: {
       onBeforeCompile: (engineContext, node) => {
         const { three } = engineContext.runtime;
         onBeforeCompileMegaShader(
@@ -285,49 +200,9 @@ export const threngine: Engine<RuntimeContext> = {
           })
         );
       },
-      fragment: {
-        produceAst: (engineContext, engine, graph, node, inputEdges) => {
-          const { fragment } = engineContext.runtime.cache.nodes[node.id];
-
-          const fragmentPreprocessed = preprocess(fragment, {
-            preserve: {
-              version: () => true,
-            },
-          });
-
-          const fragmentAst = parser.parse(fragmentPreprocessed);
-
-          // Used for the UI only right now
-          // engineContext.debuggingNonsense.fragmentPreprocessed =
-          //   fragmentPreprocessed;
-          // engineContext.debuggingNonsense.fragmentSource = fragment;
-
-          // Do I need this? Is threejs shader already in 3.00 mode?
-          // from2To3(fragmentAst);
-
-          convert300MainToReturn(fragmentAst);
-          renameBindings(fragmentAst.scopes[0], (name) =>
-            threngine.preserve.has(name) ? name : `${name}_${node.id}`
-          );
-          renameFunctions(fragmentAst.scopes[0], (name) =>
-            name === 'main' ? nodeName(node) : `${name}_${node.id}`
-          );
-          return fragmentAst;
-        },
-        findInputs: texture2DInputFinder,
-        produceFiller: (node: Node, ast: AstNode) => {
-          return makeExpression(`${nodeName(node)}()`);
-        },
-      },
-      vertex: {
-        produceAst: megaShaderProduceVertexAst,
-        findInputs: megaShaderFindPositionInputs,
-        produceFiller: (node: Node, ast: AstNode) => {
-          return makeExpression(`${nodeName(node)}()`);
-        },
-      },
+      manipulateAst: megaShaderMainpulateAst,
     },
-    [ShaderType.physical]: {
+    [EngineNodeType.physical]: {
       onBeforeCompile: (engineContext, node) => {
         const { three } = engineContext.runtime;
         onBeforeCompileMegaShader(
@@ -347,57 +222,9 @@ export const threngine: Engine<RuntimeContext> = {
           })
         );
       },
-      fragment: {
-        produceAst: (
-          // todo: help
-          engineContext,
-          engine,
-          graph,
-          node,
-          inputEdges
-        ) => {
-          const { fragment } = engineContext.runtime.cache.nodes[node.id];
-
-          const fragmentPreprocessed = preprocess(fragment, {
-            preserve: {
-              version: () => true,
-            },
-          });
-
-          const fragmentAst = parser.parse(fragmentPreprocessed);
-
-          // Used for the UI only right now
-          engineContext.debuggingNonsense.fragmentPreprocessed =
-            fragmentPreprocessed;
-          engineContext.debuggingNonsense.fragmentSource = fragment;
-
-          // Do I need this? Is threejs shader already in 3.00 mode?
-          // from2To3(fragmentAst);
-
-          convert300MainToReturn(fragmentAst);
-          renameBindings(fragmentAst.scopes[0], (name) =>
-            threngine.preserve.has(name) ? name : `${name}_${node.id}`
-          );
-          renameFunctions(fragmentAst.scopes[0], (name) =>
-            name === 'main' ? nodeName(node) : `${name}_${node.id}`
-          );
-          return fragmentAst;
-        },
-        findInputs: texture2DInputFinder,
-        produceFiller: (node: Node, ast: AstNode) => {
-          return makeExpression(`${nodeName(node)}()`);
-        },
-      },
-      vertex: {
-        // produceAst: megaShaderProduceVertexAst,
-        produceAst: xxy(),
-        findInputs: megaShaderFindPositionInputs,
-        produceFiller: (node: Node, ast: AstNode) => {
-          return makeExpression(`${nodeName(node)}()`);
-        },
-      },
+      manipulateAst: megaShaderMainpulateAst,
     },
-    [ShaderType.toon]: {
+    [EngineNodeType.toon]: {
       onBeforeCompile: (engineContext, node) => {
         const { three, threeTone } = engineContext.runtime;
         onBeforeCompileMegaShader(
@@ -410,54 +237,7 @@ export const threngine: Engine<RuntimeContext> = {
           })
         );
       },
-      fragment: {
-        produceAst: (
-          // todo: help
-          engineContext,
-          engine,
-          graph,
-          node,
-          inputEdges
-        ) => {
-          const { fragment } = engineContext.runtime.cache.nodes[node.id];
-
-          const fragmentPreprocessed = preprocess(fragment, {
-            preserve: {
-              version: () => true,
-            },
-          });
-
-          const fragmentAst = parser.parse(fragmentPreprocessed);
-
-          // Used for the UI only right now
-          // engineContext.debuggingNonsense.fragmentPreprocessed =
-          //   fragmentPreprocessed;
-          // engineContext.debuggingNonsense.fragmentSource = fragment;
-
-          // Do I need this? Is threejs shader already in 3.00 mode?
-          // from2To3(fragmentAst);
-
-          convert300MainToReturn(fragmentAst);
-          renameBindings(fragmentAst.scopes[0], (name) =>
-            threngine.preserve.has(name) ? name : `${name}_${node.id}`
-          );
-          renameFunctions(fragmentAst.scopes[0], (name) =>
-            name === 'main' ? nodeName(node) : `${name}_${node.id}`
-          );
-          return fragmentAst;
-        },
-        findInputs: texture2DInputFinder,
-        produceFiller: (node, ast) => {
-          return makeExpression(`${nodeName(node)}()`);
-        },
-      },
-      vertex: {
-        produceAst: megaShaderProduceVertexAst,
-        findInputs: megaShaderFindPositionInputs,
-        produceFiller: (node, ast) => {
-          return makeExpression(`${nodeName(node)}()`);
-        },
-      },
+      manipulateAst: megaShaderMainpulateAst,
     },
   },
 };

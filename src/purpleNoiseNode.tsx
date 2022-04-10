@@ -1,10 +1,10 @@
-import { sourceNode } from './nodestuff';
+import { sourceNode } from './core/node';
 
 const purpleNoiseNode = (id: string) =>
   sourceNode(
     id,
     'Purple Metal',
-    {},
+    { version: 2, preprocess: true, strategies: [] },
     `
 precision highp float;
 precision highp int;

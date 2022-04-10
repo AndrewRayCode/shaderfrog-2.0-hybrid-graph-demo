@@ -1,10 +1,10 @@
-import { sourceNode } from './nodestuff';
+import { sourceNode } from './core/node';
 
 const colorShaderNode = (id: string) =>
   sourceNode(
     id,
     'Color Shader',
-    {},
+    { version: 2, preprocess: true, strategies: [] },
     `
 /**
  * Example Fragment Shader

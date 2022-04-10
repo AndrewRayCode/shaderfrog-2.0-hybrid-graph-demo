@@ -1,28 +1,19 @@
 import * as BABYLON from 'babylonjs';
-import { parser, generate } from '@shaderfrog/glsl-parser';
+import { Engine, EngineNodeType, EngineContext } from '../../core/engine';
 import {
-  renameBindings,
-  renameFunctions,
-} from '@shaderfrog/glsl-parser/dist/parser/utils';
-import { visit, AstNode, NodeVisitors } from '@shaderfrog/glsl-parser/dist/ast';
-import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor';
-import { Engine, nodeName, EngineContext } from '../../graph';
+  nodeName,
+  GraphNode,
+  doesLinkThruShader,
+  NodeParser,
+} from '../../core/graph';
 import importers from './importers';
 
 import {
-  ShaderType,
-  convert300MainToReturn,
-  makeExpression,
-  Node,
-  Edge,
-  ShaderStage,
-  doesLinkThruShader,
-  Graph,
   returnGlPositionHardCoded,
   returnGlPosition,
-} from '../../nodestuff';
+} from '../../ast/manipulate';
 
-import { MutableRefObject } from 'react';
+import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
 
 export type RuntimeContext = {
   scene: BABYLON.Scene;
@@ -48,7 +39,7 @@ let mIdx = 0;
 let id = () => mIdx++;
 const onBeforeCompileMegaShader = (
   engineContext: EngineContext<RuntimeContext>,
-  node: Node
+  node: GraphNode
 ) => {
   const { scene, sceneData } = engineContext.runtime;
 
@@ -139,29 +130,6 @@ const onBeforeCompileMegaShader = (
   // scene.render();
   console.log('🍃 BABYLERN RENDER done', { vertexSource, fragmentSource });
 
-  // const { nodes } = engineContext.runtime.cache;
-  // const { renderer, meshRef, scene, camera, material, threeTone, three } =
-  //   engineContext.runtime;
-  // const mesh = sceneData.mesh;
-
-  // mesh.material = newMat;
-  // console.log('scene', JSON.parse(JSON.stringify(scene)));
-  // renderer.compile(scene, camera);
-
-  // // The references to the compiled shaders in WebGL
-  // const fragmentRef = renderer.properties
-  //   .get(mesh.material)
-  //   .programs.values()
-  //   .next().value.fragmentShader;
-  // const vertexRef = renderer.properties
-  //   .get(mesh.material)
-  //   .programs.values()
-  //   .next().value.vertexShader;
-
-  // const gl = renderer.getContext();
-  // const fragment = gl.getShaderSource(fragmentRef);
-  // const vertex = gl.getShaderSource(vertexRef);
-
   // TODO: This is hard coded to not include a b'ump
   engineContext.runtime.cache.nodes[node.id] = {
     // fragmentRef,
@@ -171,114 +139,32 @@ const onBeforeCompileMegaShader = (
   };
 };
 
-const megaShaderProduceVertexAst = (
-  // todo: help
-  engineContext: EngineContext<RuntimeContext>,
-  engine: any,
-  graph: Graph,
-  node: Node,
-  inputEdges: Edge[]
+const megaShaderMainpulateAst: NodeParser<any>['manipulateAst'] = (
+  engineContext,
+  engine,
+  graph,
+  node,
+  ast,
+  inputEdges
 ) => {
-  const { nodes } = engineContext.runtime.cache;
-  const { vertex } =
-    nodes[node.id] || (node.nextStageNodeId && nodes[node.nextStageNodeId]);
+  // const { nodes } = engineContext.runtime.cache;
+  // const { vertex } =
+  //   nodes[node.id] || (node.nextStageNodeId && nodes[node.nextStageNodeId]);
+  // engineContext.debuggingNonsense.vertexSource = vertex;
+  // engineContext.debuggingNonsense.vertexPreprocessed = vertexPreprocessed;
 
-  engineContext.debuggingNonsense.vertexSource = vertex;
+  const programAst = ast as ParserProgram;
+  const mainName = nodeName(node);
 
-  const vertexPreprocessed = preprocess(vertex, {
-    preserve: {
-      version: () => true,
-    },
-  });
-
-  const vertexAst = parser.parse(vertexPreprocessed);
-  engineContext.debuggingNonsense.vertexPreprocessed = vertexPreprocessed;
-
-  // Do I need this? Is threejs shader already in 3.00 mode?
-  // from2To3(vertexAst);
-
-  if (doesLinkThruShader(graph, node)) {
-    returnGlPositionHardCoded(vertexAst, 'vec3', 'transformed');
-  } else {
-    returnGlPosition(vertexAst);
+  if (node.stage === 'vertex') {
+    if (doesLinkThruShader(graph, node)) {
+      returnGlPositionHardCoded(mainName, programAst, 'vec3', 'transformed');
+    } else {
+      returnGlPosition(mainName, programAst);
+    }
   }
 
-  renameBindings(vertexAst.scopes[0], (name) =>
-    babylengine.preserve.has(name) ? name : `${name}_${node.id}`
-  );
-  renameFunctions(vertexAst.scopes[0], (name) =>
-    name === 'main' ? nodeName(node) : `${name}_${node.id}`
-  );
-  return vertexAst;
-};
-
-const megaShaderFindPositionInputs = (
-  engineContext: EngineContext<RuntimeContext>,
-  node: Node,
-  ast: AstNode
-) => ({
-  position: (fillerAst: AstNode) => {
-    Object.entries(ast.scopes[0].bindings).forEach(
-      ([name, binding]: [string, any]) => {
-        binding.references.forEach((ref: AstNode) => {
-          if (ref.type === 'identifier' && ref.identifier === 'position') {
-            ref.identifier = generate(fillerAst);
-          } else if (
-            ref.type === 'parameter_declaration' &&
-            ref.declaration.identifier.identifier === 'position'
-          ) {
-            ref.declaration.identifier.identifier = generate(fillerAst);
-          }
-        });
-      }
-    );
-  },
-});
-
-const inputNameMap: { [key: string]: string } = {
-  albedoSampler: 'albedo',
-};
-const texture2DInputFinder = (
-  engineContext: EngineContext<RuntimeContext>,
-  node: Node,
-  ast: AstNode
-) => {
-  let texture2Dcalls: [string, AstNode, string][] = [];
-  const visitors: NodeVisitors = {
-    function_call: {
-      enter: (path) => {
-        if (
-          // TODO: 100 vs 300
-          (path.node.identifier?.specifier?.identifier === 'texture2D' ||
-            path.node.identifier?.specifier?.identifier === 'texture') &&
-          path.key
-        ) {
-          if (!path.parent) {
-            throw new Error(
-              'This is impossible a function call always has a parent'
-            );
-          }
-          texture2Dcalls.push([
-            generate(path.node.args[0]),
-            path.parent,
-            path.key,
-          ]);
-        }
-      },
-    },
-  };
-  visit(ast, visitors);
-  const inputs = texture2Dcalls.reduce(
-    (inputs, [name, parent, key], index) => ({
-      ...inputs,
-      [inputNameMap[name] || name]: (fillerAst: AstNode) => {
-        parent[key] = fillerAst;
-      },
-    }),
-    {}
-  );
-
-  return inputs;
+  return programAst;
 };
 
 export const babylengine: Engine<RuntimeContext> = {
@@ -389,77 +275,16 @@ export const babylengine: Engine<RuntimeContext> = {
     'fNormal',
   ]),
   parsers: {
-    [ShaderType.physical]: {
+    [EngineNodeType.physical]: {
       onBeforeCompile: (engineContext, node) => {
-        // const { three } = engineContext.runtime;
-        onBeforeCompileMegaShader(
-          engineContext,
-          node
-          // new three.MeshPhongMaterial({
-          //   color: 0x00ff00,
-          //   map: new three.Texture(),
-          // })
-          // new three.MeshPhysicalMaterial({
-          //   color: 0x00ff00,
-          //   roughness: 0.046,
-          //   metalness: 0.491,
-          //   clearcoat: 1,
-          //   map: new three.Texture(),
-          // })
-        );
+        onBeforeCompileMegaShader(engineContext, node);
       },
-      fragment: {
-        produceAst: (
-          // todo: help
-          engineContext,
-          engine,
-          graph,
-          node,
-          inputEdges
-        ) => {
-          const { fragment } = engineContext.runtime.cache.nodes[node.id];
-
-          const fragmentPreprocessed = preprocess(fragment, {
-            preserve: {
-              version: () => true,
-            },
-          });
-
-          const fragmentAst = parser.parse(fragmentPreprocessed);
-
-          // Used for the UI only right now
-          engineContext.debuggingNonsense.fragmentPreprocessed =
-            fragmentPreprocessed;
-          engineContext.debuggingNonsense.fragmentSource = fragment;
-
-          // Do I need this? Is threejs shader already in 3.00 mode?
-          // from2To3(fragmentAst);
-
-          convert300MainToReturn(fragmentAst);
-          renameBindings(fragmentAst.scopes[0], (name) =>
-            babylengine.preserve.has(name) ? name : `${name}_${node.id}`
-          );
-          renameFunctions(fragmentAst.scopes[0], (name) =>
-            name === 'main' ? nodeName(node) : `${name}_${node.id}`
-          );
-          return fragmentAst;
-        },
-        findInputs: texture2DInputFinder,
-        produceFiller: (node: Node, ast: AstNode) => {
-          return makeExpression(`${nodeName(node)}()`);
-        },
-      },
-      vertex: {
-        produceAst: megaShaderProduceVertexAst,
-        findInputs: megaShaderFindPositionInputs,
-        produceFiller: (node: Node, ast: AstNode) => {
-          return makeExpression(`${nodeName(node)}()`);
-        },
-      },
+      manipulateAst: megaShaderMainpulateAst,
     },
   },
 };
 
-babylengine.parsers[ShaderType.toon] = babylengine.parsers[ShaderType.physical];
-babylengine.parsers[ShaderType.phong] =
-  babylengine.parsers[ShaderType.physical];
+babylengine.parsers[EngineNodeType.toon] =
+  babylengine.parsers[EngineNodeType.physical];
+babylengine.parsers[EngineNodeType.phong] =
+  babylengine.parsers[EngineNodeType.physical];

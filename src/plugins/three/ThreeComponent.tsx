@@ -2,8 +2,8 @@ import styles from '../../../pages/editor/editor.module.css';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as three from 'three';
-import { Graph } from '../../nodestuff';
-import { EngineContext } from '../../graph';
+import { Graph } from '../../core/graph';
+import { EngineContext } from '../../core/engine';
 
 import { RuntimeContext } from './threngine';
 
@@ -157,7 +157,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
   // Inform parent our context is created
   useEffect(() => {
-    console.log('threecomponent setCtx called');
     setCtx<RuntimeContext>(ctx);
   }, [ctx, setCtx]);
 
@@ -329,19 +328,19 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       sceneData.lights = [pointLight, helper];
     } else if (lights === '3point') {
       const light1 = new three.PointLight(0xffffff, 1, 0);
-      light1.position.set(0, 20, 0);
+      light1.position.set(2, 2, 5);
       scene.add(light1);
       const helper1 = new three.PointLightHelper(light1, 0.1);
       scene.add(helper1);
 
       const light2 = new three.PointLight(0xffffff, 1, 0);
-      light2.position.set(10, 20, 10);
+      light2.position.set(-2, 5, -5);
       scene.add(light2);
       const helper2 = new three.PointLightHelper(light2, 0.1);
       scene.add(helper2);
 
       const light3 = new three.PointLight(0xffffff, 1, 0);
-      light3.position.set(-10, -20, -10);
+      light3.position.set(5, -5, -5);
       scene.add(light3);
       const helper3 = new three.PointLightHelper(light3, 0.1);
       scene.add(helper3);

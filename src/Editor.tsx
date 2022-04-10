@@ -29,27 +29,30 @@ import ReactFlow, {
 } from 'react-flow-renderer';
 
 import {
-  outputNode,
   Graph,
-  shaderSectionsToAst,
-  Node,
-  addNode,
-  multiplyNode,
-  ShaderType,
+  GraphNode,
   ShaderStage,
-  phongNode,
-  physicalNode,
-  toonNode,
-} from './nodestuff';
-import {
   compileGraph,
   computeAllContexts,
   computeGraphContext,
+  NodeInputs,
+  MAGIC_OUTPUT_STMTS,
+} from './core/graph';
+import {
+  outputNode,
+  addNode,
+  multiplyNode,
+  phongNode,
+  physicalNode,
+  toonNode,
+} from './core/node';
+import {
   Engine,
   EngineContext,
   convertToEngine,
-  NodeInputs,
-} from './graph';
+  EngineNodeType,
+} from './core/engine';
+import { shaderSectionsToAst } from './ast/shader-sections';
 
 import useThrottle from './useThrottle';
 
@@ -73,7 +76,7 @@ import FlowEdgeComponent, { FlowEdgeData } from './flow/FlowEdge';
 import FlowNodeComponent, { FlowNodeData } from './flow/FlowNode';
 
 import { Tabs, Tab, TabGroup, TabPanel, TabPanels } from './Tabs';
-import Monaco from './Monaco';
+import CodeEditor from './CodeEditor';
 
 import { Editor as ThreeComponent, engine as threngine } from './plugins/three';
 
@@ -97,20 +100,14 @@ const useFlef = () => {
   const [graph, setGraph, resetGraph] = useLocalStorage<Graph>('graph', () => {
     let counter = 0;
     const id = () => '' + counter++;
-    const outputF = outputNode(id(), 'Output F', {}, 'fragment');
-    const outputV = outputNode(id(), 'Output V', {}, 'vertex', outputF.id);
-    const phongF = phongNode(id(), 'Phong F', {}, 'fragment');
-    const phongV = phongNode(id(), 'Phong V', {}, 'vertex', phongF.id);
-    const physicalF = physicalNode(id(), 'Physical F', {}, 'fragment');
-    const physicalV = physicalNode(
-      id(),
-      'Physical V',
-      {},
-      'vertex',
-      physicalF.id
-    );
-    const toonF = toonNode(id(), 'Toon F', {}, 'fragment');
-    const toonV = toonNode(id(), 'Toon V', {}, 'vertex', toonF.id);
+    const outputF = outputNode(id(), 'Output F', 'fragment');
+    const outputV = outputNode(id(), 'Output V', 'vertex', outputF.id);
+    const phongF = phongNode(id(), 'Phong F', 'fragment');
+    const phongV = phongNode(id(), 'Phong V', 'vertex', phongF.id);
+    const physicalF = physicalNode(id(), 'Physical F', 'fragment');
+    const physicalV = physicalNode(id(), 'Physical V', 'vertex', physicalF.id);
+    const toonF = toonNode(id(), 'Toon F', 'fragment');
+    const toonV = toonNode(id(), 'Toon V', 'vertex', toonF.id);
     const fluidF = fluidCirclesNode(id());
     const staticShader = staticShaderNode(id());
     const purpleNoise = purpleNoiseNode(id());
@@ -118,9 +115,9 @@ const useFlef = () => {
     const heatShaderV = heatShaderVertexNode(id(), heatShaderF.id);
     const fireF = fireFrag(id());
     const fireV = fireVert(id(), fireF.id);
-    const add = addNode(id(), {});
-    const add2 = addNode(id(), {});
-    const multiply = multiplyNode(id(), {});
+    const add = addNode(id());
+    const add2 = addNode(id());
+    const multiply = multiplyNode(id());
     const outlineF = outlineShaderF(id());
     const outlineV = outlineShaderV(id(), outlineF.id);
     const solidColorF = solidColorNode(id());
@@ -173,6 +170,7 @@ const useFlef = () => {
         //       the vertex and fragment shader. I need to normalize the names
         //       across both shaders, and also remove duplicate uniform name
         //       setting in the runtime components
+        // TODO: Hole finding "strategies"
         {
           from: physicalV.id,
           to: outputV.id,
@@ -354,6 +352,13 @@ const setBiStages = (flowElements: FlowElements) => {
   };
 };
 
+// Given the compiled nodes in the engine context, for a node id, produce the
+// inputs and outputs
+const inputsFromCtx = (ctx: EngineContext<any>, id: string) =>
+  Object.keys(ctx.nodes[id]?.inputs || []).filter(
+    (name) => name !== MAGIC_OUTPUT_STMTS
+  );
+
 const initializeFlowElementsFromGraph = (
   graph: Graph,
   ctx: EngineContext<any>
@@ -372,7 +377,7 @@ const initializeFlowElementsFromGraph = (
       label: node.name,
       stage: node.stage,
       biStage: node.biStage || false,
-      inputs: Object.keys(ctx.nodes[node.id]?.inputs || []).map((name) => ({
+      inputs: inputsFromCtx(ctx, node.id).map((name) => ({
         name,
         validTarget: false,
       })),
@@ -385,13 +390,13 @@ const initializeFlowElementsFromGraph = (
     },
     type: 'special',
     position:
-      node.type === ShaderType.output
+      node.type === EngineNodeType.output
         ? { x: spacing * 2, y: outputs++ * 100 }
-        : node.type === ShaderType.phong ||
-          node.type === ShaderType.toon ||
-          node.type === ShaderType.physical
+        : node.type === EngineNodeType.phong ||
+          node.type === EngineNodeType.toon ||
+          node.type === EngineNodeType.physical
         ? { x: spacing, y: engines++ * 100 }
-        : node.type === ShaderType.add || node.type === ShaderType.multiply
+        : node.type === EngineNodeType.binary
         ? { x: 0, y: maths++ * 100 }
         : {
             x: -spacing - spacing * Math.floor(shaders / maxHeight),
@@ -449,7 +454,7 @@ const Editor: React.FC = () => {
   const [lights, setLights] = useState<PreviewLight>('point');
   const [previewObject, setPreviewObject] = useState('torusknot');
 
-  const [activeShader, setActiveShader] = useState<Node>(graph.nodes[0]);
+  const [activeShader, setActiveShader] = useState<GraphNode>(graph.nodes[0]);
   const [preprocessed, setPreprocessed] = useState<string | undefined>('');
   const [preprocessedVert, setPreprocessedVert] = useState<string | undefined>(
     ''
@@ -538,12 +543,10 @@ const Editor: React.FC = () => {
             ...node,
             data: {
               ...node.data,
-              inputs: Object.keys(ctx.nodes[node.id]?.inputs || []).map(
-                (name) => ({
-                  validTarget: false,
-                  name,
-                })
-              ),
+              inputs: inputsFromCtx(ctx, node.id).map((name) => ({
+                validTarget: false,
+                name,
+              })),
             },
           };
         });
@@ -753,13 +756,13 @@ const Editor: React.FC = () => {
   );
 
   const onNodeDoubleClick = (event: any, node: any) => {
-    setActiveShader(graph.nodes.find((n) => n.id === node.id) as Node);
+    setActiveShader(graph.nodes.find((n) => n.id === node.id) as GraphNode);
     setEditorTabIndex(1);
   };
 
   const setTargets = (nodeId: string, handleType: string) => {
     setFlowElements((flowElements) => {
-      const source = graph.nodes.find(({ id }) => id === nodeId) as Node;
+      const source = graph.nodes.find(({ id }) => id === nodeId) as GraphNode;
       return {
         edges: flowElements.edges,
         nodes: flowElements.nodes.map((node) => {
@@ -931,7 +934,7 @@ const Editor: React.FC = () => {
                     Save (⌘-S)
                   </button>
                 </div>
-                <Monaco
+                <CodeEditor
                   engine={engine}
                   defaultValue={activeShader.source}
                   onSave={() =>
@@ -947,7 +950,7 @@ const Editor: React.FC = () => {
                       (
                         graph.nodes.find(
                           ({ id }) => id === activeShader.id
-                        ) as Node
+                        ) as GraphNode
                       ).source = value;
                     }
                   }}
@@ -1019,24 +1022,28 @@ const Editor: React.FC = () => {
                   </TabGroup>
                   <TabPanels>
                     <TabPanel>
-                      <CodeEditor className={styles.code} readOnly>
-                        {original}
-                      </CodeEditor>
+                      <CodeEditor engine={engine} readOnly value={original} />
                     </TabPanel>
                     <TabPanel>
-                      <CodeEditor className={styles.code} readOnly>
-                        {originalVert}
-                      </CodeEditor>
+                      <CodeEditor
+                        engine={engine}
+                        readOnly
+                        value={originalVert}
+                      />
                     </TabPanel>
                     <TabPanel>
-                      <CodeEditor className={styles.code} readOnly>
-                        {preprocessed}
-                      </CodeEditor>
+                      <CodeEditor
+                        engine={engine}
+                        readOnly
+                        value={preprocessed}
+                      />
                     </TabPanel>
                     <TabPanel>
-                      <CodeEditor className={styles.code} readOnly>
-                        {preprocessedVert}
-                      </CodeEditor>
+                      <CodeEditor
+                        engine={engine}
+                        readOnly
+                        value={preprocessedVert}
+                      />
                     </TabPanel>
                     <TabPanel>
                       {state.vertError && (
@@ -1044,7 +1051,7 @@ const Editor: React.FC = () => {
                           {state.vertError}
                         </div>
                       )}
-                      <CodeEditor readOnly>{vertex}</CodeEditor>
+                      <CodeEditor engine={engine} readOnly value={vertex} />
                     </TabPanel>
                     <TabPanel>
                       {state.fragError && (
@@ -1052,7 +1059,11 @@ const Editor: React.FC = () => {
                           {state.fragError}
                         </div>
                       )}
-                      <CodeEditor readOnly>{finalFragment}</CodeEditor>
+                      <CodeEditor
+                        engine={engine}
+                        readOnly
+                        value={finalFragment}
+                      />
                     </TabPanel>
                   </TabPanels>
                 </Tabs>
@@ -1064,22 +1075,6 @@ const Editor: React.FC = () => {
     </div>
   );
 };
-
-const CodeEditor = (props: any) => (
-  <div className={styles.editor}>
-    <div className={styles.sidebar}>
-      {props.children
-        .toString()
-        .split('\n')
-        .map((_: any, index: number) => `${index + 1}\n`)}
-    </div>
-    <textarea
-      className={styles.code}
-      {...props}
-      value={props.children}
-    ></textarea>
-  </div>
-);
 
 const WithProvider = () => (
   <ReactFlowProvider>

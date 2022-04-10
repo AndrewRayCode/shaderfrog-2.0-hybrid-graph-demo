@@ -1,10 +1,10 @@
-import { sourceNode } from './nodestuff';
+import { sourceNode } from './core/node';
 
 const staticShaderNode = (id: string) =>
   sourceNode(
     id,
     'Static Shader',
-    {},
+    { version: 2, preprocess: true, strategies: [] },
     `
 /**
  * Example Fragment Shader

@@ -1,4 +1,4 @@
-import { sourceNode } from './core/node';
+import { sourceNode } from '../core/node';
 
 const fireFrag = (id: string) =>
   sourceNode(

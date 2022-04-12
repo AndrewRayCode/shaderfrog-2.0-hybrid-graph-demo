@@ -56,16 +56,18 @@ import { shaderSectionsToAst } from './ast/shader-sections';
 
 import useThrottle from './useThrottle';
 
-import purpleNoiseNode from './purpleNoiseNode';
-import staticShaderNode from './staticShaderNode';
-import fluidCirclesNode from './fluidCirclesNode';
-import solidColorNode from './solidColorNode';
+import { hellOnEarthFrag, hellOnEarthVert } from './shaders/hellOnEarth';
+import perlinCloudsFNode from './shaders/perlinClouds';
+import purpleNoiseNode from './shaders/purpleNoiseNode';
+import staticShaderNode from './shaders/staticShaderNode';
+import fluidCirclesNode from './shaders/fluidCirclesNode';
+import solidColorNode from './shaders/solidColorNode';
 import {
   heatShaderFragmentNode,
   heatShaderVertexNode,
-} from './heatmapShaderNode';
-import { fireFrag, fireVert } from './fireNode';
-import { outlineShaderF, outlineShaderV } from './outlineShader';
+} from './shaders/heatmapShaderNode';
+import { fireFrag, fireVert } from './shaders/fireNode';
+import { outlineShaderF, outlineShaderV } from './shaders/outlineShader';
 
 // import contrastNoise from '..';
 import { useAsyncExtendedState } from './useAsyncExtendedState';
@@ -121,6 +123,9 @@ const useFlef = () => {
     const outlineF = outlineShaderF(id());
     const outlineV = outlineShaderV(id(), outlineF.id);
     const solidColorF = solidColorNode(id());
+    const hellOnEarthF = hellOnEarthFrag(id());
+    const hellOnEarthV = hellOnEarthVert(id(), hellOnEarthF.id);
+    const perlinCloudsF = perlinCloudsFNode(id());
     return {
       nodes: [
         outputF,
@@ -133,6 +138,9 @@ const useFlef = () => {
         // toonV,
         fluidF,
         staticShader,
+        hellOnEarthF,
+        hellOnEarthV,
+        perlinCloudsF,
         purpleNoise,
         heatShaderF,
         heatShaderV,
@@ -154,11 +162,8 @@ const useFlef = () => {
         // TODO: Add 1.00 / 3.00 switch
         // TODO: Here we hardcode "out" for the inputs which needs to line up with
         //       the custom handles.
-        // TODO: Fix moving add node inputs causing missing holes
-        // TODO: Highlight inputs and outputs in the shader editor
         // TODO: Add more syntax highlighting to the GLSL editor, look at vscode
         //       plugin? https://github.com/stef-levesque/vscode-shader/tree/master/syntaxes
-        // TODO: Highlight nodes in use by graph, maybe edges too
         // TODO: Babylon.js light doesn't seem to animate
         // TODO: Babylon.js shader doesn't seem to get re-applied until I leave
         //       and come back to the scene
@@ -170,7 +175,16 @@ const useFlef = () => {
         //       the vertex and fragment shader. I need to normalize the names
         //       across both shaders, and also remove duplicate uniform name
         //       setting in the runtime components
-        // TODO: Hole finding "strategies"
+        // TODO: Fix removing of earlier edges into add/binary node crashing and
+        //       not reordering the inputs properly
+        // TODO: Make strategies dynamic per node to add/remove
+        // TODO: Make nodes addable/removable in the graph
+        // TODO: Why doesn't Perlin Clouds F texture2d input finder work?
+        // TODO: Try PBRMaterial EnvMap to see reflections
+        // TODO: Allow for a source expression only node that has a normal-map-ifier
+        // TODO: Enable backfilling of uv param?
+        // TODO: Allow for shader being duplicated in a main fn to allow it to
+        //       be both normal map and albdeo
         {
           from: physicalV.id,
           to: outputV.id,
@@ -884,7 +898,7 @@ const Editor: React.FC = () => {
             </button>
           </div>
           <Tabs onSelect={setEditorTabIndex} selected={editorTabIndex}>
-            <TabGroup className={styles.tabs}>
+            <TabGroup>
               <Tab>Graph</Tab>
               <Tab>
                 Editor ({activeShader.name} - {activeShader.stage})
@@ -965,7 +979,7 @@ const Editor: React.FC = () => {
         {/* 3d display split */}
         <div ref={rightSplit} className={styles.splitInner}>
           <Tabs selected={tabIndex} onSelect={setTabIndex}>
-            <TabGroup className={styles.tabs}>
+            <TabGroup>
               <Tab>Scene</Tab>
               <Tab
                 className={{
@@ -1011,43 +1025,15 @@ const Editor: React.FC = () => {
               </TabPanel>
               <TabPanel>
                 <Tabs onSelect={setSceneTabIndex} selected={sceneTabIndex}>
-                  <TabGroup className={cx(styles.tabs, styles.secondary)}>
-                    <Tab>3Frag</Tab>
-                    <Tab>3Vert</Tab>
-                    <Tab>Pre 3Frag</Tab>
-                    <Tab>Pre 3Vert</Tab>
+                  <TabGroup className={styles.secondary}>
                     <Tab className={{ [styles.errored]: state.vertError }}>
-                      Vert
+                      Final Vertex
                     </Tab>
                     <Tab className={{ [styles.errored]: state.fragError }}>
-                      Frag
+                      Final Fragment
                     </Tab>
                   </TabGroup>
                   <TabPanels>
-                    <TabPanel>
-                      <CodeEditor engine={engine} readOnly value={original} />
-                    </TabPanel>
-                    <TabPanel>
-                      <CodeEditor
-                        engine={engine}
-                        readOnly
-                        value={originalVert}
-                      />
-                    </TabPanel>
-                    <TabPanel>
-                      <CodeEditor
-                        engine={engine}
-                        readOnly
-                        value={preprocessed}
-                      />
-                    </TabPanel>
-                    <TabPanel>
-                      <CodeEditor
-                        engine={engine}
-                        readOnly
-                        value={preprocessedVert}
-                      />
-                    </TabPanel>
                     <TabPanel>
                       {state.vertError && (
                         <div className={styles.codeError}>

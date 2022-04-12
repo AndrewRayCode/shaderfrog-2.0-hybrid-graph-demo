@@ -267,12 +267,6 @@ export const babylengine: Engine<RuntimeContext> = {
     'light1',
     'light2',
     'light3',
-    // TODO: frag and vert shader get different names for varyings, also the
-    // "preserve" in the core graph.ts always reads from the engine which I don't
-    // think is what I wanted since my mental model was there was a core engine to use
-    'noise',
-    'fPosition',
-    'fNormal',
   ]),
   parsers: {
     [EngineNodeType.physical]: {

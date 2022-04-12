@@ -154,12 +154,6 @@ export const threngine: Engine<RuntimeContext> = {
     // phong shader. If a *shader* node has brightness, it should be unique, not
     // use the threejs one!
     'brightness',
-    // TODO: frag and vert shader get different names for varyings, also the
-    // "preserve" in the core graph.ts always reads from the engine which I don't
-    // think is what I wanted since my mental model was there was a core engine to use
-    'noise',
-    'fPosition',
-    'fNormal',
     // TODO: These depend on the shaderlib, this might need to be a runtime
     // concern
     // Metalness

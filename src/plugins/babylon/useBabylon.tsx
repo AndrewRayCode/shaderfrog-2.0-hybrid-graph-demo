@@ -26,13 +26,14 @@ export const useBabylon = (callback: Callback) => {
         preserveDrawingBuffer: true,
         stencil: true,
       });
+      const scene = new BABYLON.Scene(engine);
       return {
         sceneData: {
           lights: [],
         },
         canvas,
         engine,
-        scene: new BABYLON.Scene(engine),
+        scene,
         camera: new BABYLON.ArcRotateCamera(
           'camera1',
           0,

@@ -203,11 +203,13 @@ export const coreParsers: CoreParser<Runtime> = {
         convert300MainToReturn('main', ast);
       }
 
+      // Normalize names by using the next stage id, if present
+      const id = node.nextStageNodeId || node.id;
       renameBindings(ast.scopes[0], (name) =>
-        engine.preserve.has(name) ? name : `${name}_${node.id}`
+        engine.preserve.has(name) ? name : `${name}_${id}`
       );
       renameFunctions(ast.scopes[0], (name) =>
-        name === 'main' ? nodeName(node) : `${name}_${node.id}`
+        name === 'main' ? nodeName(node) : `${name}_${id}`
       );
 
       return ast;
@@ -272,11 +274,13 @@ export const coreParsers: CoreParser<Runtime> = {
         type: 'program',
         program: [
           makeExpression(
-            inputEdges.length
-              ? inputEdges
-                  .map((_, index) => alphabet.charAt(index))
-                  .join(` ${node.operator} `)
-              : `a ${node.operator} b`
+            '(' +
+              (inputEdges.length
+                ? inputEdges
+                    .map((_, index) => alphabet.charAt(index))
+                    .join(` ${node.operator} `)
+                : `a ${node.operator} b`) +
+              ')'
           ),
         ],
         scopes: [],

@@ -170,14 +170,13 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     } = ctx.runtime;
     console.log('oh hai birfday boi boi boiiiii');
 
+    const pc: any = graph.nodes.find(
+      (node) => node.name === 'Perlin Clouds F'
+    )?.id;
     const os1: any = graph.nodes.find(
       (node) => node.name === 'Outline Shader F'
     )?.id;
-    const os2: any = graph.nodes.find(
-      (node) => node.name === 'Outline Shader V'
-    )?.id;
     const fs1: any = graph.nodes.find((node) => node.name === 'Fireball F')?.id;
-    const fs2: any = graph.nodes.find((node) => node.name === 'Fireball V')?.id;
     const fc: any = graph.nodes.find(
       (node) => node.name === 'Fluid Circles'
     )?.id;
@@ -189,9 +188,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     )?.id;
     const hs1: any = graph.nodes.find(
       (node) => node.name === 'Fake Heatmap F'
-    )?.id;
-    const hs2: any = graph.nodes.find(
-      (node) => node.name === 'Fake Heatmap V'
     )?.id;
 
     const uniforms = {
@@ -220,6 +216,16 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       opacity: { value: 1 },
       lightPosition: { value: new three.Vector3(10, 10, 10) },
 
+      [`scale_${pc}`]: { value: 0.05 },
+      [`noiseImage_${pc}`]: {
+        value: new three.TextureLoader().load('/grayscale-noise.png'),
+      },
+      [`speed_${pc}`]: { value: new three.Vector2(-0.002, -0.002) },
+      [`cloudBrightness_${pc}`]: { value: 0.2 },
+      [`cloudMorphSpeed_${pc}`]: { value: 0.2 },
+      [`cloudMorphDirection_${pc}`]: { value: 1 },
+      [`cloudCover_${pc}`]: { value: 0.6 },
+
       [`speed_${pu}`]: { value: 3.0 },
       [`brightnessX_${pu}`]: { value: 1.0 },
       [`permutations_${pu}`]: { value: 10 },
@@ -231,8 +237,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
       [`scale_${hs1}`]: { value: 1.2 },
       [`power_${hs1}`]: { value: 1 },
-      [`scale_${hs2}`]: { value: 1.2 },
-      [`power_${hs2}`]: { value: 1 },
 
       [`speed_${fc}`]: { value: 1 },
       [`baseRadius_${fc}`]: { value: 1 },
@@ -244,17 +248,10 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       [`tExplosion_${fs1}`]: {
         value: new three.TextureLoader().load('/explosion.png'),
       },
-      [`tExplosion_${fs2}`]: {
-        value: new three.TextureLoader().load('/explosion.png'),
-      },
       [`fireSpeed_${fs1}`]: { value: 0.6 },
-      [`fireSpeed_${fs2}`]: { value: 0.6 },
       [`pulseHeight_${fs1}`]: { value: 0.1 },
-      [`pulseHeight_${fs2}`]: { value: 0.1 },
       [`displacementHeight_${fs1}`]: { value: 0.6 },
-      [`displacementHeight_${fs2}`]: { value: 0.6 },
       [`turbulenceDetail_${fs1}`]: { value: 0.8 },
-      [`turbulenceDetail_${fs2}`]: { value: 0.8 },
       [`brightness`]: { value: 0.8 },
 
       [`cel0_${edgeId}`]: { value: 1.0 },
@@ -268,13 +265,9 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       [`color_${edgeId}`]: { value: 1.0 },
 
       [`color_${os1}`]: { value: new three.Vector3(1, 1, 1) },
-      [`color_${os2}`]: { value: new three.Vector3(1, 1, 1) },
       [`start_${os1}`]: { value: 0 },
-      [`start_${os2}`]: { value: 0 },
       [`end_${os1}`]: { value: 1 },
-      [`end_${os2}`]: { value: 1 },
       [`alpha_${os1}`]: { value: 1 },
-      [`alpha_${os2}`]: { value: 1 },
     };
 
     // the before code

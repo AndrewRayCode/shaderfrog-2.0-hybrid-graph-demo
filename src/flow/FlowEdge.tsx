@@ -3,9 +3,9 @@ import {
   EdgeProps,
   getBezierPath,
   // getEdgeCenter,
-  getMarkerEnd,
+  // getMarkerEnd,
 } from 'react-flow-renderer';
-import { ShaderStage } from '../nodestuff';
+import { ShaderStage } from '../core/graph';
 
 export type FlowEdgeData = {
   stage?: ShaderStage;
@@ -21,8 +21,7 @@ export default function FlowEdge({
   targetPosition,
   style = {},
   data,
-  arrowHeadType,
-  markerEndId,
+  markerEnd,
 }: EdgeProps<any>) {
   const edgePath = getBezierPath({
     sourceX,
@@ -32,7 +31,6 @@ export default function FlowEdge({
     targetY,
     targetPosition,
   });
-  const markerEnd = getMarkerEnd(arrowHeadType, markerEndId);
   // const [edgeCenterX, edgeCenterY] = getEdgeCenter({
   //   sourceX,
   //   sourceY,

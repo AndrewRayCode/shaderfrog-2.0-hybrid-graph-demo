@@ -1,9 +1,8 @@
 import * as BABYLON from 'babylonjs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { Graph } from '../../nodestuff';
-
-import { EngineContext } from '../../graph';
+import { Graph } from '../../core/graph';
+import { EngineContext } from '../../core/engine';
 import { babylengine, RuntimeContext } from './bablyengine';
 
 import styles from '../../../pages/editor/editor.module.css';

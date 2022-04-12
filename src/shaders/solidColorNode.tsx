@@ -1,5 +1,5 @@
-import { StrategyType } from './core/strategy';
-import { sourceNode } from './core/node';
+import { StrategyType } from '../core/strategy';
+import { sourceNode } from '../core/node';
 
 const solidColorNode = (id: string) =>
   sourceNode(

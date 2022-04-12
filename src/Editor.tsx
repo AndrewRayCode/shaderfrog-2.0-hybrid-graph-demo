@@ -171,15 +171,10 @@ const useFlef = () => {
         //       coming back to scene, shader is black
         // TODO: Adding shader inputs like bumpTexture should not require
         //       duplicating that manually into babylengine
-        // TODO: I hard code varying uniforms like fNormal for the use between
-        //       the vertex and fragment shader. I need to normalize the names
-        //       across both shaders, and also remove duplicate uniform name
-        //       setting in the runtime components
         // TODO: Fix removing of earlier edges into add/binary node crashing and
         //       not reordering the inputs properly
         // TODO: Make strategies dynamic per node to add/remove
         // TODO: Make nodes addable/removable in the graph
-        // TODO: Why doesn't Perlin Clouds F texture2d input finder work?
         // TODO: Try PBRMaterial EnvMap to see reflections
         // TODO: Allow for a source expression only node that has a normal-map-ifier
         // TODO: Enable backfilling of uv param?
@@ -936,42 +931,55 @@ const Editor: React.FC = () => {
                 </ReactFlow>
               </TabPanel>
               <TabPanel>
-                <div className={styles.editorControls}>
-                  <button
-                    className={styles.button}
-                    onClick={() =>
-                      compile(
-                        engine,
-                        ctx as EngineContext<any>,
-                        pauseCompile,
-                        flowElements
-                      )
-                    }
+                <SplitPane split="horizontal" className={styles.belowTabs}>
+                  <div className={styles.splitInner}>
+                    <div className={styles.editorControls}>
+                      <button
+                        className={styles.button}
+                        onClick={() =>
+                          compile(
+                            engine,
+                            ctx as EngineContext<any>,
+                            pauseCompile,
+                            flowElements
+                          )
+                        }
+                      >
+                        Save (⌘-S)
+                      </button>
+                    </div>
+                    <CodeEditor
+                      engine={engine}
+                      defaultValue={activeShader.source}
+                      onSave={() =>
+                        compile(
+                          engine,
+                          ctx as EngineContext<any>,
+                          pauseCompile,
+                          flowElements
+                        )
+                      }
+                      onChange={(value, event) => {
+                        if (value) {
+                          (
+                            graph.nodes.find(
+                              ({ id }) => id === activeShader.id
+                            ) as GraphNode
+                          ).source = value;
+                        }
+                      }}
+                    />
+                  </div>
+                  <div
+                    className={cx(styles.splitInner, styles.nodeEditorPanel)}
                   >
-                    Save (⌘-S)
-                  </button>
-                </div>
-                <CodeEditor
-                  engine={engine}
-                  defaultValue={activeShader.source}
-                  onSave={() =>
-                    compile(
-                      engine,
-                      ctx as EngineContext<any>,
-                      pauseCompile,
-                      flowElements
-                    )
-                  }
-                  onChange={(value, event) => {
-                    if (value) {
-                      (
-                        graph.nodes.find(
-                          ({ id }) => id === activeShader.id
-                        ) as GraphNode
-                      ).source = value;
-                    }
-                  }}
-                />
+                    Strategies:{' '}
+                    {graph.nodes
+                      .find(({ id }) => id === activeShader.id)
+                      ?.config.strategies.map((strat) => strat.type)
+                      .join(', ')}
+                  </div>
+                </SplitPane>
               </TabPanel>
             </TabPanels>
           </Tabs>
@@ -1027,10 +1035,10 @@ const Editor: React.FC = () => {
                 <Tabs onSelect={setSceneTabIndex} selected={sceneTabIndex}>
                   <TabGroup className={styles.secondary}>
                     <Tab className={{ [styles.errored]: state.vertError }}>
-                      Final Vertex
+                      Vertex
                     </Tab>
                     <Tab className={{ [styles.errored]: state.fragError }}>
-                      Final Fragment
+                      Fragment
                     </Tab>
                   </TabGroup>
                   <TabPanels>

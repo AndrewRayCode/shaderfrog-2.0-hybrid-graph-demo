@@ -4,19 +4,20 @@ import { parser } from '@shaderfrog/glsl-parser';
 import { visit, AstNode } from '@shaderfrog/glsl-parser/dist/ast';
 import { generate } from '@shaderfrog/glsl-parser';
 
-import { compileGraph, parsers } from './src/graph';
+import {
+  applyStrategy,
+  strategyRunners,
+  StrategyType,
+} from './src/core/strategy';
+import { NodeType, Graph, GraphNode } from './src/core/graph';
+import { shaderSectionsToAst } from './src/ast/shader-sections';
+import { outputNode, addNode, sourceNode } from './src/core/node';
+import { returnGlPositionVec3Right } from './src/ast/manipulate';
 
 import {
-  ShaderType,
-  outputNode,
-  Graph,
-  shaderSectionsToAst,
-  addNode,
-  sourceNode,
-  returnGlPositionVec3Right,
   mergeShaderSections,
   findShaderSections,
-} from './src/nodestuff';
+} from './src/ast/shader-sections';
 import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
 
 const inspect = (thing: any): void =>
@@ -83,6 +84,32 @@ uniform vec3 a;
   );
 });
 
+describe('strategies', () => {
+  test('uses name without suffix for single call', () => {
+    const ast = parser.parse(`
+void main() {
+  vec4 computed = texture2D(noiseImage, uvPow * 1.0);
+}`);
+    expect(
+      Object.keys(
+        applyStrategy({ type: StrategyType.TEXTURE_2D }, {} as GraphNode, ast)
+      )
+    ).toEqual(['noiseImage']);
+  });
+
+  test('finds multiple texture2D inputs for one uniform', () => {
+    const ast = parser.parse(`
+void main() {
+  vec4 computed = texture2D(noiseImage, uvPow * 1.0);
+  computed += texture2D(noiseImage, uvPow * 2.0);
+}`);
+    expect(
+      Object.keys(
+        applyStrategy({ type: StrategyType.TEXTURE_2D }, {} as GraphNode, ast)
+      )
+    ).toEqual(['noiseImage_0', 'noiseImage_1']);
+  });
+});
 // const sourceToGraphWithOutputHelper = (fragment: string): Graph => ({
 //   nodes: [
 //     outputNode('1', 'Output f', {}, 'fragment'),

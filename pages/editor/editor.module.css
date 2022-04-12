@@ -1,8 +1,6 @@
 .container {
-  /* display: grid; */
   width: 100%;
   height: 100%;
-  /* grid-template-columns: 1fr 1fr; */
 }
 
 .gutter {
@@ -12,6 +10,7 @@
 }
 
 .splitInner {
+  position: reltive;
   width: 100%;
 }
 
@@ -118,7 +117,7 @@ textarea.error {
 }
 
 .secondary {
-  background: #555;
+  background: #444;
 }
 .secondary .tab_tab {
   background: #444;
@@ -195,4 +194,11 @@ textarea.error {
   bottom: 10px;
   left: 10px;
   color: #fff;
+}
+
+.nodeEditorPanel {
+  background: #333;
+}
+.belowTabs {
+  top: 28px !important;
 }

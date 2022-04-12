@@ -27,7 +27,7 @@ import {
   makeFnStatement,
 } from '../ast/manipulate';
 import { ensure } from '../util/ensure';
-import { Strategy, strategyRunners } from './strategy';
+import { applyStrategy, Strategy, strategyRunners } from './strategy';
 
 export type ShaderStage = 'fragment' | 'vertex';
 
@@ -174,7 +174,6 @@ export const doesLinkThruShader = (graph: Graph, node: GraphNode): boolean => {
   }, false);
 };
 
-// export type Parser<T> = Partial<Record<NodeType, ShaderParser<T>>>;
 type CoreParser<T> = { [key: string]: CoreNodeParser<T> };
 
 export const nodeName = (node: GraphNode): string =>
@@ -216,12 +215,10 @@ export const coreParsers: CoreParser<Runtime> = {
     },
     findInputs: (engineContext, node, ast) => {
       const inputs = node.config.strategies.reduce<NodeInputs>(
-        (strategies, strategy) => {
-          return {
-            ...strategies,
-            ...strategyRunners[strategy.type](node, ast, strategy),
-          };
-        },
+        (strategies, strategy) => ({
+          ...strategies,
+          ...applyStrategy(strategy, node, ast),
+        }),
         {}
       );
       return inputs;
@@ -326,226 +323,6 @@ export const coreParsers: CoreParser<Runtime> = {
       return ast.program;
     },
   },
-  /*
-  [ShaderType.output]: {
-    fragment: {
-      produceAst: (engineContext, engine, graph, node, inputEdges) => {
-        const fragmentPreprocessed = preprocess(node.source, {
-          preserve: {
-            version: () => true,
-          },
-        });
-        const fragmentAst = parser.parse(fragmentPreprocessed);
-        return fragmentAst;
-      },
-      findInputs: (engineContext, node, ast) => {
-        const assignNode = findVec4Constructor(ast);
-        if (!assignNode) {
-          throw new Error(`Impossible error, no assign node in output`);
-        }
-        return {
-          color: (fillerAst: AstNode) => {
-            assignNode.right = fillerAst;
-          },
-        };
-      },
-      produceFiller: emptyFiller,
-    },
-    vertex: {
-      produceAst: (engineContext, engine, graph, node, inputEdges) => {
-        const vertexPreprocessed = preprocess(node.source, {
-          preserve: {
-            version: () => true,
-          },
-        });
-        const vertexAst = parser.parse(vertexPreprocessed);
-        return vertexAst;
-      },
-      findInputs: (engineContext, node, ast) => {
-        const assignNode = findAssignmentTo(ast, 'gl_Position');
-        if (!assignNode) {
-          throw new Error(`Impossible error, no assign node in output`);
-        }
-        return {
-          mainStmts: (fillerAst: AstNode) => {
-            ast.program
-              .find((stmt: AstNode) => stmt.type === 'function')
-              .body.statements.unshift(makeFnStatement(generate(fillerAst)));
-          },
-          position: (fillerAst: AstNode) => {
-            assignNode.expression.right = fillerAst;
-          },
-        };
-      },
-      produceFiller: emptyFiller,
-    },
-  },
-  [ShaderType.shader]: {
-    fragment: {
-      produceAst: (engineContext, engine, graph, node, inputEdges) => {
-        const fragmentPreprocessed = preprocess(node.source, {
-          preserve: {
-            version: () => true,
-          },
-        });
-        const fragmentAst = parser.parse(fragmentPreprocessed);
-        from2To3(fragmentAst, 'fragment');
-
-        convert300MainToReturn(fragmentAst);
-        renameBindings(fragmentAst.scopes[0], (name) =>
-          engine.preserve.has(name) ? name : `${name}_${node.id}`
-        );
-        renameFunctions(fragmentAst.scopes[0], (name) =>
-          name === 'main' ? nodeName(node) : `${name}_${node.id}`
-        );
-        return fragmentAst;
-      },
-      findInputs: (engineContext, node, ast) => {
-        // console.log(util.inspect(ast.program, false, null, true));
-
-        let texture2Dcalls: [AstNode, string][] = [];
-        const visitors: NodeVisitors = {
-          function_call: {
-            enter: (path) => {
-              if (
-                path.node.identifier?.specifier?.identifier === 'texture2D' &&
-                path.key
-              ) {
-                texture2Dcalls.push([path.node, path.key]);
-              }
-            },
-          },
-        };
-        visit(ast, visitors);
-        return texture2Dcalls.reduce(
-          (inputs, [parent, key], index) => ({
-            ...inputs,
-            [`texture2d_${index}`]: (fillerAst: AstNode) => {
-              parent[key] = fillerAst;
-            },
-          }),
-          {}
-        );
-      },
-      produceFiller: (node: GraphNode, ast) => {
-        return makeExpression(`${nodeName(node)}()`);
-      },
-    },
-    vertex: {
-      produceAst: (engineContext, engine, graph, node, inputEdges) => {
-        if (!node.source) {
-          return { type: 'empty' };
-        }
-        const vertexPreprocessed = preprocess(node.source, {
-          preserve: {
-            version: () => true,
-          },
-        });
-        const vertexAst = parser.parse(vertexPreprocessed);
-        from2To3(vertexAst, 'vertex');
-
-        if (doesLinkThruShader(graph, node)) {
-          returnGlPositionVec3Right(vertexAst);
-        } else {
-          returnGlPosition(vertexAst);
-        }
-
-        renameBindings(vertexAst.scopes[0], (name) =>
-          engine.preserve.has(name) ? name : `${name}_${node.id}`
-        );
-        renameFunctions(vertexAst.scopes[0], (name) =>
-          name === 'main' ? nodeName(node) : `${name}_${node.id}`
-        );
-        return vertexAst;
-      },
-      findInputs: (engineContext, node, ast) => ({
-        position: (fillerAst: AstNode) => {
-          Object.entries(
-            (ast.scopes[0].bindings?.position?.references || {}) as Record<
-              string,
-              AstNode
-            >
-          )?.forEach(([_, ref]) => {
-            if (ref.type === 'identifier' && ref.identifier === 'position') {
-              ref.identifier = generate(fillerAst);
-            } else if (
-              ref.type === 'parameter_declaration' &&
-              ref.declaration.identifier.identifier === 'position'
-            ) {
-              ref.declaration.identifier.identifier = generate(fillerAst);
-            }
-          });
-        },
-      }),
-      produceFiller: (node: GraphNode, ast) => {
-        return makeExpression(`${nodeName(node)}()`);
-      },
-    },
-  },
-  [ShaderType.binary]: {
-    produceAst: (
-      engineContext,
-      engine,
-      graph,
-      node: BinaryNode,
-      inputEdges
-    ) => {
-      const fragmentAst: AstNode = {
-        type: 'program',
-        program: [
-          makeExpression(
-            inputEdges.length
-              ? inputEdges
-                  .map((_, index) => alphabet.charAt(index))
-                  .join(` ${node.operator} `)
-              : `a ${node.operator} b`
-          ),
-        ],
-        scopes: [],
-      };
-      return fragmentAst;
-    },
-    findInputs: (engineContext, node, ast, nodeContext, inputEdges) => {
-      return new Array(Math.max(inputEdges.length + 1, 2))
-        .fill(0)
-        .map((_, index) => alphabet.charAt(index))
-        .reduce(
-          (inputs, letter) => ({
-            ...inputs,
-            [letter]: (fillerAst: AstNode) => {
-              let foundPath: Path | undefined;
-              const visitors: NodeVisitors = {
-                identifier: {
-                  enter: (path) => {
-                    if (path.node.identifier === letter) {
-                      foundPath = path;
-                    }
-                  },
-                },
-              };
-              visit(nodeContext.ast, visitors);
-              if (!foundPath) {
-                throw new Error(
-                  `Im drunk and I think this case is impossible, no "${letter}" found in binary node?`
-                );
-              }
-
-              if (foundPath.parent && foundPath.key) {
-                foundPath.parent[foundPath.key] = fillerAst;
-              } else {
-                nodeContext.ast = fillerAst;
-              }
-            },
-          }),
-          {}
-        );
-    },
-    produceFiller: (node: GraphNode, ast: AstNode): AstNode => {
-      return ast.program;
-    },
-  },
-  // [ShaderType.multiply]: binaryNode('*'),
-  */
 };
 
 export const collectConnectedNodes = (

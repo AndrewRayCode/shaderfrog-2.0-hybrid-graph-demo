@@ -38,6 +38,12 @@ type StrategyImpl = (
 
 type Strategies<T> = Record<StrategyType, StrategyImpl>;
 
+export const applyStrategy = (
+  strategy: Strategy,
+  node: GraphNode,
+  ast: AstNode
+): NodeInputs => strategyRunners[strategy.type](node, ast, strategy);
+
 export const strategyRunners: Strategies<NodeContext> = {
   [StrategyType.ASSIGNMENT_TO]: (node, ast, strategy) => {
     const cast = strategy as AssignemntToStrategy;
@@ -56,6 +62,7 @@ export const strategyRunners: Strategies<NodeContext> = {
     strategy: Strategy
   ) => {
     let texture2Dcalls: [string, AstNode, string][] = [];
+    const seen: { [key: string]: number } = {};
     const visitors: NodeVisitors = {
       function_call: {
         enter: (path) => {
@@ -70,20 +77,29 @@ export const strategyRunners: Strategies<NodeContext> = {
                 'This is impossible a function call always has a parent'
               );
             }
-            texture2Dcalls.push([
-              generate(path.node.args[0]),
-              path.parent,
-              path.key,
-            ]);
+
+            // This function can get called after names are mangled, so remove
+            // any trailing shaderfrog suffix
+            const name = generate(path.node.args[0]).replace(/_\d+$/, '');
+            seen[name] = (seen[name] || 0) + 1;
+            texture2Dcalls.push([name, path.parent, path.key]);
           }
         },
       },
     };
     visit(ast, visitors);
+    const names = new Set(
+      Object.entries(seen).reduce<string[]>(
+        (arr, [name, count]) => [...arr, ...(count > 1 ? [name] : [])],
+        []
+      )
+    );
     const inputs = texture2Dcalls.reduce(
-      (inputs, [name, parent, key]) => ({
+      (inputs, [name, parent, key], index) => ({
         ...inputs,
-        [name]: (fillerAst: AstNode) => {
+        // Suffix a texture2d input name with its index if it's used more than
+        // once
+        [names.has(name) ? `${name}_${index}` : name]: (fillerAst: AstNode) => {
           parent[key] = fillerAst;
         },
       }),

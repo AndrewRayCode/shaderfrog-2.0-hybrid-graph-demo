@@ -269,6 +269,7 @@ total: ${(now - allStart).toFixed(3)}ms
 `);
       resolve({
         compileMs: (now - allStart).toFixed(3),
+        activeNodeIds: result.activeNodeIds,
         fragmentResult,
         vertexResult,
       });
@@ -376,6 +377,7 @@ const initializeFlowElementsFromGraph = (
     data: {
       label: node.name,
       stage: node.stage,
+      active: false,
       biStage: node.biStage || false,
       inputs: inputsFromCtx(ctx, node.id).map((name) => ({
         name,
@@ -543,6 +545,7 @@ const Editor: React.FC = () => {
             ...node,
             data: {
               ...node.data,
+              active: compileResult.activeNodeIds.has(node.id),
               inputs: inputsFromCtx(ctx, node.id).map((name) => ({
                 validTarget: false,
                 name,

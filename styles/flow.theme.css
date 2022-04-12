@@ -93,16 +93,19 @@
 
 .selected .fragment.flownode {
   border: 1px solid #d4ff00;
-  box-shadow: 0 0 10px #d4ff0080;
 }
 
 .fragment .flowlabel {
-  background: linear-gradient(to right, #264b21, #295829);
+  background: linear-gradient(to right, #326d29, #2d792d);
 }
 
 .selected .fragment .flowlabel {
   background: linear-gradient(to right, #3c7534, #3d833d);
   border-bottom: 1px solid #d4ff0080;
+}
+
+.inactive.fragment .flowlabel {
+  background: linear-gradient(to right, #303d2e, #283a28);
 }
 
 .react-flow__edge.fragment .react-flow__edge-path {
@@ -157,17 +160,20 @@
 
 .selected .vertex.flownode {
   border: 1px solid #fa5b5b;
-  box-shadow: 0 0 10px #fa5b5b84;
 }
 
 .vertex .flowlabel {
   background-color: #ffe53b;
-  background-image: linear-gradient(147deg, #5e081b 0%, #640909 74%);
+  background-image: linear-gradient(147deg, #770921 0%, #8a0808 74%);
 }
 
 .selected .vertex .flowlabel {
   background-image: linear-gradient(147deg, #810b25 0%, #940d0d 74%);
   border-bottom: 1px solid #da1842;
+}
+
+.inactive.vertex .flowlabel {
+  background-image: linear-gradient(147deg, #3b101a 0%, #3b1111 74%);
 }
 
 .react-flow__edge.vertex .react-flow__edge-path {

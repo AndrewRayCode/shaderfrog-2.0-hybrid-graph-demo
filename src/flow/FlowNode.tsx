@@ -7,7 +7,7 @@ import {
   Edge as FlowEdge,
   HandleProps,
 } from 'react-flow-renderer';
-import { ShaderStage } from '../nodestuff';
+import { ShaderStage } from '../core/graph';
 
 import { useUpdateNodeInternals } from 'react-flow-renderer';
 
@@ -20,6 +20,7 @@ type NodeHandle = {
 export type FlowNodeData = {
   label: string;
   stage?: ShaderStage;
+  active: boolean;
   /**
    * Whether or not this node can be used for both shader fragment and vertex
    */
@@ -68,7 +69,7 @@ const CustomNodeComponent = ({ id, data }: NodeProps) => {
   // console.log('rendering custom node component for ', data.label, data);
   return (
     <div
-      className={cx('flownode', data.stage)}
+      className={cx('flownode', data.stage, { inactive: !data.active })}
       style={{
         height: `${handleTop + Math.max(data.inputs.length, 1) * 20}px`,
       }}

@@ -789,6 +789,7 @@ const computeContextForNodes = <T>(
 export type CompileGraphResult = {
   fragment: ShaderSections;
   vertex: ShaderSections;
+  activeNodeIds: Set<string>;
 };
 
 /**
@@ -885,21 +886,21 @@ export const compileGraph = <T>(
   // given edges in the graph. Build invisible edges from these vertex nodes to
   // the hidden "mainStmts" input on the output node, which inlines the function
   // calls to those vertex main() statements and includes them in the output
-  const orphanEdges: Edge[] = graph.nodes
-    .filter(
-      (node) =>
-        node.stage === 'vertex' &&
-        node.nextStageNodeId &&
-        fragmentIds[node.nextStageNodeId] &&
-        !vertexIds[node.id]
-    )
-    .map((node) => ({
-      from: node.id,
-      to: outputVert.id,
-      output: 'main',
-      input: MAGIC_OUTPUT_STMTS,
-      stage: 'vertex',
-    }));
+  const orphanNodes = graph.nodes.filter(
+    (node) =>
+      node.stage === 'vertex' &&
+      node.nextStageNodeId &&
+      fragmentIds[node.nextStageNodeId] &&
+      !vertexIds[node.id]
+  );
+
+  const orphanEdges: Edge[] = orphanNodes.map((node) => ({
+    from: node.id,
+    to: outputVert.id,
+    output: 'main',
+    input: MAGIC_OUTPUT_STMTS,
+    stage: 'vertex',
+  }));
 
   const [vertex, ,] = compileNode(
     engine,
@@ -919,5 +920,10 @@ export const compileGraph = <T>(
   return {
     fragment,
     vertex,
+    activeNodeIds: new Set<string>([
+      ...Object.keys(vertexIds),
+      ...Object.keys(fragmentIds),
+      ...orphanNodes.map((node) => node.id),
+    ]),
   };
 };

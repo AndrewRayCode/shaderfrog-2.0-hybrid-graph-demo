@@ -89,6 +89,7 @@ import {
 import { Hoisty, useHoisty } from './hoistedRefContext';
 import { UICompileGraphResult } from './uICompileGraphResult';
 import { useLocalStorage } from './useLocalStorage';
+import { Strategy, StrategyType } from './core/strategy';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
@@ -301,11 +302,6 @@ const findInputStage = (
     )
   );
 };
-
-// type IndexedByTarget = {
-//   targets: Record<string, FlowEdge<FlowEdgeData>[]>;
-//   ids: Record<string, FlowNode<FlowNodeData>>;
-// };
 
 // Some nodes, like add, can be used for either fragment or vertex stage. When
 // we connect edges in the graph, update it to figure out which stage we should
@@ -931,12 +927,56 @@ const Editor: React.FC = () => {
                 </ReactFlow>
               </TabPanel>
               <TabPanel>
-                <SplitPane split="horizontal" className={styles.belowTabs}>
-                  <div className={styles.splitInner}>
-                    <div className={styles.editorControls}>
-                      <button
-                        className={styles.button}
-                        onClick={() =>
+                <div className={styles.belowTabs}>
+                  <SplitPane split="horizontal">
+                    <div className={styles.splitInner}>
+                      <div className={styles.editorControls}>
+                        <button
+                          className={styles.button}
+                          onClick={() =>
+                            compile(
+                              engine,
+                              ctx as EngineContext<any>,
+                              pauseCompile,
+                              flowElements
+                            )
+                          }
+                        >
+                          Save (⌘-S)
+                        </button>
+                      </div>
+                      <CodeEditor
+                        engine={engine}
+                        defaultValue={activeShader.source}
+                        onSave={() => {
+                          compile(
+                            engine,
+                            ctx as EngineContext<any>,
+                            pauseCompile,
+                            flowElements
+                          );
+                        }}
+                        onChange={(value, event) => {
+                          if (value) {
+                            (
+                              graph.nodes.find(
+                                ({ id }) => id === activeShader.id
+                              ) as GraphNode
+                            ).source = value;
+                          }
+                        }}
+                      />
+                    </div>
+                    <div
+                      className={cx(styles.splitInner, styles.nodeEditorPanel)}
+                    >
+                      <Strunter
+                        node={
+                          graph.nodes.find(
+                            ({ id }) => id === activeShader.id
+                          ) as GraphNode
+                        }
+                        onSave={() =>
                           compile(
                             engine,
                             ctx as EngineContext<any>,
@@ -944,42 +984,10 @@ const Editor: React.FC = () => {
                             flowElements
                           )
                         }
-                      >
-                        Save (⌘-S)
-                      </button>
+                      ></Strunter>
                     </div>
-                    <CodeEditor
-                      engine={engine}
-                      defaultValue={activeShader.source}
-                      onSave={() =>
-                        compile(
-                          engine,
-                          ctx as EngineContext<any>,
-                          pauseCompile,
-                          flowElements
-                        )
-                      }
-                      onChange={(value, event) => {
-                        if (value) {
-                          (
-                            graph.nodes.find(
-                              ({ id }) => id === activeShader.id
-                            ) as GraphNode
-                          ).source = value;
-                        }
-                      }}
-                    />
-                  </div>
-                  <div
-                    className={cx(styles.splitInner, styles.nodeEditorPanel)}
-                  >
-                    Strategies:{' '}
-                    {graph.nodes
-                      .find(({ id }) => id === activeShader.id)
-                      ?.config.strategies.map((strat) => strat.type)
-                      .join(', ')}
-                  </div>
-                </SplitPane>
+                  </SplitPane>
+                </div>
               </TabPanel>
             </TabPanels>
           </Tabs>
@@ -1069,6 +1077,67 @@ const Editor: React.FC = () => {
           </Tabs>
         </div>
       </SplitPane>
+    </div>
+  );
+};
+
+const Strunter = ({
+  node,
+  onSave,
+}: {
+  node: GraphNode;
+  onSave: () => void;
+}) => {
+  return (
+    <div>
+      Strategies:{' '}
+      {node.config.strategies.map((strategy, index) => (
+        <div key={strategy.type}>
+          {strategy.type}
+          <input
+            type="text"
+            readOnly
+            value={JSON.stringify(strategy.config)}
+          ></input>
+          <button
+            onClick={() => {
+              node.config.strategies = [
+                ...node.config.strategies.slice(0, index),
+                ...node.config.strategies.slice(index + 1),
+              ];
+              onSave();
+            }}
+          >
+            &times;
+          </button>
+        </div>
+      ))}
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          const data = Object.fromEntries(
+            new FormData(event.target as HTMLFormElement).entries()
+          );
+          node.config.strategies = [
+            ...node.config.strategies,
+            {
+              type: data.strategy,
+              config: JSON.parse(data.config as string),
+            } as Strategy,
+          ];
+          onSave();
+        }}
+      >
+        <select name="strategy">
+          {Object.entries(StrategyType).map(([name, value]) => (
+            <option key={name} value={value}>
+              {name}
+            </option>
+          ))}
+        </select>
+        <input type="text" name="config" defaultValue="{}"></input>
+        <button type="submit">Add</button>
+      </form>
     </div>
   );
 };

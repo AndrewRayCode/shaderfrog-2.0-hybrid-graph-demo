@@ -11,18 +11,23 @@ export enum StrategyType {
 
 export interface BaseStrategy {
   type: StrategyType;
+  config: Object;
 }
 
 export interface AssignemntToStrategy extends BaseStrategy {
   type: StrategyType.ASSIGNMENT_TO;
-  assignTo: string;
+  config: {
+    assignTo: string;
+  };
 }
 export interface Texture2DStrategy extends BaseStrategy {
   type: StrategyType.TEXTURE_2D;
 }
 export interface NamedAttributeStrategy extends BaseStrategy {
   type: StrategyType.NAMED_ATTRIBUTE;
-  attributeName: string;
+  config: {
+    attributeName: string;
+  };
 }
 
 export type Strategy =
@@ -47,10 +52,10 @@ export const applyStrategy = (
 export const strategyRunners: Strategies<NodeContext> = {
   [StrategyType.ASSIGNMENT_TO]: (node, ast, strategy) => {
     const cast = strategy as AssignemntToStrategy;
-    const assignNode = findAssignmentTo(ast, cast.assignTo);
+    const assignNode = findAssignmentTo(ast, cast.config.assignTo);
     return assignNode
       ? {
-          [cast.assignTo]: (fillerAst: AstNode) => {
+          [cast.config.assignTo]: (fillerAst: AstNode) => {
             assignNode.expression.right = fillerAst;
           },
         }
@@ -111,18 +116,19 @@ export const strategyRunners: Strategies<NodeContext> = {
   [StrategyType.NAMED_ATTRIBUTE]: (node, ast, strategy) => {
     const cast = strategy as NamedAttributeStrategy;
     return {
-      [cast.attributeName]: (fillerAst: AstNode) => {
+      [cast.config.attributeName]: (fillerAst: AstNode) => {
         Object.entries(ast.scopes[0].bindings).forEach(
           ([name, binding]: [string, any]) => {
             binding.references.forEach((ref: AstNode) => {
               if (
                 ref.type === 'identifier' &&
-                ref.identifier === cast.attributeName
+                ref.identifier === cast.config.attributeName
               ) {
                 ref.identifier = generate(fillerAst);
               } else if (
                 ref.type === 'parameter_declaration' &&
-                ref.declaration.identifier.identifier === cast.attributeName
+                ref.declaration.identifier.identifier ===
+                  cast.config.attributeName
               ) {
                 ref.declaration.identifier.identifier = generate(fillerAst);
               }

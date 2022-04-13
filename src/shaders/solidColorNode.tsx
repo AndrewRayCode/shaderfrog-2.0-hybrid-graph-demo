@@ -11,6 +11,7 @@ const solidColorNode = (id: string) =>
       strategies: [
         {
           type: StrategyType.TEXTURE_2D,
+          config: {},
         },
       ],
     },

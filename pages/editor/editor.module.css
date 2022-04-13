@@ -200,5 +200,9 @@ textarea.error {
   background: #333;
 }
 .belowTabs {
-  top: 28px !important;
+  top: 29px !important;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }

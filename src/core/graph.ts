@@ -245,7 +245,7 @@ export const coreParsers: CoreParser<Runtime> = {
         (strategies, strategy) => {
           return {
             ...strategies,
-            ...strategyRunners[strategy.type](node, ast, strategy),
+            ...applyStrategy(strategy, node, ast),
           };
         },
         // Magic special input on output node only
@@ -507,15 +507,6 @@ const computeNodeContext = <T>(
   nodeContext.inputs = node.config.inputMapping
     ? mapInputs(node.config.inputMapping, inputs)
     : inputs;
-  console.log(
-    'For node ',
-    `${node.name} (${node.id})`,
-    'found inputs',
-    Object.keys(inputs),
-    'which were mapped to',
-    nodeContext.inputs,
-    { ast }
-  );
 
   return nodeContext;
 };

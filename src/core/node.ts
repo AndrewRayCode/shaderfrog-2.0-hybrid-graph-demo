@@ -83,7 +83,9 @@ export const outputNode = (
     strategies: [
       {
         type: StrategyType.ASSIGNMENT_TO,
-        assignTo: stage === 'fragment' ? 'frogFragOut' : 'gl_Position',
+        config: {
+          assignTo: stage === 'fragment' ? 'frogFragOut' : 'gl_Position',
+        },
       },
     ],
   },
@@ -135,12 +137,13 @@ export const phongNode = (
           ? [
               {
                 type: StrategyType.TEXTURE_2D,
+                config: {},
               },
             ]
           : [
               {
                 type: StrategyType.NAMED_ATTRIBUTE,
-                attributeName: 'position',
+                config: { attributeName: 'position' },
               },
             ],
     },
@@ -174,12 +177,13 @@ export const physicalNode = (
           ? [
               {
                 type: StrategyType.TEXTURE_2D,
+                config: {},
               },
             ]
           : [
               {
                 type: StrategyType.NAMED_ATTRIBUTE,
-                attributeName: 'position',
+                config: { attributeName: 'position' },
               },
             ],
     },
@@ -210,6 +214,7 @@ export const toonNode = (
       strategies: [
         {
           type: StrategyType.TEXTURE_2D,
+          config: {},
         },
       ],
     },

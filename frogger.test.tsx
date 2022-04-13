@@ -12,7 +12,10 @@ import {
 import { NodeType, Graph, GraphNode } from './src/core/graph';
 import { shaderSectionsToAst } from './src/ast/shader-sections';
 import { outputNode, addNode, sourceNode } from './src/core/node';
-import { returnGlPositionVec3Right } from './src/ast/manipulate';
+import {
+  makeExpression,
+  returnGlPositionVec3Right,
+} from './src/ast/manipulate';
 
 import {
   mergeShaderSections,
@@ -85,6 +88,54 @@ uniform vec3 a;
 });
 
 describe('strategies', () => {
+  test('uniform strategy', () => {
+    const ast = parser.parse(`
+layout(std140,column_major) uniform;
+uniform sampler2D image;
+uniform vec4 input, output, other;
+uniform vec4 zenput;
+uniform Light0 { vec4 y; } x;
+void main() {
+  vec4 computed = texture2D(image, uvPow * 1.0);
+  vec4 x = input;
+  vec4 y = output;
+  vec4 z = zenput;
+}`);
+    const fillers = applyStrategy(
+      { type: StrategyType.UNIFORM, config: {} },
+      {} as GraphNode,
+      ast
+    );
+
+    // It should find uniforms with simple types, excluding sampler2D
+    expect(Object.keys(fillers)).toEqual([
+      'input',
+      'output',
+      'other',
+      'zenput',
+    ]);
+
+    fillers['input'](makeExpression('a'));
+    fillers['output'](makeExpression('b'));
+    fillers['zenput'](makeExpression('c'));
+    const result = generate(ast);
+
+    // Expect the filling of references happened
+    expect(result).toContain('vec4 x = a;');
+    expect(result).toContain('vec4 y = b;');
+    expect(result).toContain('vec4 z = c;');
+
+    // Expect it preserved things it shouldn't touch
+    expect(result).toContain('layout(std140,column_major) uniform;');
+    expect(result).toContain('uniform sampler2D image;');
+    expect(result).toContain('uniform Light0 { vec4 y; } x;');
+
+    // Expect it removed uniforms from declarator list
+    expect(result).toContain('uniform vec4 other;');
+    // Expect it removed uniform lines
+    expect(result).not.toContain('uniform vec4 zenput');
+  });
+
   test('uses name without suffix for single call', () => {
     const ast = parser.parse(`
 void main() {
@@ -92,7 +143,11 @@ void main() {
 }`);
     expect(
       Object.keys(
-        applyStrategy({ type: StrategyType.TEXTURE_2D }, {} as GraphNode, ast)
+        applyStrategy(
+          { type: StrategyType.TEXTURE_2D, config: {} },
+          {} as GraphNode,
+          ast
+        )
       )
     ).toEqual(['noiseImage']);
   });
@@ -105,7 +160,11 @@ void main() {
 }`);
     expect(
       Object.keys(
-        applyStrategy({ type: StrategyType.TEXTURE_2D }, {} as GraphNode, ast)
+        applyStrategy(
+          { type: StrategyType.TEXTURE_2D, config: {} },
+          {} as GraphNode,
+          ast
+        )
       )
     ).toEqual(['noiseImage_0', 'noiseImage_1']);
   });

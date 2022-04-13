@@ -7,6 +7,7 @@ export enum StrategyType {
   ASSIGNMENT_TO = 'Assignment To',
   TEXTURE_2D = 'Texture2D',
   NAMED_ATTRIBUTE = 'Named Attribute',
+  UNIFORM = 'Uniform',
 }
 
 export interface BaseStrategy {
@@ -23,6 +24,9 @@ export interface AssignemntToStrategy extends BaseStrategy {
 export interface Texture2DStrategy extends BaseStrategy {
   type: StrategyType.TEXTURE_2D;
 }
+export interface UniformStrategy extends BaseStrategy {
+  type: StrategyType.UNIFORM;
+}
 export interface NamedAttributeStrategy extends BaseStrategy {
   type: StrategyType.NAMED_ATTRIBUTE;
   config: {
@@ -31,6 +35,7 @@ export interface NamedAttributeStrategy extends BaseStrategy {
 }
 
 export type Strategy =
+  | UniformStrategy
   | AssignemntToStrategy
   | Texture2DStrategy
   | NamedAttributeStrategy;
@@ -50,6 +55,85 @@ export const applyStrategy = (
 ): NodeInputs => strategyRunners[strategy.type](node, ast, strategy);
 
 export const strategyRunners: Strategies<NodeContext> = {
+  [StrategyType.UNIFORM]: (
+    node: GraphNode,
+    ast: AstNode,
+    strategy: Strategy
+  ) => {
+    const uniforms = (ast.program as AstNode[]).reduce<NodeInputs>(
+      (acc, node) => {
+        // The uniform declration type, like vec4
+        const uniformType =
+          node.declaration?.specified_type?.specifier?.specifier?.token;
+
+        // If this is a uniform declaration line
+        if (
+          node.type === 'declaration_statement' &&
+          node.declaration?.specified_type?.qualifiers?.find(
+            (n: AstNode) => n.token === 'uniform'
+          ) &&
+          uniformType !== 'sampler2D'
+        ) {
+          // Capture all the declared names, removing mangling suffix
+          const { declarations } = node.declaration;
+          const names = declarations.map((d: any) => d.identifier.identifier);
+
+          return {
+            ...acc,
+            ...names.reduce(
+              (nameAcc: any, name: any) => ({
+                ...nameAcc,
+                // The filler needs to...
+                // TODO: Plugging in to a uniform in the real graph fails because
+                // the manglign name lines up the wrong way - it tries to fill in
+                // kev_20 while the ast references below has the unmangled name
+                // "kev" - is it because renaming bindings doens't affect the
+                // references?
+                [name.replace(/_\d+$/, '')]: (filler: AstNode) => {
+                  // Remove the declaration line, or the declared uniform
+                  if (declarations.length === 1) {
+                    ast.program.splice(ast.program.indexOf(node), 1);
+                  } else {
+                    node.declaration.declarations =
+                      node.declaration.declarations.filter(
+                        (d: any) => d.identifier.identifier !== name
+                      );
+                  }
+                  console.log(
+                    'looking in',
+                    ast.scopes[0].bindings,
+                    'for',
+                    name
+                  );
+                  // And rename all the references to said uniform
+                  ast.scopes[0].bindings[name].references.forEach(
+                    (ref: AstNode) => {
+                      if (
+                        ref.type === 'identifier' &&
+                        ref.identifier === name
+                      ) {
+                        ref.identifier = generate(filler);
+                      } else if (
+                        ref.type === 'parameter_declaration' &&
+                        ref.declaration.identifier.identifier === name
+                      ) {
+                        ref.declaration.identifier.identifier =
+                          generate(filler);
+                      }
+                    }
+                  );
+                },
+              }),
+              {}
+            ),
+          };
+        }
+        return acc;
+      },
+      {}
+    );
+    return uniforms;
+  },
   [StrategyType.ASSIGNMENT_TO]: (node, ast, strategy) => {
     const cast = strategy as AssignemntToStrategy;
     const assignNode = findAssignmentTo(ast, cast.config.assignTo);

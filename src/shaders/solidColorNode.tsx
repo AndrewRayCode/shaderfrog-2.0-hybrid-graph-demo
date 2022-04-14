@@ -15,17 +15,17 @@ const solidColorNode = (id: string) =>
         },
       ],
     },
-    `
-    precision highp float;
-    precision highp int;
+    `precision highp float;
+precision highp int;
 
-    uniform float blorf;
-    
-    void main() {
-        gl_FragColor = vec4(vec3(1.0, 0.5, 0.7), 1.0);
-    }
-    
-`,
+uniform vec4 kev;
+uniform sampler2D image;
+uniform float blorf;
+varying vec2 vUv;
+
+void main() {
+    gl_FragColor = vec4(kev.rgb + texture2D(image, vUv).rgb, 1.0);
+}`,
     'fragment',
     'three'
   );

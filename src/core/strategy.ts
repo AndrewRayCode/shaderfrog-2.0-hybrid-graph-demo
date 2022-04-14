@@ -1,7 +1,13 @@
 import { generate } from '@shaderfrog/glsl-parser';
 import { visit, AstNode, NodeVisitors } from '@shaderfrog/glsl-parser/dist/ast';
 import { findAssignmentTo } from '../ast/manipulate';
-import { GraphNode, InputMapping, NodeContext, NodeInputs } from './graph';
+import {
+  GraphNode,
+  InputMapping,
+  mangleName,
+  NodeContext,
+  NodeInputs,
+} from './graph';
 
 export enum StrategyType {
   ASSIGNMENT_TO = 'Assignment To',
@@ -56,7 +62,7 @@ export const applyStrategy = (
 
 export const strategyRunners: Strategies<NodeContext> = {
   [StrategyType.UNIFORM]: (
-    node: GraphNode,
+    graphNode: GraphNode,
     ast: AstNode,
     strategy: Strategy
   ) => {
@@ -76,46 +82,44 @@ export const strategyRunners: Strategies<NodeContext> = {
         ) {
           // Capture all the declared names, removing mangling suffix
           const { declarations } = node.declaration;
-          const names = declarations.map((d: any) => d.identifier.identifier);
+          const names = declarations.map(
+            (d: any) => d.identifier.identifier
+          ) as string[];
 
+          // Tricky code warning: The flow of preparing a node for the graph is:
+          // 1. Produce/mangle the AST (with unmangled names)
+          // 2. findInputs() (with unmangled names)
+          // 3. The AST is *then* mangled in graph.ts
+          // 4. Later, the inputs are filled in, and now, we have an input with
+          //    the name "x" but the ast now has the mangled name "x_1". So
+          //    here, we look for the *mangled* name in the strategy runner
           return {
             ...acc,
             ...names.reduce(
-              (nameAcc: any, name: any) => ({
+              (nameAcc, name) => ({
                 ...nameAcc,
-                // The filler needs to...
-                // TODO: Plugging in to a uniform in the real graph fails because
-                // the manglign name lines up the wrong way - it tries to fill in
-                // kev_20 while the ast references below has the unmangled name
-                // "kev" - is it because renaming bindings doens't affect the
-                // references?
-                [name.replace(/_\d+$/, '')]: (filler: AstNode) => {
+                [name]: (filler: AstNode) => {
+                  const mangledName = mangleName(name, graphNode);
                   // Remove the declaration line, or the declared uniform
                   if (declarations.length === 1) {
                     ast.program.splice(ast.program.indexOf(node), 1);
                   } else {
                     node.declaration.declarations =
                       node.declaration.declarations.filter(
-                        (d: any) => d.identifier.identifier !== name
+                        (d: any) => d.identifier.identifier !== mangledName
                       );
                   }
-                  console.log(
-                    'looking in',
-                    ast.scopes[0].bindings,
-                    'for',
-                    name
-                  );
                   // And rename all the references to said uniform
                   ast.scopes[0].bindings[name].references.forEach(
                     (ref: AstNode) => {
                       if (
                         ref.type === 'identifier' &&
-                        ref.identifier === name
+                        ref.identifier === mangledName
                       ) {
                         ref.identifier = generate(filler);
                       } else if (
                         ref.type === 'parameter_declaration' &&
-                        ref.declaration.identifier.identifier === name
+                        ref.declaration.identifier.identifier === mangledName
                       ) {
                         ref.declaration.identifier.identifier =
                           generate(filler);
@@ -169,7 +173,7 @@ export const strategyRunners: Strategies<NodeContext> = {
 
             // This function can get called after names are mangled, so remove
             // any trailing shaderfrog suffix
-            const name = generate(path.node.args[0]).replace(/_\d+$/, '');
+            const name = generate(path.node.args[0]);
             seen[name] = (seen[name] || 0) + 1;
             texture2Dcalls.push([name, path.parent, path.key]);
           }

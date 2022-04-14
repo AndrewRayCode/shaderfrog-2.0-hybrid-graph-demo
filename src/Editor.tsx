@@ -90,6 +90,7 @@ import { Hoisty, useHoisty } from './hoistedRefContext';
 import { UICompileGraphResult } from './uICompileGraphResult';
 import { useLocalStorage } from './useLocalStorage';
 import { Strategy, StrategyType } from './core/strategy';
+import { ensure } from './util/ensure';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
@@ -857,7 +858,7 @@ const Editor: React.FC = () => {
               {engine === babylengine ? 'Babylon.js' : 'Three.js'}
             </div>
             <button
-              className={styles.tabButton}
+              className={styles.formButton}
               onClick={() => {
                 if (!ctx) {
                   return;
@@ -876,7 +877,7 @@ const Editor: React.FC = () => {
                 : 'Switch to Babylon.js'}
             </button>
             <button
-              className={styles.tabButton}
+              className={styles.formButton}
               onClick={() => {
                 if (ctx) {
                   const rGraph = resetGraph();
@@ -971,6 +972,7 @@ const Editor: React.FC = () => {
                       className={cx(styles.splitInner, styles.nodeEditorPanel)}
                     >
                       <Strunter
+                        ctx={ctx}
                         node={
                           graph.nodes.find(
                             ({ id }) => id === activeShader.id
@@ -1084,60 +1086,81 @@ const Editor: React.FC = () => {
 const Strunter = ({
   node,
   onSave,
+  ctx,
 }: {
   node: GraphNode;
   onSave: () => void;
+  ctx?: EngineContext<any>;
 }) => {
+  if (!ctx) {
+    return null;
+  }
   return (
     <div>
-      Strategies:{' '}
-      {node.config.strategies.map((strategy, index) => (
-        <div key={strategy.type}>
-          {strategy.type}
+      <div className={styles.uiGroup}>
+        <h2 className={styles.uiHeader}>Node Strategies</h2>
+        {node.config.strategies.map((strategy, index) => (
+          <div key={strategy.type}>
+            {strategy.type}
+            <input
+              className={styles.uiInput}
+              type="text"
+              readOnly
+              value={JSON.stringify(strategy.config)}
+            ></input>
+            <button
+              className={styles.formButton}
+              onClick={() => {
+                node.config.strategies = [
+                  ...node.config.strategies.slice(0, index),
+                  ...node.config.strategies.slice(index + 1),
+                ];
+                onSave();
+              }}
+            >
+              &times;
+            </button>
+          </div>
+        ))}
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            const data = Object.fromEntries(
+              new FormData(event.target as HTMLFormElement).entries()
+            );
+            node.config.strategies = [
+              ...node.config.strategies,
+              {
+                type: data.strategy,
+                config: JSON.parse(data.config as string),
+              } as Strategy,
+            ];
+            onSave();
+          }}
+        >
+          <h2 className={cx(styles.uiHeader, 'mTop1')}>Add Strategy</h2>
+          <select name="strategy" className={styles.uiInput}>
+            {Object.entries(StrategyType).map(([name, value]) => (
+              <option key={name} value={value}>
+                {name}
+              </option>
+            ))}
+          </select>
           <input
+            className={styles.uiInput}
             type="text"
-            readOnly
-            value={JSON.stringify(strategy.config)}
+            name="config"
+            defaultValue="{}"
           ></input>
-          <button
-            onClick={() => {
-              node.config.strategies = [
-                ...node.config.strategies.slice(0, index),
-                ...node.config.strategies.slice(index + 1),
-              ];
-              onSave();
-            }}
-          >
-            &times;
+          <button className={styles.formButton} type="submit">
+            Add
           </button>
-        </div>
-      ))}
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          const data = Object.fromEntries(
-            new FormData(event.target as HTMLFormElement).entries()
-          );
-          node.config.strategies = [
-            ...node.config.strategies,
-            {
-              type: data.strategy,
-              config: JSON.parse(data.config as string),
-            } as Strategy,
-          ];
-          onSave();
-        }}
-      >
-        <select name="strategy">
-          {Object.entries(StrategyType).map(([name, value]) => (
-            <option key={name} value={value}>
-              {name}
-            </option>
-          ))}
-        </select>
-        <input type="text" name="config" defaultValue="{}"></input>
-        <button type="submit">Add</button>
-      </form>
+        </form>
+      </div>
+      <div className={styles.uiGroup}>
+        <h2 className={styles.uiHeader}>Node Inputs</h2>
+        {Object.keys(ensure(ctx.nodes[node.id]?.inputs)).join(', ')}
+      </div>
     </div>
   );
 };

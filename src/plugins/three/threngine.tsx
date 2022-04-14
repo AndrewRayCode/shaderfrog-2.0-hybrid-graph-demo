@@ -87,7 +87,7 @@ const megaShaderMainpulateAst: NodeParser<any>['manipulateAst'] = (
   inputEdges
 ) => {
   const programAst = ast as ParserProgram;
-  const mainName = nodeName(node);
+  const mainName = 'main' || nodeName(node);
   if (node.stage === 'vertex') {
     if (doesLinkThruShader(graph, node)) {
       returnGlPositionHardCoded(mainName, programAst, 'vec3', 'transformed');
@@ -168,7 +168,7 @@ export const threngine: Engine<RuntimeContext> = {
     [NodeType.SOURCE]: {
       manipulateAst: (engineContext, engine, graph, node, ast, inputEdges) => {
         const programAst = ast as ParserProgram;
-        const mainName = nodeName(node);
+        const mainName = 'main' || nodeName(node);
 
         // This hinges on the vertex shader calling vec3(p)
         if (node.stage === 'vertex') {

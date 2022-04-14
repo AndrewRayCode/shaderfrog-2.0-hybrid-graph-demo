@@ -9,6 +9,7 @@ import {
   strategyRunners,
   StrategyType,
 } from './src/core/strategy';
+import * as graphModule from './src/core/graph';
 import { NodeType, Graph, GraphNode } from './src/core/graph';
 import { shaderSectionsToAst } from './src/ast/shader-sections';
 import { outputNode, addNode, sourceNode } from './src/core/node';
@@ -88,7 +89,24 @@ uniform vec3 a;
 });
 
 describe('strategies', () => {
+  let orig: any;
+  beforeEach(() => {
+    orig = graphModule.mangleName;
+    // Terrible hack. in the real world, strategies are applied after mangling
+    // @ts-ignore
+    graphModule.mangleName = (name) => name;
+  });
+  afterEach(() => {
+    // @ts-ignore
+    graphModule.mangleName = orig;
+  });
+
   test('uniform strategy', () => {
+    const orig = graphModule.mangleName;
+    // Terrible hack. in the real world, strategies are applied after mangling
+    // @ts-ignore
+    graphModule.mangleName = (name) => name;
+
     const ast = parser.parse(`
 layout(std140,column_major) uniform;
 uniform sampler2D image;

@@ -154,7 +154,7 @@ const megaShaderMainpulateAst: NodeParser<any>['manipulateAst'] = (
   // engineContext.debuggingNonsense.vertexPreprocessed = vertexPreprocessed;
 
   const programAst = ast as ParserProgram;
-  const mainName = nodeName(node);
+  const mainName = 'main' || nodeName(node);
 
   if (node.stage === 'vertex') {
     if (doesLinkThruShader(graph, node)) {

@@ -21,13 +21,12 @@ import {
 import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor';
 import {
   convert300MainToReturn,
-  findAssignmentTo,
   from2To3,
   makeExpression,
   makeFnStatement,
 } from '../ast/manipulate';
 import { ensure } from '../util/ensure';
-import { applyStrategy, Strategy, strategyRunners } from './strategy';
+import { applyStrategy, Strategy } from './strategy';
 
 export type ShaderStage = 'fragment' | 'vertex';
 
@@ -181,6 +180,21 @@ export const nodeName = (node: GraphNode): string =>
 
 type Runtime = {};
 
+export const mangleName = (name: string, node: GraphNode) => {
+  // Mangle names by using the next stage id, if present
+  const id = node.nextStageNodeId || node.id;
+  return `${name}_${id}`;
+};
+
+export const mangle = (ast: AstNode, node: GraphNode, engine: Engine<any>) => {
+  renameBindings(ast.scopes[0], (name) =>
+    engine.preserve.has(name) ? name : mangleName(name, node)
+  );
+  renameFunctions(ast.scopes[0], (name) =>
+    name === 'main' ? nodeName(node) : mangleName(name, node)
+  );
+};
+
 export const coreParsers: CoreParser<Runtime> = {
   [NodeType.SOURCE]: {
     produceAst: (engineContext, engine, graph, node, inputEdges) => {
@@ -203,13 +217,13 @@ export const coreParsers: CoreParser<Runtime> = {
       }
 
       // Normalize names by using the next stage id, if present
-      const id = node.nextStageNodeId || node.id;
-      renameBindings(ast.scopes[0], (name) =>
-        engine.preserve.has(name) ? name : `${name}_${id}`
-      );
-      renameFunctions(ast.scopes[0], (name) =>
-        name === 'main' ? nodeName(node) : `${name}_${id}`
-      );
+      // const id = node.nextStageNodeId || node.id;
+      // renameBindings(ast.scopes[0], (name) =>
+      //   engine.preserve.has(name) ? name : `${name}_${id}`
+      // );
+      // renameFunctions(ast.scopes[0], (name) =>
+      //   name === 'main' ? nodeName(node) : `${name}_${id}`
+      // );
 
       return ast;
     },
@@ -233,12 +247,7 @@ export const coreParsers: CoreParser<Runtime> = {
   // which might be a little awkward for graph creators?
   [NodeType.OUTPUT]: {
     produceAst: (engineContext, engine, graph, node, inputEdges) => {
-      const preprocessed = preprocess(node.source, {
-        preserve: {
-          version: () => true,
-        },
-      });
-      return parser.parse(preprocessed);
+      return parser.parse(node.source);
     },
     findInputs: (engineContext, node, ast) => {
       return node.config.strategies.reduce<NodeInputs>(
@@ -259,9 +268,7 @@ export const coreParsers: CoreParser<Runtime> = {
       );
     },
     produceFiller: (node: GraphNode, ast) => {
-      return node.expressionOnly
-        ? ast.program
-        : makeExpression(`${nodeName(node)}()`);
+      return makeExpression('impossible_call()');
     },
   },
   [NodeType.BINARY]: {
@@ -468,9 +475,7 @@ const computeNodeContext = <T>(
   engineContext: EngineContext<T>,
   engine: Engine<T>,
   graph: Graph,
-  // parser: NodeParser<T>,
-  node: GraphNode,
-  stage?: ShaderStage
+  node: GraphNode
 ): NodeContext => {
   // THIS DUPLICATES OTHER LINE
   const parser = {
@@ -482,11 +487,6 @@ const computeNodeContext = <T>(
   if (onBeforeCompile) {
     onBeforeCompile(engineContext, node);
   }
-
-  // const engineParser = engine.parsers[node.engineNodeType];
-  // if (engineParser && engineParser.onBeforeCompile) {
-  //   engineParser.onBeforeCompile(engineContext, node);
-  // }
 
   const inputEdges = graph.edges.filter((edge) => edge.to === node.id);
 
@@ -508,6 +508,17 @@ const computeNodeContext = <T>(
     ? mapInputs(node.config.inputMapping, inputs)
     : inputs;
 
+  // Tricky code warning: We only want to mangle the AST if this is a source
+  // code node like "physical" or a user shader, and (probably?) not an
+  // expression like "a + b" since those are local names;
+  if (
+    !node.expressionOnly &&
+    node.type !== NodeType.BINARY &&
+    node.type !== NodeType.OUTPUT
+  ) {
+    mangle(ast, node, engine);
+  }
+
   return nodeContext;
 };
 
@@ -516,40 +527,16 @@ const computeContextForNodes = <T>(
   engine: Engine<T>,
   graph: Graph,
   nodes: GraphNode[]
-  // stage?: ShaderStage
 ) =>
-  // graph.nodes
-  //   .filter((node) => node.stage === stage)
-  //   .reduce((context, node) => {
   nodes.reduce((context, node) => {
-    // let parser;
-    let nodeContext;
-
     console.log('computing context for', node.name);
-    // User parser
-    // if ((parser = engine.parsers[node.type])) {
-    //   nodeContext = computeNodeContext(
-    //     engineContext,
-    //     engine,
-    //     graph,
-    //     parser,
-    //     node,
-    //     node.stage
-    //   );
-    //   // Internal parser
-    // } else if ((parser = parsers[node.type])) {
-    // const parser = parsers[node.type];
-    nodeContext = computeNodeContext(
+
+    const nodeContext = computeNodeContext(
       engineContext,
-      engine as unknown as Engine<Runtime>,
+      engine as Engine<Runtime>,
       graph,
-      // parser,
-      node,
-      node.stage
+      node
     );
-    // } else {
-    //   throw new Error(`No parser for ${node.type}`);
-    // }
 
     context[node.id] = {
       ...(context[node.id] || {}),

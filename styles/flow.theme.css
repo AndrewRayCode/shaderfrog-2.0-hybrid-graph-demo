@@ -123,7 +123,7 @@
 
 /* selectable edge path */
 .fragment .react-flow__edge-path-selector {
-  stroke: rgba(0, 255, 0, 0.1);
+  stroke: rgba(0, 255, 0, 0.3);
 }
 
 /* updateable drag handle */
@@ -191,7 +191,7 @@
 
 /* selectable edge path */
 .vertex .react-flow__edge-path-selector {
-  stroke: rgba(255, 0, 0, 0.1);
+  stroke: rgba(255, 0, 0, 0.3);
 }
 
 /* updateable drag handle */

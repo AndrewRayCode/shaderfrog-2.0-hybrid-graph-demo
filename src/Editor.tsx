@@ -1095,6 +1095,7 @@ const Strunter = ({
   if (!ctx) {
     return null;
   }
+  const inputs = Object.keys(ensure(ctx.nodes[node.id]?.inputs));
   return (
     <div>
       <div className={styles.uiGroup}>
@@ -1159,7 +1160,7 @@ const Strunter = ({
       </div>
       <div className={styles.uiGroup}>
         <h2 className={styles.uiHeader}>Node Inputs</h2>
-        {Object.keys(ensure(ctx.nodes[node.id]?.inputs)).join(', ')}
+        {inputs.length ? inputs.join(', ') : 'No inputs found'}
       </div>
     </div>
   );

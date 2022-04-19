@@ -1,5 +1,5 @@
 .flownode {
-  border-radius: 10px;
+  border-radius: 8px;
   background: #111;
   color: #fff;
   border: 1px solid #666;
@@ -9,10 +9,33 @@
 }
 
 .flowlabel {
-  border-radius: 10px 10px 0 0;
-  padding: 2px 8px;
+  border-radius: 8px 8px 0 0;
+  padding: 3px 4px 4px 8px;
   border-bottom: 1px solid #666;
   text-shadow: 0 0 2px #000;
+}
+
+.flowlabel .stage {
+  font-size: 12px;
+  float: right;
+  padding: 2px 8px;
+  margin: 1px 0 0;
+  border-radius: 6px;
+}
+.inactive .flowlabel .stage {
+  opacity: 0.5;
+}
+
+.flownode .react-flow__handle.next-stage-handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  right: auto;
+  z-index: -1;
+}
+
+.next-stage-edge .react-flow__edge-path {
+  stroke-width: 3;
 }
 
 .flowInputs {
@@ -98,6 +121,10 @@
 .fragment .flowlabel {
   background: linear-gradient(to right, #326d29, #2d792d);
 }
+.fragment .flowlabel .stage {
+  background: #37b037;
+  color: rgb(255, 255, 255);
+}
 
 .selected .fragment .flowlabel {
   background: linear-gradient(to right, #3c7534, #3d833d);
@@ -165,6 +192,11 @@
 .vertex .flowlabel {
   background-color: #ffe53b;
   background-image: linear-gradient(147deg, #770921 0%, #8a0808 74%);
+}
+
+.vertex .flowlabel .stage {
+  background: #be0404;
+  color: rgb(255, 255, 255);
 }
 
 .selected .vertex .flowlabel {

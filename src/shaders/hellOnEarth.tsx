@@ -3,7 +3,7 @@ import { sourceNode } from '../core/node';
 const hellOnEarthFrag = (id: string) =>
   sourceNode(
     id,
-    'Hell F',
+    'Hell',
     { version: 2, preprocess: true, strategies: [] },
     `
 /**
@@ -198,7 +198,7 @@ void main() {
 const hellOnEarthVert = (id: string, nextStageNodeId: string) =>
   sourceNode(
     id,
-    'Hell V',
+    'Hell',
     { version: 2, preprocess: true, strategies: [] },
     `
 /**

@@ -113,21 +113,21 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     });
 
   const os1: any = graph.nodes.find(
-    (node) => node.name === 'Outline Shader F'
+    (node) => node.name === 'Outline Shader'
   )?.id;
   const os2: any = graph.nodes.find(
-    (node) => node.name === 'Outline Shader V'
+    (node) => node.name === 'Outline Shader'
   )?.id;
-  const fs1: any = graph.nodes.find((node) => node.name === 'Fireball F')?.id;
-  const fs2: any = graph.nodes.find((node) => node.name === 'Fireball V')?.id;
+  const fs1: any = graph.nodes.find((node) => node.name === 'Fireball')?.id;
+  const fs2: any = graph.nodes.find((node) => node.name === 'Fireball')?.id;
   const fc: any = graph.nodes.find((node) => node.name === 'Fluid Circles')?.id;
   const pu: any = graph.nodes.find((node) => node.name === 'Purple Metal')?.id;
   const edgeId: any = graph.nodes.find((node) => node.name === 'Triplanar')?.id;
   const hs1: any = graph.nodes.find(
-    (node) => node.name === 'Fake Heatmap F'
+    (node) => node.name === 'Fake Heatmap'
   )?.id;
   const hs2: any = graph.nodes.find(
-    (node) => node.name === 'Fake Heatmap V'
+    (node) => node.name === 'Fake Heatmap'
   )?.id;
 
   useEffect(() => {

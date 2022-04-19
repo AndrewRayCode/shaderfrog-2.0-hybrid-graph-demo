@@ -3,7 +3,7 @@ import { sourceNode } from '../core/node';
 const fireFrag = (id: string) =>
   sourceNode(
     id,
-    'Fireball F',
+    'Fireball',
     { version: 2, preprocess: true, strategies: [] },
     `
     // Indstiller presisionen, hvor meget plads denne type variabel må bruge (high betyder meget plads)
@@ -36,7 +36,7 @@ void main() {
 const fireVert = (id: string, nextStageNodeId?: string) =>
   sourceNode(
     id,
-    'Fireball V',
+    'Fireball',
     { version: 2, preprocess: true, strategies: [] },
     `
     uniform mat4 modelMatrix;

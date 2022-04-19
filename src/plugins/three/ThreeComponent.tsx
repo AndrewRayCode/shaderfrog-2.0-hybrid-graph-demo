@@ -171,12 +171,12 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     console.log('oh hai birfday boi boi boiiiii');
 
     const pc: any = graph.nodes.find(
-      (node) => node.name === 'Perlin Clouds F'
+      (node) => node.name === 'Perlin Clouds'
     )?.id;
     const os1: any = graph.nodes.find(
-      (node) => node.name === 'Outline Shader F'
+      (node) => node.name === 'Outline Shader'
     )?.id;
-    const fs1: any = graph.nodes.find((node) => node.name === 'Fireball F')?.id;
+    const fs1: any = graph.nodes.find((node) => node.name === 'Fireball')?.id;
     const fc: any = graph.nodes.find(
       (node) => node.name === 'Fluid Circles'
     )?.id;
@@ -187,7 +187,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       (node) => node.name === 'Triplanar'
     )?.id;
     const hs1: any = graph.nodes.find(
-      (node) => node.name === 'Fake Heatmap F'
+      (node) => node.name === 'Fake Heatmap'
     )?.id;
 
     const uniforms = {

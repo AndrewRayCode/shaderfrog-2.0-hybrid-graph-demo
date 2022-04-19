@@ -4,7 +4,7 @@ import { StrategyType } from '../core/strategy';
 const perlinCloudsF = (id: string) =>
   sourceNode(
     id,
-    'Perlin Clouds F',
+    'Perlin Clouds',
     {
       version: 2,
       preprocess: true,

@@ -11,7 +11,7 @@ import { ShaderStage } from '../core/graph';
 
 import { useUpdateNodeInternals } from 'react-flow-renderer';
 
-const handleTop = 40;
+const handleTop = 45;
 const textHeight = 10;
 type NodeHandle = {
   validTarget: boolean;
@@ -74,7 +74,14 @@ const CustomNodeComponent = ({ id, data }: NodeProps) => {
         height: `${handleTop + Math.max(data.inputs.length, 1) * 20}px`,
       }}
     >
-      <div className="flowlabel">{data.label}</div>
+      <div className="flowlabel">
+        {data.label}
+        {data.stage ? (
+          <div className="stage">
+            {data.stage === 'fragment' ? 'FRAG' : 'VERT'}
+          </div>
+        ) : null}
+      </div>
       <div className="flowInputs">
         {data.inputs.map((input, index) => (
           <React.Fragment key={input.name}>
@@ -120,6 +127,19 @@ const CustomNodeComponent = ({ id, data }: NodeProps) => {
           </React.Fragment>
         ))}
       </div>
+
+      <Handle
+        id="from"
+        className="next-stage-handle"
+        type="source"
+        position={Position.Right}
+      />
+      <Handle
+        id="to"
+        className="next-stage-handle"
+        type="target"
+        position={Position.Right}
+      />
     </div>
   );
 };

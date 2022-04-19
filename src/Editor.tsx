@@ -74,7 +74,7 @@ import { useAsyncExtendedState } from './useAsyncExtendedState';
 // import { usePromise } from './usePromise';
 
 import ConnectionLine from './flow/ConnectionLine';
-import FlowEdgeComponent, { FlowEdgeData } from './flow/FlowEdge';
+import FlowEdgeComponent, { FlowEdgeData, LinkEdgeData } from './flow/FlowEdge';
 import FlowNodeComponent, { FlowNodeData } from './flow/FlowNode';
 
 import { Tabs, Tab, TabGroup, TabPanel, TabPanels } from './Tabs';
@@ -104,14 +104,14 @@ const useFlef = () => {
   const [graph, setGraph, resetGraph] = useLocalStorage<Graph>('graph', () => {
     let counter = 0;
     const id = () => '' + counter++;
-    const outputF = outputNode(id(), 'Output F', 'fragment');
-    const outputV = outputNode(id(), 'Output V', 'vertex', outputF.id);
-    const phongF = phongNode(id(), 'Phong F', 'fragment');
-    const phongV = phongNode(id(), 'Phong V', 'vertex', phongF.id);
-    const physicalF = physicalNode(id(), 'Physical F', 'fragment');
-    const physicalV = physicalNode(id(), 'Physical V', 'vertex', physicalF.id);
-    const toonF = toonNode(id(), 'Toon F', 'fragment');
-    const toonV = toonNode(id(), 'Toon V', 'vertex', toonF.id);
+    const outputF = outputNode(id(), 'Output', 'fragment');
+    const outputV = outputNode(id(), 'Output', 'vertex', outputF.id);
+    const phongF = phongNode(id(), 'Phong', 'fragment');
+    const phongV = phongNode(id(), 'Phong', 'vertex', phongF.id);
+    const physicalF = physicalNode(id(), 'Physical', 'fragment');
+    const physicalV = physicalNode(id(), 'Physical', 'vertex', physicalF.id);
+    const toonF = toonNode(id(), 'Toon', 'fragment');
+    const toonV = toonNode(id(), 'Toon', 'vertex', toonF.id);
     const fluidF = fluidCirclesNode(id());
     const staticShader = staticShaderNode(id());
     const purpleNoise = purpleNoiseNode(id());
@@ -132,12 +132,12 @@ const useFlef = () => {
       nodes: [
         outputF,
         outputV,
-        // phongF,
-        // phongV,
+        phongF,
+        phongV,
         physicalF,
         physicalV,
-        // toonF,
-        // toonV,
+        toonF,
+        toonV,
         fluidF,
         staticShader,
         hellOnEarthF,
@@ -242,7 +242,7 @@ const flowStyles = { height: '100vh', background: '#111' };
 type FlowElement = FlowNode<FlowNodeData> | FlowEdge<FlowEdgeData>;
 type FlowElements = {
   nodes: FlowNode<FlowNodeData>[];
-  edges: FlowEdge<FlowEdgeData>[];
+  edges: FlowEdge<FlowEdgeData | LinkEdgeData>[];
 };
 
 const nodeTypes = {
@@ -522,7 +522,8 @@ const Editor: React.FC = () => {
     ) => {
       // Convert the flow edges into the graph edges, to reflect the latest
       // user's changes
-      graph.edges = flowElements.edges.map((edge) => ({
+      // @ts-ignore
+      graph.edges = flowElements.edges.map((edge: FlowEdge<FlowEdgeData>) => ({
         from: edge.source,
         to: edge.target,
         output: 'out',
@@ -857,28 +858,31 @@ const Editor: React.FC = () => {
             <div className={styles.activeEngine}>
               {engine === babylengine ? 'Babylon.js' : 'Three.js'}
             </div>
+            {window.location.href.indexOf('localhost') > -1 ? (
+              <button
+                className={styles.formButton}
+                onClick={() => {
+                  if (!ctx) {
+                    return;
+                  }
+                  if (engine === babylengine) {
+                    setCompileResult(undefined);
+                    setEngine({ lastEngine: engine, engine: threngine });
+                  } else {
+                    setCompileResult(undefined);
+                    setEngine({ lastEngine: engine, engine: babylengine });
+                  }
+                }}
+              >
+                {engine === babylengine
+                  ? 'Switch to Three.js'
+                  : 'Switch to Babylon.js'}
+              </button>
+            ) : null}
             <button
               className={styles.formButton}
               onClick={() => {
-                if (!ctx) {
-                  return;
-                }
-                if (engine === babylengine) {
-                  setCompileResult(undefined);
-                  setEngine({ lastEngine: engine, engine: threngine });
-                } else {
-                  setCompileResult(undefined);
-                  setEngine({ lastEngine: engine, engine: babylengine });
-                }
-              }}
-            >
-              {engine === babylengine
-                ? 'Switch to Three.js'
-                : 'Switch to Babylon.js'}
-            </button>
-            <button
-              className={styles.formButton}
-              onClick={() => {
+                localStorage.clear();
                 if (ctx) {
                   const rGraph = resetGraph();
                   const rElements = resetFlowElements();
@@ -1173,5 +1177,34 @@ const WithProvider = () => (
     </Hoisty>
   </ReactFlowProvider>
 );
+
+/*
+.concat(
+  flowElements.nodes.find((n) => n.data.label === 'Fireball')
+    ? {
+        id: '1233',
+        source: ensure(
+          flowElements.nodes.find(
+            (n) =>
+              n.data.label === 'Fireball' &&
+              n.data.stage === 'fragment'
+          )
+        ).id,
+        target: ensure(
+          flowElements.nodes.find(
+            (n) =>
+              n.data.label === 'Fireball' &&
+              n.data.stage === 'vertex'
+          )
+        ).id,
+        sourceHandle: 'from',
+        targetHandle: 'to',
+        type: 'straight',
+        animated: true,
+        className: 'next-stage-edge'
+      }
+    : []
+)
+*/
 
 export default WithProvider;

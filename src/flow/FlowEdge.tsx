@@ -7,6 +7,10 @@ import {
 } from 'react-flow-renderer';
 import { ShaderStage } from '../core/graph';
 
+export type LinkEdgeData = {
+  type: 'link';
+};
+
 export type FlowEdgeData = {
   stage?: ShaderStage;
 };

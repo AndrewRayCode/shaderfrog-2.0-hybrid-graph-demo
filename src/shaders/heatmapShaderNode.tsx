@@ -3,7 +3,7 @@ import { sourceNode } from '../core/node';
 const heatShaderFragmentNode = (id: string) =>
   sourceNode(
     id,
-    'Fake Heatmap F',
+    'Fake Heatmap',
     { version: 2, preprocess: true, strategies: [] },
     `
     // Adapted from http://blogs.msdn.com/b/eternalcoding/archive/2014/04/17/learning-shaders-create-your-own-shaders-with-babylon-js.aspx
@@ -68,7 +68,7 @@ const heatShaderFragmentNode = (id: string) =>
 const heatShaderVertexNode = (id: string, nextStageNodeId?: string) =>
   sourceNode(
     id,
-    'Fake Heatmap V',
+    'Fake Heatmap',
     { version: 2, preprocess: true, strategies: [] },
     `
     precision highp float;

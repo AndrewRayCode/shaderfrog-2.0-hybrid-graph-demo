@@ -389,12 +389,10 @@ const initializeFlowElementsFromGraph = (
         name,
         validTarget: false,
       })),
-      outputs: [
-        {
-          validTarget: false,
-          name: 'out',
-        },
-      ],
+      outputs: node.outputs.map((o) => ({
+        validTarget: false,
+        name: o,
+      })),
     },
     type: 'special',
     position:

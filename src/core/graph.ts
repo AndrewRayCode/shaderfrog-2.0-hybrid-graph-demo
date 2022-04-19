@@ -50,6 +50,7 @@ export interface CoreNode {
   type: string;
   config: NodeConfig;
   inputs: Array<Object>;
+  outputs: Array<Object>;
   source: string;
   expressionOnly?: boolean;
   stage?: ShaderStage;

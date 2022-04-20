@@ -78,7 +78,7 @@ export interface Graph {
   edges: Array<Edge>;
 }
 
-const alphabet = 'abcdefghijklmnopqrstuvwxyz';
+export const alphabet = 'abcdefghijklmnopqrstuvwxyz';
 
 export type NodeFiller = (node: GraphNode, ast: AstNode) => AstNode | void;
 export const emptyFiller: NodeFiller = () => {};

@@ -37,6 +37,8 @@ import {
   computeGraphContext,
   NodeInputs,
   MAGIC_OUTPUT_STMTS,
+  NodeType,
+  alphabet,
 } from './core/graph';
 import {
   outputNode,
@@ -161,7 +163,6 @@ const useFlef = () => {
         // TODO: Have uniforms added per shader in the graph
         // TODO: AnyCode node to try manipulating above shader for normal map
         // TODO: Make uniforms like map: change the uniforms
-        // TODO: Add 1.00 / 3.00 switch
         // TODO: Here we hardcode "out" for the inputs which needs to line up with
         //       the custom handles.
         // TODO: Add more syntax highlighting to the GLSL editor, look at vscode
@@ -173,9 +174,6 @@ const useFlef = () => {
         //       coming back to scene, shader is black
         // TODO: Adding shader inputs like bumpTexture should not require
         //       duplicating that manually into babylengine
-        // TODO: Fix removing of earlier edges into add/binary node crashing and
-        //       not reordering the inputs properly
-        // TODO: Make strategies dynamic per node to add/remove
         // TODO: Make nodes addable/removable in the graph
         // TODO: Try PBRMaterial EnvMap to see reflections
         // TODO: Allow for a source expression only node that has a normal-map-ifier
@@ -191,23 +189,23 @@ const useFlef = () => {
         },
         {
           from: physicalF.id,
+          to: add.id,
+          output: 'out',
+          input: 'a',
+          stage: 'fragment',
+        },
+        {
+          from: add.id,
           to: outputF.id,
           output: 'out',
           input: 'color',
           stage: 'fragment',
         },
-        // {
-        //   from: add.id,
-        //   to: physicalF.id,
-        //   output: 'out',
-        //   input: 'texture2d_0',
-        //   stage: 'fragment',
-        // },
         {
           from: solidColorF.id,
-          to: physicalF.id,
+          to: add.id,
           output: 'out',
-          input: 'albedo',
+          input: 'b',
           stage: 'fragment',
         },
         // {
@@ -238,11 +236,50 @@ const useFlef = () => {
   };
 };
 
+/**
+ * A binary node automatically adds/removes inputs based on how many edges
+ * connect to it. If a binary node has edges to "a" and "b", removing the edge
+ * to "a" means the edge to "b" needs to be moved down to the "a" one. This
+ * function essentially groups edges by target node id, and resets the edge
+ * target to its index. This doesn't feel good to do here but I don't have a
+ * better idea at the moment. One reason the inputs to binary nodes are
+ * automatically updated after compile, but the edges are updated here
+ * at the editor layer, before compile. This also hard codes assumptions about
+ * (binary) node inputs into the graph, namely they can't have blank inputs.
+ */
+const collapseBinaryEdges = (
+  graph: Graph,
+  edges: FlowEdgeOrLink[]
+): FlowEdgeOrLink[] => {
+  const binaryEdges = edges.reduce<Record<string, FlowEdgeOrLink[]>>(
+    (acc, edge) => {
+      const to = graph.nodes.find(({ id }) => id === edge.target);
+      return to?.type === NodeType.BINARY
+        ? {
+            ...acc,
+            [to.id]: [...(acc[to.id] || []), edge],
+          }
+        : acc;
+    },
+    {}
+  );
+
+  return edges.map((edge) => {
+    return edge.target in binaryEdges
+      ? {
+          ...edge,
+          targetHandle: alphabet.charAt(binaryEdges[edge.target].indexOf(edge)),
+        }
+      : edge;
+  });
+};
+
 const flowStyles = { height: '100vh', background: '#111' };
 type FlowElement = FlowNode<FlowNodeData> | FlowEdge<FlowEdgeData>;
+type FlowEdgeOrLink = FlowEdge<FlowEdgeData | LinkEdgeData>;
 type FlowElements = {
   nodes: FlowNode<FlowNodeData>[];
-  edges: FlowEdge<FlowEdgeData | LinkEdgeData>[];
+  edges: FlowEdgeOrLink[];
 };
 
 const nodeTypes = {
@@ -391,7 +428,7 @@ const initializeFlowElementsFromGraph = (
       })),
       outputs: node.outputs.map((o) => ({
         validTarget: false,
-        name: o,
+        name: '' + o,
       })),
     },
     type: 'special',
@@ -748,10 +785,13 @@ const Editor: React.FC = () => {
       setFlowElements((flowElements) =>
         setBiStages({
           nodes: flowElements.nodes,
-          edges: applyEdgeChanges(changes, flowElements.edges),
+          edges: collapseBinaryEdges(
+            graph,
+            applyEdgeChanges(changes, flowElements.edges)
+          ),
         })
       ),
-    [setFlowElements]
+    [setFlowElements, graph]
   );
 
   const onNodesChange = useCallback(

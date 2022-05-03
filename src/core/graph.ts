@@ -36,21 +36,47 @@ export enum NodeType {
   SOURCE = 'source',
 }
 
+type Vec = 'vec2' | 'vec3' | 'vec4';
+type Mat =
+  | 'mat2'
+  | 'mat3'
+  | 'mat4'
+  | 'mat2x2'
+  | 'mat2x3'
+  | 'mat2x4'
+  | 'mat3x2'
+  | 'mat3x3'
+  | 'mat3x4'
+  | 'mat4x2'
+  | 'mat4x3'
+  | 'mat4x4';
+export type UniformType = Vec | Mat | 'sampler2D' | 'number' | 'array';
+
+// export type UniformConfig = {
+//   displayName: string;
+//   type: UniformType;
+//   value: any;
+// };
+
 export type InputMapping = { [original: string]: string };
 export type NodeConfig = {
   version: 2 | 3;
   preprocess: boolean;
   inputMapping?: InputMapping;
   strategies: Strategy[];
+  // uniforms: UniformConfig[];
 };
 
 export interface CoreNode {
   id: string;
   name: string;
   type: string;
-  config: NodeConfig;
   inputs: Array<Object>;
   outputs: Array<Object>;
+}
+
+export interface CodeNode extends CoreNode {
+  config: NodeConfig;
   source: string;
   expressionOnly?: boolean;
   stage?: ShaderStage;
@@ -59,11 +85,27 @@ export interface CoreNode {
   originalEngine?: string;
 }
 
-export interface BinaryNode extends CoreNode {
+export interface BinaryNode extends CodeNode {
   operator: string;
 }
 
-export type GraphNode = CoreNode | BinaryNode;
+export type SourceNode = BinaryNode | CodeNode;
+
+export interface NumberNode extends CoreNode {
+  value: number;
+  type: 'number';
+  range?: [number, number];
+  stepper?: number;
+}
+
+export const isDataNode = (node: GraphNode): node is DataNode =>
+  'value' in node;
+
+export const isSourceNode = (node: GraphNode): node is SourceNode =>
+  !isDataNode(node);
+
+export type DataNode = NumberNode;
+export type GraphNode = SourceNode | DataNode;
 
 export type Edge = {
   from: string;
@@ -74,13 +116,13 @@ export type Edge = {
 };
 
 export interface Graph {
-  nodes: Array<GraphNode>;
-  edges: Array<Edge>;
+  nodes: GraphNode[];
+  edges: Edge[];
 }
 
 export const alphabet = 'abcdefghijklmnopqrstuvwxyz';
 
-export type NodeFiller = (node: GraphNode, ast: AstNode) => AstNode | void;
+export type NodeFiller = (node: SourceNode, ast: AstNode) => AstNode | void;
 export const emptyFiller: NodeFiller = () => {};
 
 export type NodeInputs = Record<string, (a: AstNode) => void>;
@@ -111,26 +153,26 @@ export type NodeContext = {
 
 export type OnBeforeCompile = (
   engineContext: EngineContext<any>,
-  node: GraphNode
+  node: SourceNode
 ) => void;
 
 export type ProduceAst = (
   engineContext: EngineContext<any>,
   engine: Engine<any>,
   graph: Graph,
-  node: GraphNode,
+  node: SourceNode,
   inputEdges: Edge[]
 ) => AstNode | ParserProgram;
 
 export type FindInputs = (
   engineContext: EngineContext<any>,
-  node: GraphNode,
+  node: SourceNode,
   ast: AstNode,
   nodeContext: NodeContext,
   inputEdges: Edge[]
 ) => NodeInputs;
 
-type CoreNodeParser<T> = {
+type CoreNodeParser = {
   produceAst: ProduceAst;
   findInputs: FindInputs;
   produceFiller: NodeFiller;
@@ -140,7 +182,7 @@ export type ManipulateAst = (
   engineContext: EngineContext<any>,
   engine: Engine<any>,
   graph: Graph,
-  node: GraphNode,
+  node: SourceNode,
   ast: AstNode | ParserProgram,
   inputEdges: Edge[]
 ) => AstNode | ParserProgram;
@@ -168,26 +210,27 @@ export const doesLinkThruShader = (graph: Graph, node: GraphNode): boolean => {
       // know if a graph links through a "shader" which now means somehting
       // different... does a config object need isShader? Can we compute it from
       // inputs/ outputs/source?
-      (!upstreamNode.expressionOnly && upstreamNode.type !== NodeType.OUTPUT) ||
+      (!(upstreamNode as CodeNode).expressionOnly &&
+        upstreamNode.type !== NodeType.OUTPUT) ||
       doesLinkThruShader(graph, upstreamNode)
     );
   }, false);
 };
 
-type CoreParser<T> = { [key: string]: CoreNodeParser<T> };
+type CoreParser = { [key: string]: CoreNodeParser };
 
 export const nodeName = (node: GraphNode): string =>
   'main_' + node.name.replace(/[^a-zA-Z0-9]/g, ' ').replace(/ +/g, '_');
 
 type Runtime = {};
 
-export const mangleName = (name: string, node: GraphNode) => {
+export const mangleName = (name: string, node: SourceNode) => {
   // Mangle names by using the next stage id, if present
   const id = node.nextStageNodeId || node.id;
   return `${name}_${id}`;
 };
 
-export const mangle = (ast: AstNode, node: GraphNode, engine: Engine<any>) => {
+export const mangle = (ast: AstNode, node: SourceNode, engine: Engine<any>) => {
   renameBindings(ast.scopes[0], (name) =>
     engine.preserve.has(name) ? name : mangleName(name, node)
   );
@@ -196,7 +239,7 @@ export const mangle = (ast: AstNode, node: GraphNode, engine: Engine<any>) => {
   );
 };
 
-export const coreParsers: CoreParser<Runtime> = {
+export const coreParsers: CoreParser = {
   [NodeType.SOURCE]: {
     produceAst: (engineContext, engine, graph, node, inputEdges) => {
       const preprocessed = preprocess(node.source, {
@@ -238,7 +281,7 @@ export const coreParsers: CoreParser<Runtime> = {
       );
       return inputs;
     },
-    produceFiller: (node: GraphNode, ast) => {
+    produceFiller: (node, ast) => {
       return node.expressionOnly
         ? ast.program
         : makeExpression(`${nodeName(node)}()`);
@@ -268,7 +311,7 @@ export const coreParsers: CoreParser<Runtime> = {
         }
       );
     },
-    produceFiller: (node: GraphNode, ast) => {
+    produceFiller: (node, ast) => {
       return makeExpression('impossible_call()');
     },
   },
@@ -327,7 +370,7 @@ export const coreParsers: CoreParser<Runtime> = {
           {}
         );
     },
-    produceFiller: (node: GraphNode, ast) => {
+    produceFiller: (node, ast) => {
       return ast.program;
     },
   },
@@ -380,7 +423,7 @@ export const compileNode = <T>(
 
   const { onBeforeCompile } = parser;
   if (onBeforeCompile) {
-    onBeforeCompile(engineContext, node);
+    onBeforeCompile(engineContext, node as SourceNode);
   }
   // const parser = parsers[node.type];
 
@@ -393,11 +436,13 @@ export const compileNode = <T>(
     );
   }
 
-  const nodeContext = ensure(
-    engineContext.nodes[node.id],
-    `No node context found for "${node.name}" (id ${node.id})!`
-  );
-  const { ast, inputs } = nodeContext;
+  const nodeContext = isDataNode(node)
+    ? {}
+    : ensure(
+        engineContext.nodes[node.id],
+        `No node context found for "${node.name}" (id ${node.id})!`
+      );
+  const { ast, inputs } = nodeContext as NodeContext;
   let compiledIds = ids;
 
   const inputEdges = edges.filter((edge) => edge.to === node.id);
@@ -446,29 +491,30 @@ export const compileNode = <T>(
     // you have to declare functions in order of use in GLSL
     const sections = mergeShaderSections(
       continuation,
-      // TODO: This and below "as" are bad
-      node.expressionOnly
+      isDataNode(node) || (node as SourceNode).expressionOnly
         ? emptyShaderSections()
         : findShaderSections(ast as ParserProgram)
     );
 
-    return [
-      sections,
-      // (stage in parser ? parser[stage] : parser).produceFiller(node, ast),
-      parser.produceFiller(node, ast),
-      { ...compiledIds, [node.id]: node },
-    ];
-  } else {
-    const sections = node.expressionOnly
-      ? emptyShaderSections()
-      : findShaderSections(ast as ParserProgram);
+    const filler = isDataNode(node)
+      ? makeExpression('' + node.value)
+      : parser.produceFiller(node, ast);
 
-    return [
-      sections,
-      // (stage in parser ? parser[stage] : parser).produceFiller(node, ast),
-      parser.produceFiller(node, ast),
-      { ...compiledIds, [node.id]: node },
-    ];
+    return [sections, filler, { ...compiledIds, [node.id]: node }];
+  } else {
+    // TODO: This duplicates the above branch, and also does this mean we
+    // recalculate the shader sections and filler for every edge? Can I move
+    // these lines above the loop?
+    const sections =
+      isDataNode(node) || (node as SourceNode).expressionOnly
+        ? emptyShaderSections()
+        : findShaderSections(ast as ParserProgram);
+
+    const filler = isDataNode(node)
+      ? makeExpression('' + node.value)
+      : parser.produceFiller(node, ast);
+
+    return [sections, filler, { ...compiledIds, [node.id]: node }];
   }
 };
 
@@ -476,7 +522,7 @@ const computeNodeContext = <T>(
   engineContext: EngineContext<T>,
   engine: Engine<T>,
   graph: Graph,
-  node: GraphNode
+  node: SourceNode
 ): NodeContext => {
   // THIS DUPLICATES OTHER LINE
   const parser = {
@@ -529,7 +575,7 @@ const computeContextForNodes = <T>(
   graph: Graph,
   nodes: GraphNode[]
 ) =>
-  nodes.reduce((context, node) => {
+  nodes.filter(isSourceNode).reduce((context, node) => {
     console.log('computing context for', node.name);
 
     const nodeContext = computeNodeContext(
@@ -590,6 +636,7 @@ export const computeGraphContext = <T>(
   const fragmentIds = collectConnectedNodes(graph, graph.edges, outputFrag, {});
   const additionalIds = graph.nodes.filter(
     (node) =>
+      isSourceNode(node) &&
       node.stage === 'vertex' &&
       node.nextStageNodeId &&
       fragmentIds[node.nextStageNodeId] &&
@@ -648,6 +695,7 @@ export const compileGraph = <T>(
   // calls to those vertex main() statements and includes them in the output
   const orphanNodes = graph.nodes.filter(
     (node) =>
+      isSourceNode(node) &&
       node.stage === 'vertex' &&
       node.nextStageNodeId &&
       fragmentIds[node.nextStageNodeId] &&

@@ -39,6 +39,10 @@ import {
   MAGIC_OUTPUT_STMTS,
   NodeType,
   alphabet,
+  NumberNode,
+  isDataNode,
+  isSourceNode,
+  SourceNode,
 } from './core/graph';
 import {
   outputNode,
@@ -77,7 +81,12 @@ import { useAsyncExtendedState } from './useAsyncExtendedState';
 
 import ConnectionLine from './flow/ConnectionLine';
 import FlowEdgeComponent, { FlowEdgeData, LinkEdgeData } from './flow/FlowEdge';
-import FlowNodeComponent, { FlowNodeData } from './flow/FlowNode';
+import {
+  DataNodeComponent,
+  SourceNodeComponent,
+  FlowNodeData,
+  FlowNodeSourceData,
+} from './flow/FlowNode';
 
 import { Tabs, Tab, TabGroup, TabPanel, TabPanels } from './Tabs';
 import CodeEditor from './CodeEditor';
@@ -95,6 +104,16 @@ import { Strategy, StrategyType } from './core/strategy';
 import { ensure } from './util/ensure';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
+
+const numberNode = (id: string, name: string): NumberNode => ({
+  id,
+  name,
+  type: 'number',
+  value: 1,
+  range: [0, 1],
+  inputs: [],
+  outputs: ['out'],
+});
 
 const useFlef = () => {
   const [flowElements, setFlowElements, resetFlowElements] =
@@ -130,16 +149,18 @@ const useFlef = () => {
     const hellOnEarthF = hellOnEarthFrag(id());
     const hellOnEarthV = hellOnEarthVert(id(), hellOnEarthF.id);
     const perlinCloudsF = perlinCloudsFNode(id());
+    const num1 = numberNode(id(), 'number');
     return {
       nodes: [
         outputF,
         outputV,
         phongF,
         phongV,
+        num1,
         physicalF,
         physicalV,
-        toonF,
-        toonV,
+        // toonF,
+        // toonV,
         fluidF,
         staticShader,
         hellOnEarthF,
@@ -158,6 +179,7 @@ const useFlef = () => {
         solidColorF,
       ],
       edges: [
+        // TODO: Try SDF image shader https://www.youtube.com/watch?v=1b5hIMqz_wM
         // TODO: Put other images in the graph like the toon step shader
         // TODO: Could be cool to try outline shader https://shaderfrog.com/app/view/4876
         // TODO: Have uniforms added per shader in the graph
@@ -175,7 +197,6 @@ const useFlef = () => {
         // TODO: Adding shader inputs like bumpTexture should not require
         //       duplicating that manually into babylengine
         // TODO: Make nodes addable/removable in the graph
-        // TODO: Try PBRMaterial EnvMap to see reflections
         // TODO: Allow for a source expression only node that has a normal-map-ifier
         // TODO: Enable backfilling of uv param?
         // TODO: Allow for shader being duplicated in a main fn to allow it to
@@ -194,8 +215,22 @@ const useFlef = () => {
           input: 'color',
           stage: 'fragment',
         },
+        // {
+        //   from: hellOnEarthF.id,
+        //   to: physicalF.id,
+        //   output: 'out',
+        //   input: 'normal',
+        //   stage: 'fragment',
+        // },
         {
-          from: purpleNoise.id,
+          from: num1.id,
+          to: solidColorF.id,
+          output: 'out',
+          input: 'blorf',
+          stage: 'fragment',
+        },
+        {
+          from: solidColorF.id,
           to: physicalF.id,
           output: 'out',
           input: 'albedo',
@@ -283,7 +318,8 @@ type FlowElements = {
 };
 
 const nodeTypes = {
-  special: FlowNodeComponent,
+  data: DataNodeComponent,
+  source: SourceNodeComponent,
 };
 
 const edgeTypes = {
@@ -329,8 +365,9 @@ const findInputStage = (
   targets: Record<string, FlowEdge<FlowEdgeData>[]>,
   node: FlowNode<FlowNodeData>
 ): ShaderStage | undefined => {
+  let cast = node.data as FlowNodeSourceData;
   return (
-    (!node.data?.biStage && node.data?.stage) ||
+    (!cast?.biStage && cast?.stage) ||
     (targets[node.id] || []).reduce<ShaderStage | undefined>(
       (found, edge) =>
         found ||
@@ -383,7 +420,7 @@ const setBiStages = (flowElements: FlowElements) => {
       if (!('source' in element) || !(element.source in updatedSides)) {
         return element;
       }
-      const { stage } = updatedSides[element.source].data as FlowNodeData;
+      const { stage } = updatedSides[element.source].data as FlowNodeSourceData;
       return {
         ...element,
         className: stage,
@@ -415,23 +452,37 @@ const initializeFlowElementsFromGraph = (
   const maxHeight = 4;
   console.log('Initializing flow elements from', { graph });
 
-  const updatedNodes = graph.nodes.map((node) => ({
+  const updatedNodes: FlowNode<FlowNodeData>[] = graph.nodes.map((node) => ({
     id: node.id,
-    data: {
-      label: node.name,
-      stage: node.stage,
-      active: false,
-      biStage: node.biStage || false,
-      inputs: inputsFromCtx(ctx, node.id).map((name) => ({
-        name,
-        validTarget: false,
-      })),
-      outputs: node.outputs.map((o) => ({
-        validTarget: false,
-        name: '' + o,
-      })),
-    },
-    type: 'special',
+    data: isSourceNode(node)
+      ? {
+          label: node.name,
+          stage: node.stage,
+          active: false,
+          biStage: node.biStage || false,
+          inputs: inputsFromCtx(ctx, node.id).map((name) => ({
+            name,
+            validTarget: false,
+          })),
+          outputs: node.outputs.map((o) => ({
+            validTarget: false,
+            name: '' + o,
+          })),
+        }
+      : {
+          label: node.name,
+          type: node.type,
+          value: node.value,
+          inputs: inputsFromCtx(ctx, node.id).map((name) => ({
+            name,
+            validTarget: false,
+          })),
+          outputs: node.outputs.map((o) => ({
+            validTarget: false,
+            name: '' + o,
+          })),
+        },
+    type: isSourceNode(node) ? 'source' : 'data',
     position:
       node.type === EngineNodeType.output
         ? { x: spacing * 2, y: outputs++ * 100 }
@@ -497,7 +548,9 @@ const Editor: React.FC = () => {
   const [lights, setLights] = useState<PreviewLight>('point');
   const [previewObject, setPreviewObject] = useState('torusknot');
 
-  const [activeShader, setActiveShader] = useState<GraphNode>(graph.nodes[0]);
+  const [activeShader, setActiveShader] = useState<SourceNode>(
+    graph.nodes[0] as SourceNode
+  );
   const [preprocessed, setPreprocessed] = useState<string | undefined>('');
   const [preprocessedVert, setPreprocessedVert] = useState<string | undefined>(
     ''
@@ -727,8 +780,14 @@ const Editor: React.FC = () => {
    */
 
   const addConnection = (newEdge: FlowEdge | Connection) => {
-    const stage = flowElements.nodes.find((elem) => elem.id === newEdge.source)
-      ?.data?.stage;
+    const target = flowElements.nodes.find(
+      (elem) => elem.id === newEdge.source
+    );
+    if (!target || !('stage' in target.data)) {
+      return;
+    }
+
+    const { stage } = target.data;
 
     if (newEdge.source === null || newEdge.target === null) {
       throw new Error('No source or target');
@@ -804,8 +863,10 @@ const Editor: React.FC = () => {
   );
 
   const onNodeDoubleClick = (event: any, node: any) => {
-    setActiveShader(graph.nodes.find((n) => n.id === node.id) as GraphNode);
-    setEditorTabIndex(1);
+    if (!('value' in node)) {
+      setActiveShader(graph.nodes.find((n) => n.id === node.id) as SourceNode);
+      setEditorTabIndex(1);
+    }
   };
 
   const setTargets = (nodeId: string, handleType: string) => {
@@ -816,6 +877,8 @@ const Editor: React.FC = () => {
         nodes: flowElements.nodes.map((node) => {
           if (
             node.data &&
+            'stage' in source &&
+            'stage' in node.data &&
             'label' in node.data &&
             (node.data.stage === source.stage ||
               !source.stage ||
@@ -935,7 +998,10 @@ const Editor: React.FC = () => {
             <TabGroup>
               <Tab>Graph</Tab>
               <Tab>
-                Editor ({activeShader.name} - {activeShader.stage})
+                Editor ({activeShader.name} -{' '}
+                {'stage' in activeShader
+                  ? activeShader.stage
+                  : activeShader.type}
               </Tab>
             </TabGroup>
             <TabPanels>
@@ -1004,7 +1070,7 @@ const Editor: React.FC = () => {
                             (
                               graph.nodes.find(
                                 ({ id }) => id === activeShader.id
-                              ) as GraphNode
+                              ) as SourceNode
                             ).source = value;
                           }
                         }}
@@ -1013,12 +1079,12 @@ const Editor: React.FC = () => {
                     <div
                       className={cx(styles.splitInner, styles.nodeEditorPanel)}
                     >
-                      <Strunter
+                      <StrategyEditor
                         ctx={ctx}
                         node={
                           graph.nodes.find(
                             ({ id }) => id === activeShader.id
-                          ) as GraphNode
+                          ) as SourceNode
                         }
                         onSave={() =>
                           compile(
@@ -1028,7 +1094,7 @@ const Editor: React.FC = () => {
                             flowElements
                           )
                         }
-                      ></Strunter>
+                      ></StrategyEditor>
                     </div>
                   </SplitPane>
                 </div>
@@ -1125,12 +1191,12 @@ const Editor: React.FC = () => {
   );
 };
 
-const Strunter = ({
+const StrategyEditor = ({
   node,
   onSave,
   ctx,
 }: {
-  node: GraphNode;
+  node: SourceNode;
   onSave: () => void;
   ctx?: EngineContext<any>;
 }) => {

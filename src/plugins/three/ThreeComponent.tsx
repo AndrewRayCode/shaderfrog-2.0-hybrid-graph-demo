@@ -3,6 +3,7 @@ import styles from '../../../pages/editor/editor.module.css';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as three from 'three';
 import { Graph } from '../../core/graph';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import { EngineContext } from '../../core/engine';
 
 import { RuntimeContext } from './threngine';
@@ -13,6 +14,15 @@ import { UICompileGraphResult } from '../../uICompileGraphResult';
 import { PreviewLight } from '../../Editor';
 
 const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
+
+function mapTextureMapping(texture: three.Texture, mapping: any) {
+  if (mapping === three.EquirectangularReflectionMapping) {
+    texture.mapping = three.CubeReflectionMapping;
+  } else if (mapping === three.EquirectangularRefractionMapping) {
+    texture.mapping = three.CubeRefractionMapping;
+  }
+  return texture;
+}
 
 type AnyFn = (...args: any) => any;
 type ThreeSceneProps = {
@@ -102,6 +112,11 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         // @ts-ignore
         mesh.material.uniforms.time.value = time * 0.001;
       }
+      // @ts-ignore
+      if (mesh.material?.uniforms?.cameraPosition) {
+        // @ts-ignore
+        mesh.material.uniforms.cameraPosition.value.copy(camera.position);
+      }
     }
   );
 
@@ -147,6 +162,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       sceneData,
       scene,
       camera,
+      envMapTexture: null,
       index: 0,
       threeTone,
       cache: { nodes: {} },
@@ -157,8 +173,17 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
   // Inform parent our context is created
   useEffect(() => {
-    setCtx<RuntimeContext>(ctx);
-  }, [ctx, setCtx]);
+    if (!ctx.runtime.envMapTexture) {
+      new RGBELoader().load('/empty_warehouse_01_2k.hdr', (textureCb) => {
+        const pmremGenerator = new three.PMREMGenerator(renderer);
+        const renderTarget = pmremGenerator.fromCubemap(textureCb as any);
+        const { texture } = renderTarget;
+
+        ctx.runtime.envMapTexture = texture;
+        setCtx<RuntimeContext>(ctx);
+      });
+    }
+  }, [ctx, setCtx, renderer]);
 
   useEffect(() => {
     if (!compileResult?.fragmentResult) {
@@ -166,6 +191,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     }
     const {
       threeTone,
+      envMapTexture,
       sceneData: { mesh },
     } = ctx.runtime;
     console.log('oh hai birfday boi boi boiiiii');
@@ -190,19 +216,46 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       (node) => node.name === 'Fake Heatmap'
     )?.id;
 
+    // const envMap = new RGBELoader().load(
+    //   '/empty_warehouse_01_2k.hdr',
+    //   (textureCb) => {
+    //     textureCb.mapping = three.CubeUVReflectionMapping;
+
+    //     const pmremGenerator = new three.PMREMGenerator(renderer);
+    //     // const isEquirectMap =
+    //     //   textureCb.mapping === three.EquirectangularReflectionMapping ||
+    //     //   textureCb.mapping === three.EquirectangularRefractionMapping;
+    //     // const renderTarget = isEquirectMap
+    //     //   ? pmremGenerator.fromEquirectangular(textureCb)
+    //     //   : pmremGenerator.fromCubemap(textureCb as any);
+    //     const renderTarget = pmremGenerator.fromCubemap(textureCb as any);
+    //     const { texture } = renderTarget;
+
+    //     console.log('loaded envmap', { envMap, texture, textureCb });
+    //     newMat.uniforms.blenvMap.value = texture;
+    //     // todo try putting defines in shader too?
+    //     // newMat.uniforms.envMap.value = texture;
+    //     newMat.needsUpdate = true;
+    //   }
+    // );
+    // scene.background = envMap;
+    // console.log('created envmap', { envMap });
+
     const uniforms = {
       ...three.ShaderLib.phong.uniforms,
       ...three.ShaderLib.toon.uniforms,
       ...three.ShaderLib.physical.uniforms,
 
       gradientMap: { value: threeTone },
-      metalness: { value: 0.4 },
-      roughness: { value: 0.2 },
-      clearcoat: { value: 0.5 },
-      clearcoatRoughness: { value: 0.5 },
-      reflectivity: { value: 0.5 },
+
+      metalness: { value: 0.9 },
+      roughness: { value: 0 },
+      clearcoat: { value: 1.0 },
+      clearcoatRoughness: { value: 1.0 },
+      reflectivity: { value: 1.0 },
+      ior: { value: 1.0 },
       normalScale: { value: new three.Vector2(2.0, 2.0) },
-      color: { value: new three.Vector3(1.0, 1.0, 1.0) },
+      color: { value: new three.Color(1.0, 1.0, 1.0) },
 
       // map: { value: new three.TextureLoader().load('/contrast-noise.png') },
       normalMap: {
@@ -210,6 +263,19 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       },
       image: {
         value: new three.TextureLoader().load('/contrast-noise.png'),
+      },
+
+      // todo: why no reflecton? missing other uniofrms for envmap?
+      flipEnvMap: { value: -1 },
+      envMapIntensity: { value: 1.0 },
+      transmission: { value: 0.5 },
+      thickness: { value: 0 },
+      cameraPosition: { value: new three.Vector3(0, 0, 0) },
+      blenvMap: {
+        value: envMapTexture,
+      },
+      envMap: {
+        value: envMapTexture,
       },
       time: { value: 0 },
       resolution: { value: 0.5 },
@@ -281,6 +347,10 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       //   console.log('raw shader precomp');
       // },
     });
+    // @ts-ignore
+    // newMat.envMap = envMap;
+    // @ts-ignore
+    // newMat.isMeshStandardMaterial = true;
 
     // const mmm = new three.MeshPhongMaterial({
     //   color: 0x1111111,

@@ -17,21 +17,25 @@ type NodeHandle = {
   validTarget: boolean;
   name: string;
 };
-export type FlowNodeData = {
+
+export interface CoreFlowNode {
   label: string;
+  outputs: NodeHandle[];
+  inputs: NodeHandle[];
+}
+export interface FlowNodeDataData extends CoreFlowNode {
+  type: string;
+  value: any;
+}
+export interface FlowNodeSourceData extends CoreFlowNode {
   stage?: ShaderStage;
   active: boolean;
   /**
    * Whether or not this node can be used for both shader fragment and vertex
    */
   biStage: boolean;
-  outputs: NodeHandle[];
-  inputs: NodeHandle[];
-};
-type NodeProps = {
-  id: string;
-  data: FlowNodeData;
-};
+}
+export type FlowNodeData = FlowNodeSourceData | FlowNodeDataData;
 
 // interface NodeProp {
 //   nodeId: string;
@@ -52,7 +56,91 @@ type NodeProps = {
 
 // const computeIOKey = (arr: NodeHandle[]) => arr.map((a) => a.name).join(',');
 
-const CustomNodeComponent = ({ id, data }: NodeProps) => {
+const FlowWrap = ({
+  children,
+  data,
+  className,
+}: {
+  children: React.ReactNode;
+  data: FlowNodeData;
+  className: any;
+}) => (
+  <div
+    className={cx('flownode', className)}
+    style={{
+      height: `${handleTop + Math.max(data.inputs.length, 1) * 20}px`,
+    }}
+  >
+    {children}
+  </div>
+);
+
+const DataNodeComponent = ({
+  id,
+  data,
+}: {
+  id: string;
+  data: FlowNodeDataData;
+}) => {
+  return (
+    <FlowWrap data={data} className={data.type}>
+      <div className="flowlabel">{data.label}</div>
+      <div className="flowInputs">
+        {data.inputs.map((input, index) => (
+          <React.Fragment key={input.name}>
+            <Handle
+              id={input.name}
+              className={cx({ validTarget: input.validTarget })}
+              type="target"
+              position={Position.Left}
+              style={{ top: `${handleTop + index * 20}px` }}
+            />
+            <div
+              className={cx('react-flow_handle_label', {
+                validTarget: input.validTarget,
+              })}
+              style={{
+                top: `${handleTop - textHeight + index * 20}px`,
+                left: 15,
+              }}
+            >
+              {input.name}
+            </div>
+          </React.Fragment>
+        ))}
+
+        {data.outputs.map((output, index) => (
+          <React.Fragment key={output.name}>
+            <div
+              className="react-flow_handle_label"
+              style={{
+                top: `${handleTop - textHeight + index * 20}px`,
+                right: 15,
+              }}
+            >
+              {output.name}
+            </div>
+            <Handle
+              id={output.name}
+              className={cx({ validTarget: output.validTarget })}
+              type="source"
+              position={Position.Right}
+              style={{ top: `${handleTop + index * 20}px` }}
+            />
+          </React.Fragment>
+        ))}
+      </div>
+    </FlowWrap>
+  );
+};
+
+const SourceNodeComponent = ({
+  id,
+  data,
+}: {
+  id: string;
+  data: FlowNodeSourceData;
+}) => {
   // const updateNodeInternals = useUpdateNodeInternals();
   // const key = `${computeIOKey(data.inputs)}${computeIOKey(data.outputs)}`;
 
@@ -68,11 +156,9 @@ const CustomNodeComponent = ({ id, data }: NodeProps) => {
   // named inputs and handles and it failing?
   // console.log('rendering custom node component for ', data.label, data);
   return (
-    <div
-      className={cx('flownode', data.stage, { inactive: !data.active })}
-      style={{
-        height: `${handleTop + Math.max(data.inputs.length, 1) * 20}px`,
-      }}
+    <FlowWrap
+      data={data}
+      className={cx(data.stage, { inactive: !data.active })}
     >
       <div className="flowlabel">
         {data.label}
@@ -140,8 +226,8 @@ const CustomNodeComponent = ({ id, data }: NodeProps) => {
         type="target"
         position={Position.Right}
       />
-    </div>
+    </FlowWrap>
   );
 };
 
-export default CustomNodeComponent;
+export { DataNodeComponent, SourceNodeComponent };

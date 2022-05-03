@@ -5,6 +5,7 @@ import {
   GraphNode,
   doesLinkThruShader,
   NodeParser,
+  SourceNode,
 } from '../../core/graph';
 import importers from './importers';
 
@@ -39,7 +40,7 @@ let mIdx = 0;
 let id = () => mIdx++;
 const onBeforeCompileMegaShader = (
   engineContext: EngineContext<RuntimeContext>,
-  node: GraphNode
+  node: SourceNode
 ) => {
   const { scene, sceneData } = engineContext.runtime;
 

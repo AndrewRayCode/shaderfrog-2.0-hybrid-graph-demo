@@ -10,6 +10,10 @@ const solidColorNode = (id: string) =>
       preprocess: true,
       strategies: [
         {
+          type: StrategyType.UNIFORM,
+          config: {},
+        },
+        {
           type: StrategyType.TEXTURE_2D,
           config: {},
         },
@@ -18,14 +22,16 @@ const solidColorNode = (id: string) =>
     `precision highp float;
 precision highp int;
 
-uniform vec4 kev;
-uniform sampler2D image;
 uniform float blorf;
-varying vec2 vUv;
 
 void main() {
-    gl_FragColor = vec4(kev.rgb + texture2D(image, vUv).rgb, 1.0);
-}`,
+    gl_FragColor = vec4(
+        vec3(blorf),
+        1.0
+    );
+}
+    
+`,
     'fragment',
     'three'
   );

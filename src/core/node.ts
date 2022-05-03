@@ -1,7 +1,7 @@
 import { EngineNodeType } from './engine';
 import {
   BinaryNode,
-  CoreNode,
+  CodeNode,
   GraphNode,
   NodeConfig,
   NodeType,
@@ -48,7 +48,7 @@ export const sourceNode = (
   stage: ShaderStage,
   originalEngine?: string,
   nextStageNodeId?: string
-): CoreNode => ({
+): CodeNode => ({
   id,
   name,
   type: NodeType.SOURCE,
@@ -66,7 +66,7 @@ export const outputNode = (
   name: string,
   stage: ShaderStage,
   nextStageNodeId?: string
-): CoreNode => ({
+): CodeNode => ({
   id,
   name,
   type: NodeType.OUTPUT,
@@ -122,7 +122,7 @@ export const phongNode = (
   name: string,
   stage: ShaderStage,
   nextStageNodeId?: string
-): CoreNode => {
+): CodeNode => {
   return {
     id,
     name,
@@ -162,7 +162,7 @@ export const physicalNode = (
   name: string,
   stage: ShaderStage,
   nextStageNodeId?: string
-): CoreNode => {
+): CodeNode => {
   return {
     id,
     name,
@@ -175,20 +175,21 @@ export const physicalNode = (
         normalMap: 'normal',
       },
       // TODO: The strategies for node need to be engine specific :O
-      strategies:
+      strategies: [
+        {
+          type: StrategyType.UNIFORM,
+          config: {},
+        },
         stage === 'fragment'
-          ? [
-              {
-                type: StrategyType.TEXTURE_2D,
-                config: {},
-              },
-            ]
-          : [
-              {
-                type: StrategyType.NAMED_ATTRIBUTE,
-                config: { attributeName: 'position' },
-              },
-            ],
+          ? {
+              type: StrategyType.TEXTURE_2D,
+              config: {},
+            }
+          : {
+              type: StrategyType.NAMED_ATTRIBUTE,
+              config: { attributeName: 'position' },
+            },
+      ],
     },
     inputs: [],
     outputs: ['out'],
@@ -203,7 +204,7 @@ export const toonNode = (
   name: string,
   stage: ShaderStage,
   nextStageNodeId?: string
-): CoreNode => {
+): CodeNode => {
   return {
     id,
     name,

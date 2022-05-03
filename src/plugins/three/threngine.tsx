@@ -1,6 +1,8 @@
 import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
-import { NodeParser, NodeType } from '../../core/graph';
+import { NodeParser, NodeType, SourceNode } from '../../core/graph';
 import importers from './importers';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
+
 import { Engine, EngineContext, EngineNodeType } from '../../core/engine';
 import { GraphNode, doesLinkThruShader, nodeName } from '../../core/graph';
 import {
@@ -15,6 +17,7 @@ export type RuntimeContext = {
   renderer: any;
   three: any;
   sceneData: any;
+  envMapTexture: any;
   // material: any;
   index: number;
   threeTone: any;
@@ -32,7 +35,7 @@ export type RuntimeContext = {
 
 const onBeforeCompileMegaShader = (
   engineContext: EngineContext<RuntimeContext>,
-  node: GraphNode,
+  node: SourceNode,
   newMat: any
 ) => {
   // const { nodes } = engineContext.runtime.cache;
@@ -137,6 +140,10 @@ export const threngine: Engine<RuntimeContext> = {
     'time',
     'normalScale',
     'normalMap',
+    'envMap',
+    'envMapIntensity',
+    'flipEnvMap',
+    'maxMipLevel',
     'roughnessMap',
     // Uniforms for lighting
     'receiveShadow',
@@ -198,20 +205,39 @@ export const threngine: Engine<RuntimeContext> = {
     },
     [EngineNodeType.physical]: {
       onBeforeCompile: (engineContext, node) => {
-        const { three } = engineContext.runtime;
+        const { three, envMapTexture } = engineContext.runtime;
+        // const envMap = new three.CubeTextureLoader().load([
+        //   '/envmaps/pond/posx.jpg',
+        //   '/envmaps/pond/negx.jpg',
+        //   '/envmaps/pond/posy.jpg',
+        //   '/envmaps/pond/negy.jpg',
+        //   '/envmaps/pond/posy.jpg',
+        //   '/envmaps/pond/negy.jpg',
+        // ]);
+        // const envMap = new RGBELoader().load(
+        //   '/empty_warehouse_01_2k.hdr',
+        //   () => {
+        //     envMap.mapping = three.EquirectangularReflectionMapping;
+        //   }
+        // );
+        // const texture = new three.Texture();
+        // texture.mapping = three.CubeUVReflectionMapping;
+
+        // console.log({ envMap });
         onBeforeCompileMegaShader(
           engineContext,
           node,
           new three.MeshPhysicalMaterial({
-            metalness: 0.4,
-            roughness: 0.2,
-            clearcoat: 0.5,
-            clearcoatRoughness: 0.5,
-            reflectivity: 0.5,
+            metalness: 1.0,
+            roughness: 0.0,
+            clearcoat: 1.0,
+            clearcoatRoughness: 0.0,
+            reflectivity: 1.0,
             color: new three.Vector3(1.0, 1.0, 1.0),
             map: new three.Texture(),
             // TODO: Normals are wrong when using normalmap
             normalMap: new three.Texture(),
+            envMap: envMapTexture,
             // roughnessMap: new three.Texture(),
           })
         );

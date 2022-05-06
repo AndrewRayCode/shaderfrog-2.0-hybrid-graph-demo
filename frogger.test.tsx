@@ -10,9 +10,16 @@ import {
   StrategyType,
 } from './src/core/strategy';
 import * as graphModule from './src/core/graph';
-import { NodeType, Graph, GraphNode, dunkleMyHunkle } from './src/core/graph';
+import {
+  NodeType,
+  Graph,
+  GraphNode,
+  evaluateNode,
+  DataNode,
+  makeEdge,
+} from './src/core/graph';
 import { shaderSectionsToAst } from './src/ast/shader-sections';
-import { outputNode, addNode, sourceNode } from './src/core/node';
+import { outputNode, addNode, sourceNode, numberNode } from './src/core/node';
 import {
   makeExpression,
   returnGlPositionVec3Right,
@@ -47,22 +54,26 @@ const dedupe = (code: string) =>
     })
   );
 
-describe('dunkleMyHunkle', () => {
+let counter = 0;
+const id = () => '' + counter++;
+
+describe('evaluateNode()', () => {
   it('should do the thing', () => {
+    const finalAdd = addNode(id());
+    const add2 = addNode(id());
+    const num1 = numberNode(id(), 3);
+    const num2 = numberNode(id(), 5);
+    const num3 = numberNode(id(), 7);
     const graph: Graph = {
-      nodes: [
-        {
-          id: '1',
-          type: 'number',
-          value: 2,
-          name: 'number',
-          inputs: [],
-          outputs: [],
-        },
+      nodes: [num1, num2, num3, finalAdd, add2],
+      edges: [
+        makeEdge(num1.id, finalAdd.id, 'out', 'a'),
+        makeEdge(add2.id, finalAdd.id, 'out', 'b'),
+        makeEdge(num2.id, add2.id, 'out', 'a'),
+        makeEdge(num3.id, add2.id, 'out', 'b'),
       ],
-      edges: [],
     };
-    expect(dunkleMyHunkle(graph, graph.nodes[0])).toBe(2);
+    expect(evaluateNode(graph, finalAdd)).toBe(15);
   });
 });
 

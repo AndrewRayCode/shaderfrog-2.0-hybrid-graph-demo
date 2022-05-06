@@ -2,6 +2,7 @@ import { EngineNodeType } from './engine';
 import {
   BinaryNode,
   CodeNode,
+  DataNode,
   GraphNode,
   NodeConfig,
   NodeType,
@@ -39,6 +40,15 @@ import { StrategyType } from './strategy';
  * where nodes like output/phong/physical are all configured at the
  * implementation level. "phong" shouldn't be in the core
  */
+
+export const numberNode = (id: string, value: number): DataNode => ({
+  id,
+  type: 'number',
+  value,
+  name: 'number',
+  inputs: [],
+  outputs: [],
+});
 
 export const sourceNode = (
   id: string,

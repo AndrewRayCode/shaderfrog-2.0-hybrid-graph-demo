@@ -43,6 +43,7 @@ import {
   isDataNode,
   isSourceNode,
   SourceNode,
+  makeEdge,
 } from './core/graph';
 import {
   outputNode,
@@ -201,20 +202,8 @@ const useFlef = () => {
         // TODO: Enable backfilling of uv param?
         // TODO: Allow for shader being duplicated in a main fn to allow it to
         //       be both normal map and albdeo
-        {
-          from: physicalV.id,
-          to: outputV.id,
-          output: 'out',
-          input: 'position',
-          stage: 'vertex',
-        },
-        {
-          from: physicalF.id,
-          to: outputF.id,
-          output: 'out',
-          input: 'color',
-          stage: 'fragment',
-        },
+        makeEdge(physicalV.id, outputV.id, 'out', 'position', 'vertex'),
+        makeEdge(physicalF.id, outputF.id, 'out', 'color', 'fragment'),
         // {
         //   from: hellOnEarthF.id,
         //   to: physicalF.id,
@@ -222,27 +211,15 @@ const useFlef = () => {
         //   input: 'normal',
         //   stage: 'fragment',
         // },
-        {
-          from: num1.id,
-          to: solidColorF.id,
-          output: 'out',
-          input: 'blorf',
-          stage: 'fragment',
-        },
-        {
-          from: solidColorF.id,
-          to: physicalF.id,
-          output: 'out',
-          input: 'albedo',
-          stage: 'fragment',
-        },
+        makeEdge(num1.id, solidColorF.id, 'out', 'blorf', 'fragment'),
+        makeEdge(solidColorF.id, physicalF.id, 'out', 'albedo', 'fragment'),
         // {
         //   from: solidColorF.id,
         //   to: add.id,
         //   output: 'out',
         //   input: 'b',
         //   stage: 'fragment',
-        // },
+        // ),
         // {
         //   from: heatShaderF.id,
         //   to: add.id,

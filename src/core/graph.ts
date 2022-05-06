@@ -112,8 +112,16 @@ export type Edge = {
   to: string;
   output: string;
   input: string;
-  stage: ShaderStage;
+  stage?: ShaderStage;
 };
+
+export const makeEdge = (
+  from: string,
+  to: string,
+  output: string,
+  input: string,
+  stage?: ShaderStage
+): Edge => ({ from, to, output, input, stage });
 
 export interface Graph {
   nodes: GraphNode[];
@@ -394,8 +402,7 @@ export const coreParsers: CoreParser = {
   },
 };
 
-// Starting a test for evaluation
-export const dunkleMyHunkle = (graph: Graph, node: GraphNode): any => {
+export const evaluateNode = (graph: Graph, node: GraphNode): any => {
   if ('value' in node) {
     return node.value;
   }
@@ -413,7 +420,7 @@ export const dunkleMyHunkle = (graph: Graph, node: GraphNode): any => {
     node as SourceNode,
     inputEdges,
     inputNodes,
-    dunkleMyHunkle.bind(null, graph)
+    evaluateNode.bind(null, graph)
   );
 };
 

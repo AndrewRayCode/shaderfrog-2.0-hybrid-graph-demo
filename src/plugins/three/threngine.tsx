@@ -215,7 +215,7 @@ export const threngine: Engine<RuntimeContext> = {
         //   '/envmaps/pond/negy.jpg',
         // ]);
         // const envMap = new RGBELoader().load(
-        //   '/empty_warehouse_01_2k.hdr',
+        //   '/envmaps/empty_warehouse_01_2k.hdr',
         //   () => {
         //     envMap.mapping = three.EquirectangularReflectionMapping;
         //   }

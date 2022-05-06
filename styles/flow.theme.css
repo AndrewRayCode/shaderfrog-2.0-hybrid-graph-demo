@@ -112,6 +112,15 @@
 .flownode.number {
   background: rgb(6, 16, 68);
 }
+.flownode.number input {
+  width: 50%;
+}
+.flownode .body {
+  position: absolute;
+  top: 35px;
+  left: 10px;
+  right: 10px;
+}
 
 /* -------------- */
 /* Fragment theme */

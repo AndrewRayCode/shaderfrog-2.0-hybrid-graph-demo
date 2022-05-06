@@ -26,6 +26,7 @@ export interface CoreFlowNode {
 export interface FlowNodeDataData extends CoreFlowNode {
   type: string;
   value: any;
+  onChange: (id: string, event: any) => void;
 }
 export interface FlowNodeSourceData extends CoreFlowNode {
   stage?: ShaderStage;
@@ -108,6 +109,15 @@ const DataNodeComponent = ({
             </div>
           </React.Fragment>
         ))}
+
+        <div className="body">
+          <input
+            className="nodrag"
+            type="text"
+            onChange={(e) => data.onChange(id, e)}
+            value={data.value}
+          />
+        </div>
 
         {data.outputs.map((output, index) => (
           <React.Fragment key={output.name}>

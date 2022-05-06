@@ -10,7 +10,7 @@ import {
   StrategyType,
 } from './src/core/strategy';
 import * as graphModule from './src/core/graph';
-import { NodeType, Graph, GraphNode } from './src/core/graph';
+import { NodeType, Graph, GraphNode, dunkleMyHunkle } from './src/core/graph';
 import { shaderSectionsToAst } from './src/ast/shader-sections';
 import { outputNode, addNode, sourceNode } from './src/core/node';
 import {
@@ -46,6 +46,25 @@ const dedupe = (code: string) =>
       includeVersion: true,
     })
   );
+
+describe('dunkleMyHunkle', () => {
+  it('should do the thing', () => {
+    const graph: Graph = {
+      nodes: [
+        {
+          id: '1',
+          type: 'number',
+          value: 2,
+          name: 'number',
+          inputs: [],
+          outputs: [],
+        },
+      ],
+      edges: [],
+    };
+    expect(dunkleMyHunkle(graph, graph.nodes[0])).toBe(2);
+  });
+});
 
 test('It should merge uniforms with interface blocks', () => {
   let astX = parser.parse(`uniform vec2 x;`);

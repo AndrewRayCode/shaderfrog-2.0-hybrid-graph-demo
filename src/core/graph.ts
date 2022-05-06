@@ -172,10 +172,19 @@ export type FindInputs = (
   inputEdges: Edge[]
 ) => NodeInputs;
 
+export type Evaluator = (node: GraphNode) => any;
+export type Evaluate = (
+  node: SourceNode,
+  inputEdges: Edge[],
+  inputNodes: GraphNode[],
+  evaluate: Evaluator
+) => any;
+
 type CoreNodeParser = {
   produceAst: ProduceAst;
   findInputs: FindInputs;
   produceFiller: NodeFiller;
+  evaluate?: Evaluate;
 };
 
 export type ManipulateAst = (
@@ -259,15 +268,6 @@ export const coreParsers: CoreParser = {
       if (node.stage === 'fragment') {
         convert300MainToReturn('main', ast);
       }
-
-      // Normalize names by using the next stage id, if present
-      // const id = node.nextStageNodeId || node.id;
-      // renameBindings(ast.scopes[0], (name) =>
-      //   engine.preserve.has(name) ? name : `${name}_${id}`
-      // );
-      // renameFunctions(ast.scopes[0], (name) =>
-      //   name === 'main' ? nodeName(node) : `${name}_${id}`
-      // );
 
       return ast;
     },
@@ -373,7 +373,48 @@ export const coreParsers: CoreParser = {
     produceFiller: (node, ast) => {
       return ast.program;
     },
+    evaluate: (node, inputEdges, inputNodes, evaluate) => {
+      const operator = (node as BinaryNode).operator;
+      return inputNodes.reduce((acc, inputNode) => {
+        const next = evaluate(inputNode);
+        if (operator === '+') {
+          return acc + next;
+        } else if (operator === '*') {
+          return acc * next;
+        } else if (operator === '-') {
+          return acc - next;
+        } else if (operator === '/') {
+          return acc / next;
+        }
+        throw new Error(
+          `Don't know how to evaluate ${operator} for node ${node.name} (${node.id})`
+        );
+      }, 0);
+    },
   },
+};
+
+// Starting a test for evaluation
+export const dunkleMyHunkle = (graph: Graph, node: GraphNode): any => {
+  if ('value' in node) {
+    return node.value;
+  }
+
+  const { evaluate } = coreParsers[node.type];
+  if (!evaluate) {
+    throw new Error(`No evaluator for node ${node.name} (${node.id})`);
+  }
+  const inputEdges = graph.edges.filter((edge) => edge.to === node.id);
+  const inputNodes = inputEdges.map(
+    (edge) => graph.nodes.find((node) => node.id === edge.from) as GraphNode
+  );
+
+  return evaluate(
+    node as SourceNode,
+    inputEdges,
+    inputNodes,
+    dunkleMyHunkle.bind(null, graph)
+  );
 };
 
 export const collectConnectedNodes = (

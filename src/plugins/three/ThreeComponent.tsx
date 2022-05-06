@@ -174,14 +174,17 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   // Inform parent our context is created
   useEffect(() => {
     if (!ctx.runtime.envMapTexture) {
-      new RGBELoader().load('/empty_warehouse_01_2k.hdr', (textureCb) => {
-        const pmremGenerator = new three.PMREMGenerator(renderer);
-        const renderTarget = pmremGenerator.fromCubemap(textureCb as any);
-        const { texture } = renderTarget;
+      new RGBELoader().load(
+        'envmaps/empty_warehouse_01_2k.hdr',
+        (textureCb) => {
+          const pmremGenerator = new three.PMREMGenerator(renderer);
+          const renderTarget = pmremGenerator.fromCubemap(textureCb as any);
+          const { texture } = renderTarget;
 
-        ctx.runtime.envMapTexture = texture;
-        setCtx<RuntimeContext>(ctx);
-      });
+          ctx.runtime.envMapTexture = texture;
+          setCtx<RuntimeContext>(ctx);
+        }
+      );
     }
   }, [ctx, setCtx, renderer]);
 
@@ -217,7 +220,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     )?.id;
 
     // const envMap = new RGBELoader().load(
-    //   '/empty_warehouse_01_2k.hdr',
+    //   '/envmaps/empty_warehouse_01_2k.hdr',
     //   (textureCb) => {
     //     textureCb.mapping = three.CubeUVReflectionMapping;
 

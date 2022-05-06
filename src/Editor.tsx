@@ -442,7 +442,8 @@ const inputsFromCtx = (ctx: EngineContext<any>, id: string) =>
 
 const initializeFlowElementsFromGraph = (
   graph: Graph,
-  ctx: EngineContext<any>
+  ctx: EngineContext<any>,
+  onChange: any
 ): FlowElements => {
   let engines = 0;
   let maths = 0;
@@ -473,6 +474,7 @@ const initializeFlowElementsFromGraph = (
           label: node.name,
           type: node.type,
           value: node.value,
+          onChange,
           inputs: inputsFromCtx(ctx, node.id).map((name) => ({
             name,
             validTarget: false,
@@ -664,6 +666,26 @@ const Editor: React.FC = () => {
     [updateNodeInternals, graph, setFlowElements]
   );
 
+  const onDunkie = useCallback(
+    (id: string, event: React.FormEvent<HTMLInputElement>) => {
+      setFlowElements(({ nodes, edges }) => ({
+        nodes: nodes.map((node) =>
+          node.id === id
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  value: event.currentTarget.value,
+                },
+              }
+            : node
+        ),
+        edges,
+      }));
+    },
+    [setFlowElements]
+  );
+
   // Let child components call compile after, say, their lighting has finished
   // updating. I'm doing this to avoid having to figure out the flow control
   // of: parent updates lights, child gets updates, sets lights, then parent
@@ -692,13 +714,13 @@ const Editor: React.FC = () => {
 
         const initFlowElements = initialElements.nodes.length
           ? initialElements
-          : initializeFlowElementsFromGraph(graph, newCtx);
+          : initializeFlowElementsFromGraph(graph, newCtx, onDunkie);
 
         compile(engine, newCtx, pauseCompile, initFlowElements);
         setGuiMsg('');
       }, 10);
     },
-    [compile, engine, pauseCompile]
+    [compile, engine, pauseCompile, onDunkie]
   );
 
   // Once we receive a new engine context, re-initialize the graph. This method

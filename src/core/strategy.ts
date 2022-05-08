@@ -7,9 +7,11 @@ import {
   mangleName,
   NodeContext,
   NodeInputs,
+  SourceNode,
 } from './graph';
 
 export enum StrategyType {
+  VARIABLE = 'Variable Names',
   ASSIGNMENT_TO = 'Assignment To',
   TEXTURE_2D = 'Texture2D',
   NAMED_ATTRIBUTE = 'Named Attribute',
@@ -39,15 +41,19 @@ export interface NamedAttributeStrategy extends BaseStrategy {
     attributeName: string;
   };
 }
+export interface VariableStrategy extends BaseStrategy {
+  type: StrategyType.VARIABLE;
+}
 
 export type Strategy =
   | UniformStrategy
   | AssignemntToStrategy
   | Texture2DStrategy
-  | NamedAttributeStrategy;
+  | NamedAttributeStrategy
+  | VariableStrategy;
 
 type StrategyImpl = (
-  node: GraphNode,
+  node: SourceNode,
   ast: AstNode,
   strategy: Strategy
 ) => NodeInputs;
@@ -56,16 +62,12 @@ type Strategies<T> = Record<StrategyType, StrategyImpl>;
 
 export const applyStrategy = (
   strategy: Strategy,
-  node: GraphNode,
+  node: SourceNode,
   ast: AstNode
 ): NodeInputs => strategyRunners[strategy.type](node, ast, strategy);
 
 export const strategyRunners: Strategies<NodeContext> = {
-  [StrategyType.UNIFORM]: (
-    graphNode: GraphNode,
-    ast: AstNode,
-    strategy: Strategy
-  ) => {
+  [StrategyType.UNIFORM]: (graphNode, ast, strategy) => {
     const uniforms = (ast.program as AstNode[]).reduce<NodeInputs>(
       (acc, node) => {
         // The uniform declration type, like vec4
@@ -225,6 +227,43 @@ export const strategyRunners: Strategies<NodeContext> = {
         );
       },
     };
+  },
+  [StrategyType.VARIABLE]: (node, ast, strategy) => {
+    // const cast = strategy as VariableStrategy;
+    console.log('running start', ast);
+    return Object.entries(ast.scopes[0].bindings).reduce(
+      (acc, [name, binding]: [string, any]) => ({
+        ...acc,
+        ...(binding.references as AstNode[]).reduce<NodeInputs>(
+          (variableAcc, ref: AstNode) => {
+            let identifier: string, replacer;
+
+            console.log('looking at', ref);
+            if (ref.type === 'declaration') {
+              identifier = ref.identifier.identifier;
+              replacer = (fillerAst: AstNode) => {
+                ref.identifier.identifier = generate(fillerAst);
+              };
+            } else if (ref.type === 'identifier') {
+              identifier = ref.identifier;
+              replacer = (fillerAst: AstNode) => {
+                ref.identifier = generate(fillerAst);
+              };
+              // } else if (ref.type === 'parameter_declaration') {
+              //   identifier = ref.declaration.identifier.identifier;
+              //   replacer = (fillerAst: AstNode) => {
+              //     ref.declaration.identifier.identifier = generate(fillerAst);
+              //   };
+            } else {
+              return variableAcc;
+            }
+            return { ...variableAcc, [identifier]: replacer };
+          },
+          {}
+        ),
+      }),
+      {}
+    );
   },
 };
 

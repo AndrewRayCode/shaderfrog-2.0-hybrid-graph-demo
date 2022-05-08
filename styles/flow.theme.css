@@ -123,6 +123,34 @@
 }
 
 /* -------------- */
+/* Data theme */
+/* -------------- */
+
+.react-flow__edge.number .react-flow__edge-path {
+  stroke: #00d5ff;
+}
+
+.react-flow__edge.number.updating .react-flow__edge-path {
+  stroke: #00aeff;
+}
+
+/* selected edge */
+.react-flow__edge.number.selected .react-flow__edge-path {
+  stroke: #00d5ff;
+}
+
+/* selectable edge path */
+.number .react-flow__edge-path-selector {
+  stroke: rgba(0, 68, 255, 0.3);
+}
+
+/* updateable drag handle */
+.number .react-flow__edgeupdater {
+  fill: #333d00;
+  stroke: #00d5ff;
+}
+
+/* -------------- */
 /* Fragment theme */
 /* -------------- */
 

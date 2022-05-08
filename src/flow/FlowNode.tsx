@@ -7,7 +7,7 @@ import {
   Edge as FlowEdge,
   HandleProps,
 } from 'react-flow-renderer';
-import { ShaderStage } from '../core/graph';
+import { GraphDataType, ShaderStage } from '../core/graph';
 
 import { useUpdateNodeInternals } from 'react-flow-renderer';
 
@@ -24,7 +24,7 @@ export interface CoreFlowNode {
   inputs: NodeHandle[];
 }
 export interface FlowNodeDataData extends CoreFlowNode {
-  type: string;
+  type: GraphDataType;
   value: any;
   onChange: (id: string, event: any) => void;
 }

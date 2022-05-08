@@ -195,6 +195,29 @@ export const makeExpression = (expr: string): AstNode => {
   return ast.program[0].body.statements[0].expression.right;
 };
 
+export const makeExpressionWithScopes = (expr: string): ParserProgram => {
+  let ast: ParserProgram;
+  try {
+    ast = parser.parse(
+      `void main() {
+          ${expr};
+        }`,
+      { quiet: true }
+    );
+  } catch (error: any) {
+    console.error({ expr, error });
+    throw new Error(`Error parsing expr "${expr}": ${error?.message}`);
+  }
+
+  // console.log(util.inspect(ast, false, null, true));
+  return {
+    type: 'program',
+    // Set the main() fn body scope as the global one
+    scopes: [ast.scopes[1]],
+    program: ast.program[0].body.statements[0].expression,
+  };
+};
+
 const findFn = (ast: ParserProgram, name: string): AstNode | undefined =>
   ast.program.find(
     (line) =>

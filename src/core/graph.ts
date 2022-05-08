@@ -23,6 +23,7 @@ import {
   convert300MainToReturn,
   from2To3,
   makeExpression,
+  makeExpressionWithScopes,
   makeFnStatement,
 } from '../ast/manipulate';
 import { ensure } from '../util/ensure';
@@ -107,12 +108,14 @@ export const isSourceNode = (node: GraphNode): node is SourceNode =>
 export type DataNode = NumberNode;
 export type GraphNode = SourceNode | DataNode;
 
+export type GraphDataType = 'number';
+export type EdgeType = ShaderStage | GraphDataType;
 export type Edge = {
   from: string;
   to: string;
   output: string;
   input: string;
-  stage?: ShaderStage;
+  type?: EdgeType;
 };
 
 export const makeEdge = (
@@ -120,8 +123,8 @@ export const makeEdge = (
   to: string,
   output: string,
   input: string,
-  stage?: ShaderStage
-): Edge => ({ from, to, output, input, stage });
+  type?: EdgeType
+): Edge => ({ from, to, output, input, type });
 
 export interface Graph {
   nodes: GraphNode[];
@@ -247,7 +250,11 @@ export const mangleName = (name: string, node: SourceNode) => {
   return `${name}_${id}`;
 };
 
-export const mangle = (ast: AstNode, node: SourceNode, engine: Engine<any>) => {
+export const mangle = (
+  ast: ParserProgram,
+  node: SourceNode,
+  engine: Engine<any>
+) => {
   renameBindings(ast.scopes[0], (name) =>
     engine.preserve.has(name) ? name : mangleName(name, node)
   );
@@ -259,22 +266,28 @@ export const mangle = (ast: AstNode, node: SourceNode, engine: Engine<any>) => {
 export const coreParsers: CoreParser = {
   [NodeType.SOURCE]: {
     produceAst: (engineContext, engine, graph, node, inputEdges) => {
-      const preprocessed = preprocess(node.source, {
-        preserve: {
-          version: () => true,
-        },
-      });
+      let ast;
+      if (node.expressionOnly) {
+        ast = makeExpressionWithScopes(node.source);
+        console.log('made expression', ast);
+      } else {
+        const preprocessed = preprocess(node.source, {
+          preserve: {
+            version: () => true,
+          },
+        });
 
-      const ast = parser.parse(preprocessed);
+        ast = parser.parse(preprocessed);
 
-      if (node.config.version === 2 && node.stage) {
-        from2To3(ast, node.stage);
-      }
+        if (node.config.version === 2 && node.stage) {
+          from2To3(ast, node.stage);
+        }
 
-      // This assumes that expressionOnly nodes don't have a stage and that all
-      // fragment source code shades have main function, which is probably wrong
-      if (node.stage === 'fragment') {
-        convert300MainToReturn('main', ast);
+        // This assumes that expressionOnly nodes don't have a stage and that all
+        // fragment source code shades have main function, which is probably wrong
+        if (node.stage === 'fragment') {
+          convert300MainToReturn('main', ast);
+        }
       }
 
       return ast;
@@ -611,7 +624,7 @@ const computeNodeContext = <T>(
     node.type !== NodeType.BINARY &&
     node.type !== NodeType.OUTPUT
   ) {
-    mangle(ast, node, engine);
+    mangle(ast as ParserProgram, node, engine);
   }
 
   return nodeContext;

@@ -44,6 +44,8 @@ import {
   isSourceNode,
   SourceNode,
   makeEdge,
+  Edge as GraphEdge,
+  EdgeType,
 } from './core/graph';
 import {
   outputNode,
@@ -52,6 +54,7 @@ import {
   phongNode,
   physicalNode,
   toonNode,
+  expressionNode,
 } from './core/node';
 import {
   Engine,
@@ -87,6 +90,7 @@ import {
   SourceNodeComponent,
   FlowNodeData,
   FlowNodeSourceData,
+  FlowNodeDataData,
 } from './flow/FlowNode';
 
 import { Tabs, Tab, TabGroup, TabPanel, TabPanels } from './Tabs';
@@ -126,6 +130,7 @@ const useFlef = () => {
   const [graph, setGraph, resetGraph] = useLocalStorage<Graph>('graph', () => {
     let counter = 0;
     const id = () => '' + counter++;
+    const expression = expressionNode(id(), 'Expression', 'a + b / c');
     const outputF = outputNode(id(), 'Output', 'fragment');
     const outputV = outputNode(id(), 'Output', 'vertex', outputF.id);
     const phongF = phongNode(id(), 'Phong', 'fragment');
@@ -153,6 +158,7 @@ const useFlef = () => {
     const num1 = numberNode(id(), 'number');
     return {
       nodes: [
+        expression,
         outputF,
         outputV,
         phongF,
@@ -211,7 +217,7 @@ const useFlef = () => {
         //   input: 'normal',
         //   stage: 'fragment',
         // },
-        makeEdge(num1.id, solidColorF.id, 'out', 'blorf', 'fragment'),
+        makeEdge(num1.id, solidColorF.id, 'out', 'blorf', 'number'),
         makeEdge(solidColorF.id, physicalF.id, 'out', 'albedo', 'fragment'),
         // {
         //   from: solidColorF.id,
@@ -288,7 +294,7 @@ const collapseBinaryEdges = (
 
 const flowStyles = { height: '100vh', background: '#111' };
 type FlowElement = FlowNode<FlowNodeData> | FlowEdge<FlowEdgeData>;
-type FlowEdgeOrLink = FlowEdge<FlowEdgeData | LinkEdgeData>;
+type FlowEdgeOrLink = FlowEdge<FlowEdgeData>;
 type FlowElements = {
   nodes: FlowNode<FlowNodeData>[];
   edges: FlowEdgeOrLink[];
@@ -345,13 +351,14 @@ const findInputStage = (
   let cast = node.data as FlowNodeSourceData;
   return (
     (!cast?.biStage && cast?.stage) ||
-    (targets[node.id] || []).reduce<ShaderStage | undefined>(
-      (found, edge) =>
+    (targets[node.id] || []).reduce<ShaderStage | undefined>((found, edge) => {
+      const type = edge.data?.type;
+      return (
         found ||
-        edge.data?.stage ||
-        findInputStage(ids, targets, ids[edge.source]),
-      undefined
-    )
+        (type === 'fragment' || type === 'vertex' ? type : false) ||
+        findInputStage(ids, targets, ids[edge.source])
+      );
+    }, undefined)
   );
 };
 
@@ -400,7 +407,7 @@ const setBiStages = (flowElements: FlowElements) => {
       const { stage } = updatedSides[element.source].data as FlowNodeSourceData;
       return {
         ...element,
-        className: stage,
+        // className: element.data?.type === 'data' ? element.data.type : stage,
         data: {
           ...element.data,
           stage,
@@ -430,9 +437,8 @@ const initializeFlowElementsFromGraph = (
   const maxHeight = 4;
   console.log('Initializing flow elements from', { graph });
 
-  const updatedNodes: FlowNode<FlowNodeData>[] = graph.nodes.map((node) => ({
-    id: node.id,
-    data: isSourceNode(node)
+  const nodes = graph.nodes.map((node): FlowNode<FlowNodeData> => {
+    const data: FlowNodeData = isSourceNode(node)
       ? {
           label: node.name,
           stage: node.stage,
@@ -460,38 +466,42 @@ const initializeFlowElementsFromGraph = (
             validTarget: false,
             name: '' + o,
           })),
-        },
-    type: isSourceNode(node) ? 'source' : 'data',
-    position:
-      node.type === EngineNodeType.output
-        ? { x: spacing * 2, y: outputs++ * 100 }
-        : node.type === EngineNodeType.phong ||
-          node.type === EngineNodeType.toon ||
-          node.type === EngineNodeType.physical
-        ? { x: spacing, y: engines++ * 100 }
-        : node.type === EngineNodeType.binary
-        ? { x: 0, y: maths++ * 100 }
-        : {
-            x: -spacing - spacing * Math.floor(shaders / maxHeight),
-            y: (shaders++ % maxHeight) * 120,
-          },
-  }));
-
-  const updatedEdges = graph.edges.map((edge) => ({
-    id: `${edge.to}-${edge.from}`,
-    source: edge.from,
-    sourceHandle: edge.output,
-    targetHandle: edge.input,
-    target: edge.to,
-    data: { stage: edge.stage },
-    className: edge.stage,
-    type: 'special',
-  }));
-
-  return setBiStages({
-    nodes: updatedNodes,
-    edges: updatedEdges,
+        };
+    return {
+      id: node.id,
+      data,
+      type: isSourceNode(node) ? 'source' : 'data',
+      position:
+        node.type === EngineNodeType.output
+          ? { x: spacing * 2, y: outputs++ * 100 }
+          : node.type === EngineNodeType.phong ||
+            node.type === EngineNodeType.toon ||
+            node.type === EngineNodeType.physical
+          ? { x: spacing, y: engines++ * 100 }
+          : node.type === EngineNodeType.binary
+          ? { x: 0, y: maths++ * 100 }
+          : {
+              x: -spacing - spacing * Math.floor(shaders / maxHeight),
+              y: (shaders++ % maxHeight) * 120,
+            },
+    };
   });
+
+  // console.log('edge', { edge });
+  const edges: FlowEdgeOrLink[] = graph.edges.map(
+    (edge): FlowEdge<FlowEdgeData> => ({
+      id: `${edge.to}-${edge.from}`,
+      source: edge.from,
+      sourceHandle: edge.output,
+      targetHandle: edge.input,
+      target: edge.to,
+      data: { type: edge.type },
+      className: edge.type,
+      type: 'special',
+    })
+  );
+
+  return setBiStages({ nodes, edges });
 };
 
 const Editor: React.FC = () => {
@@ -590,13 +600,15 @@ const Editor: React.FC = () => {
       // Convert the flow edges into the graph edges, to reflect the latest
       // user's changes
       // @ts-ignore
-      graph.edges = flowElements.edges.map((edge: FlowEdge<FlowEdgeData>) => ({
-        from: edge.source,
-        to: edge.target,
-        output: 'out',
-        input: edge.targetHandle as string,
-        stage: edge.data?.stage as ShaderStage,
-      }));
+      graph.edges = flowElements.edges.map(
+        (edge: FlowEdge<FlowEdgeData>): GraphEdge => ({
+          from: edge.source,
+          to: edge.target,
+          output: 'out',
+          input: edge.targetHandle as string,
+          type: edge.data?.type,
+        })
+      );
 
       setGuiMsg('Compiling!');
 
@@ -782,11 +794,13 @@ const Editor: React.FC = () => {
     const target = flowElements.nodes.find(
       (elem) => elem.id === newEdge.source
     );
-    if (!target || !('stage' in target.data)) {
+    if (!target) {
       return;
     }
 
-    const { stage } = target.data;
+    const edgeType = (target.data as FlowNodeDataData).type;
+    const type: EdgeType | undefined =
+      (target.data as FlowNodeSourceData).stage || edgeType;
 
     if (newEdge.source === null || newEdge.target === null) {
       throw new Error('No source or target');
@@ -797,8 +811,8 @@ const Editor: React.FC = () => {
       id: `${newEdge.source}-${newEdge.target}`,
       source: newEdge.source,
       target: newEdge.target,
-      data: { stage },
-      className: stage,
+      data: { type },
+      className: cx(type, edgeType),
       type: 'special',
     };
     console.log({ newEdge, addedEdge });
@@ -1205,6 +1219,17 @@ const StrategyEditor = ({
   const inputs = Object.keys(ensure(ctx.nodes[node.id]?.inputs));
   return (
     <div>
+      <div className={styles.uiGroup}>
+        <h2 className={styles.uiHeader}>Expression only?</h2>
+        <input
+          type="checkbox"
+          checked={node.expressionOnly}
+          onChange={(event) => {
+            node.expressionOnly = event.currentTarget.checked;
+            onSave();
+          }}
+        />
+      </div>
       <div className={styles.uiGroup}>
         <h2 className={styles.uiHeader}>Node Strategies</h2>
         {node.config.strategies.map((strategy, index) => (

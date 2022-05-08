@@ -127,6 +127,31 @@ void main() {
   nextStageNodeId,
 });
 
+export const expressionNode = (
+  id: string,
+  name: string,
+  source: string
+): CodeNode => ({
+  id,
+  name,
+  type: NodeType.SOURCE,
+  expressionOnly: true,
+  config: {
+    version: 3,
+    preprocess: false,
+    inputMapping: {},
+    strategies: [
+      {
+        type: StrategyType.VARIABLE,
+        config: {},
+      },
+    ],
+  },
+  inputs: [],
+  outputs: ['out'],
+  source,
+});
+
 export const phongNode = (
   id: string,
   name: string,

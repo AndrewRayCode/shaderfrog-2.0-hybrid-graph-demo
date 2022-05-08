@@ -17,6 +17,7 @@ import {
   evaluateNode,
   DataNode,
   makeEdge,
+  SourceNode,
 } from './src/core/graph';
 import { shaderSectionsToAst } from './src/ast/shader-sections';
 import { outputNode, addNode, sourceNode, numberNode } from './src/core/node';
@@ -151,7 +152,7 @@ void main() {
 }`);
     const fillers = applyStrategy(
       { type: StrategyType.UNIFORM, config: {} },
-      {} as GraphNode,
+      {} as SourceNode,
       ast
     );
 
@@ -193,7 +194,7 @@ void main() {
       Object.keys(
         applyStrategy(
           { type: StrategyType.TEXTURE_2D, config: {} },
-          {} as GraphNode,
+          {} as SourceNode,
           ast
         )
       )
@@ -210,7 +211,7 @@ void main() {
       Object.keys(
         applyStrategy(
           { type: StrategyType.TEXTURE_2D, config: {} },
-          {} as GraphNode,
+          {} as SourceNode,
           ast
         )
       )

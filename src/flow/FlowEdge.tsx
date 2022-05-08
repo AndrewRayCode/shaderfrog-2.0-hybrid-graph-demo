@@ -5,14 +5,14 @@ import {
   // getEdgeCenter,
   // getMarkerEnd,
 } from 'react-flow-renderer';
-import { ShaderStage } from '../core/graph';
+import { EdgeType } from '../core/graph';
 
 export type LinkEdgeData = {
   type: 'link';
 };
 
 export type FlowEdgeData = {
-  stage?: ShaderStage;
+  type?: EdgeType;
 };
 
 export default function FlowEdge({
@@ -42,6 +42,7 @@ export default function FlowEdge({
   //   targetY,
   // });
 
+  // Note that className is an edge prop, not explicitly set here
   return (
     <>
       <path

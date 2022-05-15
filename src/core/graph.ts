@@ -308,30 +308,32 @@ export const coreParsers: CoreParser = {
     produceFiller: (node, ast) => {
       return ast.program;
     },
-    evaluate: (node, inputEdges, inputNodes, evaluate) => {
+    evaluate: (node, inputEdges, inputNodes, evaluateNode) => {
       const operator = (node as BinaryNode).operator;
-      return inputNodes.reduce((acc, inputNode) => {
-        const next = evaluate(inputNode);
+      return inputNodes.map<number>(evaluateNode).reduce((num, next) => {
         if (operator === '+') {
-          return acc + next;
+          return num + next;
         } else if (operator === '*') {
-          return acc * next;
+          return num * next;
         } else if (operator === '-') {
-          return acc - next;
+          return num - next;
         } else if (operator === '/') {
-          return acc / next;
+          return num / next;
         }
         throw new Error(
           `Don't know how to evaluate ${operator} for node ${node.name} (${node.id})`
         );
-      }, 0);
+      });
     },
   },
 };
 
 export const evaluateNode = (graph: Graph, node: GraphNode): any => {
+  // TODO: Data nodes themselves should have evaluators
   if ('value' in node) {
-    return node.value;
+    if (node.type === 'number') {
+      return parseFloat(node.value);
+    }
   }
 
   const { evaluate } = coreParsers[node.type];
@@ -355,7 +357,7 @@ export const collectConnectedNodes = (
   graph: Graph,
   edges: Edge[],
   node: GraphNode,
-  ids: NodeIds
+  ids: NodeIds = {}
 ): NodeIds => {
   let compiledIds = ids;
 
@@ -607,8 +609,8 @@ export const computeGraphContext = <T>(
     throw new Error('No vertex output in graph');
   }
 
-  const vertexIds = collectConnectedNodes(graph, graph.edges, outputVert, {});
-  const fragmentIds = collectConnectedNodes(graph, graph.edges, outputFrag, {});
+  const vertexIds = collectConnectedNodes(graph, graph.edges, outputVert);
+  const fragmentIds = collectConnectedNodes(graph, graph.edges, outputFrag);
   const additionalIds = graph.nodes.filter(
     (node) =>
       isSourceNode(node) &&
@@ -662,7 +664,7 @@ export const compileGraph = <T>(
     throw new Error('No vertex output in graph');
   }
 
-  const vertexIds = collectConnectedNodes(graph, graph.edges, outputVert, {});
+  const vertexIds = collectConnectedNodes(graph, graph.edges, outputVert);
 
   // Some fragment shaders reference vertex shaders which may not have been
   // given edges in the graph. Build invisible edges from these vertex nodes to

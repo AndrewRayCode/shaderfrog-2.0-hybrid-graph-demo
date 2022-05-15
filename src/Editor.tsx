@@ -102,7 +102,7 @@ import { UICompileGraphResult } from './uICompileGraphResult';
 import { useLocalStorage } from './useLocalStorage';
 import { Strategy, StrategyType } from './core/strategy';
 import { ensure } from './util/ensure';
-import { NumberNode, numberNode } from './core/nodes/data-nodes';
+import { numberNode } from './core/nodes/data-nodes';
 import { makeEdge } from './core/nodes/edge';
 import { SourceNode } from './core/nodes/code-nodes';
 import { id } from './util/id';
@@ -123,7 +123,10 @@ const expandDataElements = (graph: Graph): Graph =>
             });
             return [
               [...elems[0], n],
-              [...elems[1], makeEdge(n.id, node.id, 'out', uniform.name)],
+              [
+                ...elems[1],
+                makeEdge(n.id, node.id, 'out', uniform.name, uniform.type),
+              ],
             ];
           }
           return elems;
@@ -1047,6 +1050,7 @@ const Editor: React.FC = () => {
                 {'stage' in activeShader
                   ? activeShader.stage
                   : activeShader.type}
+                )
               </Tab>
             </TabGroup>
             <TabPanels>
@@ -1337,34 +1341,5 @@ const WithProvider = () => (
     </Hoisty>
   </ReactFlowProvider>
 );
-
-/*
-.concat(
-  flowElements.nodes.find((n) => n.data.label === 'Fireball')
-    ? {
-        id: '1233',
-        source: ensure(
-          flowElements.nodes.find(
-            (n) =>
-              n.data.label === 'Fireball' &&
-              n.data.stage === 'fragment'
-          )
-        ).id,
-        target: ensure(
-          flowElements.nodes.find(
-            (n) =>
-              n.data.label === 'Fireball' &&
-              n.data.stage === 'vertex'
-          )
-        ).id,
-        sourceHandle: 'from',
-        targetHandle: 'to',
-        type: 'straight',
-        animated: true,
-        className: 'next-stage-edge'
-      }
-    : []
-)
-*/
 
 export default WithProvider;

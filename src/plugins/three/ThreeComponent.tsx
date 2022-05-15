@@ -268,7 +268,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         value: new three.TextureLoader().load('/contrast-noise.png'),
       },
 
-      // todo: why no reflecton? missing other uniofrms for envmap?
       flipEnvMap: { value: -1 },
       envMapIntensity: { value: 1.0 },
       transmission: { value: 0.5 },

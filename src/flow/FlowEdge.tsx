@@ -5,7 +5,7 @@ import {
   // getEdgeCenter,
   // getMarkerEnd,
 } from 'react-flow-renderer';
-import { EdgeType } from '../core/graph';
+import { EdgeType } from '../core/nodes/edge';
 
 export type LinkEdgeData = {
   type: 'link';

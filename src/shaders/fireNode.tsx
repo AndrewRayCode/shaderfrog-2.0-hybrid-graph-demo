@@ -1,4 +1,6 @@
-import { sourceNode } from '../core/node';
+import { numberData } from '../core/nodes/data-nodes';
+import { sourceNode } from '../core/nodes/engine-node';
+import { uniformStrategy } from '../core/strategy';
 
 const fireFrag = (id: string) =>
   sourceNode(
@@ -37,7 +39,19 @@ const fireVert = (id: string, nextStageNodeId?: string) =>
   sourceNode(
     id,
     'Fireball',
-    { version: 2, preprocess: true, strategies: [] },
+    {
+      version: 2,
+      preprocess: true,
+      strategies: [uniformStrategy()],
+
+      uniforms: [
+        // { name: 'tExplosion', type: 'sampler2D', value: 'image' },
+        numberData('fireSpeed', '0.6'),
+        numberData('pulseHeight', '0.1'),
+        numberData('displacementHeight', '0.6'),
+        numberData('turbulenceDetail', '0.8'),
+      ],
+    },
     `
     uniform mat4 modelMatrix;
     uniform mat4 modelViewMatrix;

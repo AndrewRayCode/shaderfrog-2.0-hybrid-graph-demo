@@ -1,14 +1,13 @@
-import { EngineNodeType } from './engine';
+import { EngineNodeType } from '../engine';
+import { NodeType, ShaderStage } from '../graph';
 import {
-  BinaryNode,
-  CodeNode,
-  DataNode,
-  GraphNode,
-  NodeConfig,
-  NodeType,
-  ShaderStage,
-} from './graph';
-import { StrategyType } from './strategy';
+  assignemntToStrategy,
+  namedAttributeStrategy,
+  texture2DStrategy,
+  uniformStrategy,
+  variableStrategy,
+} from '../strategy';
+import { BinaryNode, CodeNode, NodeConfig } from './code-nodes';
 
 // three last in chain: return gl_position right vec4
 // three not last in chain: return returnRight
@@ -40,15 +39,6 @@ import { StrategyType } from './strategy';
  * where nodes like output/phong/physical are all configured at the
  * implementation level. "phong" shouldn't be in the core
  */
-
-export const numberNode = (id: string, value: number): DataNode => ({
-  id,
-  type: 'number',
-  value,
-  name: 'number',
-  inputs: [],
-  outputs: [],
-});
 
 export const sourceNode = (
   id: string,
@@ -92,12 +82,9 @@ export const outputNode = (
             gl_Position: 'position',
           },
     strategies: [
-      {
-        type: StrategyType.ASSIGNMENT_TO,
-        config: {
-          assignTo: stage === 'fragment' ? 'frogFragOut' : 'gl_Position',
-        },
-      },
+      assignemntToStrategy(
+        stage === 'fragment' ? 'frogFragOut' : 'gl_Position'
+      ),
     ],
   },
   inputs: [],
@@ -140,12 +127,7 @@ export const expressionNode = (
     version: 3,
     preprocess: false,
     inputMapping: {},
-    strategies: [
-      {
-        type: StrategyType.VARIABLE,
-        config: {},
-      },
-    ],
+    strategies: [variableStrategy()],
   },
   inputs: [],
   outputs: ['out'],
@@ -171,18 +153,8 @@ export const phongNode = (
       },
       strategies:
         stage === 'fragment'
-          ? [
-              {
-                type: StrategyType.TEXTURE_2D,
-                config: {},
-              },
-            ]
-          : [
-              {
-                type: StrategyType.NAMED_ATTRIBUTE,
-                config: { attributeName: 'position' },
-              },
-            ],
+          ? [texture2DStrategy()]
+          : [namedAttributeStrategy('position')],
     },
     inputs: [],
     outputs: ['out'],
@@ -211,19 +183,10 @@ export const physicalNode = (
       },
       // TODO: The strategies for node need to be engine specific :O
       strategies: [
-        {
-          type: StrategyType.UNIFORM,
-          config: {},
-        },
+        uniformStrategy(),
         stage === 'fragment'
-          ? {
-              type: StrategyType.TEXTURE_2D,
-              config: {},
-            }
-          : {
-              type: StrategyType.NAMED_ATTRIBUTE,
-              config: { attributeName: 'position' },
-            },
+          ? texture2DStrategy()
+          : namedAttributeStrategy('position'),
       ],
     },
     inputs: [],
@@ -251,12 +214,7 @@ export const toonNode = (
         map: 'albedo',
         normalMap: 'normal',
       },
-      strategies: [
-        {
-          type: StrategyType.TEXTURE_2D,
-          config: {},
-        },
-      ],
+      strategies: [texture2DStrategy()],
     },
     inputs: [],
     outputs: ['out'],

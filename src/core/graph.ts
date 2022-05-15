@@ -28,6 +28,15 @@ import {
 } from '../ast/manipulate';
 import { ensure } from '../util/ensure';
 import { applyStrategy, Strategy } from './strategy';
+import { DataNode } from './nodes/data-nodes';
+import { Edge } from './nodes/edge';
+import {
+  BinaryNode,
+  CodeNode,
+  mapInputs,
+  NodeInputs,
+  SourceNode,
+} from './nodes/code-nodes';
 
 export type ShaderStage = 'fragment' | 'vertex';
 
@@ -37,94 +46,7 @@ export enum NodeType {
   SOURCE = 'source',
 }
 
-type Vec = 'vec2' | 'vec3' | 'vec4';
-type Mat =
-  | 'mat2'
-  | 'mat3'
-  | 'mat4'
-  | 'mat2x2'
-  | 'mat2x3'
-  | 'mat2x4'
-  | 'mat3x2'
-  | 'mat3x3'
-  | 'mat3x4'
-  | 'mat4x2'
-  | 'mat4x3'
-  | 'mat4x4';
-export type UniformType = Vec | Mat | 'sampler2D' | 'number' | 'array';
-
-// export type UniformConfig = {
-//   displayName: string;
-//   type: UniformType;
-//   value: any;
-// };
-
-export type InputMapping = { [original: string]: string };
-export type NodeConfig = {
-  version: 2 | 3;
-  preprocess: boolean;
-  inputMapping?: InputMapping;
-  strategies: Strategy[];
-  // uniforms: UniformConfig[];
-};
-
-export interface CoreNode {
-  id: string;
-  name: string;
-  type: string;
-  inputs: Array<Object>;
-  outputs: Array<Object>;
-}
-
-export interface CodeNode extends CoreNode {
-  config: NodeConfig;
-  source: string;
-  expressionOnly?: boolean;
-  stage?: ShaderStage;
-  biStage?: boolean;
-  nextStageNodeId?: string;
-  originalEngine?: string;
-}
-
-export interface BinaryNode extends CodeNode {
-  operator: string;
-}
-
-export type SourceNode = BinaryNode | CodeNode;
-
-export interface NumberNode extends CoreNode {
-  value: number;
-  type: 'number';
-  range?: [number, number];
-  stepper?: number;
-}
-
-export const isDataNode = (node: GraphNode): node is DataNode =>
-  'value' in node;
-
-export const isSourceNode = (node: GraphNode): node is SourceNode =>
-  !isDataNode(node);
-
-export type DataNode = NumberNode;
 export type GraphNode = SourceNode | DataNode;
-
-export type GraphDataType = 'number';
-export type EdgeType = ShaderStage | GraphDataType;
-export type Edge = {
-  from: string;
-  to: string;
-  output: string;
-  input: string;
-  type?: EdgeType;
-};
-
-export const makeEdge = (
-  from: string,
-  to: string,
-  output: string,
-  input: string,
-  type?: EdgeType
-): Edge => ({ from, to, output, input, type });
 
 export interface Graph {
   nodes: GraphNode[];
@@ -136,19 +58,11 @@ export const alphabet = 'abcdefghijklmnopqrstuvwxyz';
 export type NodeFiller = (node: SourceNode, ast: AstNode) => AstNode | void;
 export const emptyFiller: NodeFiller = () => {};
 
-export type NodeInputs = Record<string, (a: AstNode) => void>;
+export const isDataNode = (node: GraphNode): node is DataNode =>
+  'value' in node;
 
-export const mapInputs = (
-  mappings: InputMapping,
-  inputs: NodeInputs
-): NodeInputs =>
-  Object.entries(inputs).reduce<NodeInputs>(
-    (acc, [name, fn]) => ({
-      ...acc,
-      [mappings[name] || name]: fn,
-    }),
-    {}
-  );
+export const isSourceNode = (node: GraphNode): node is SourceNode =>
+  !isDataNode(node);
 
 export const MAGIC_OUTPUT_STMTS = 'mainStmts';
 

@@ -1,14 +1,9 @@
 import { generate } from '@shaderfrog/glsl-parser';
 import { visit, AstNode, NodeVisitors } from '@shaderfrog/glsl-parser/dist/ast';
+import { Scope, ScopeIndex } from '@shaderfrog/glsl-parser/dist/parser/parser';
 import { findAssignmentTo } from '../ast/manipulate';
-import {
-  GraphNode,
-  InputMapping,
-  mangleName,
-  NodeContext,
-  NodeInputs,
-  SourceNode,
-} from './graph';
+import { GraphNode, mangleName, NodeContext } from './graph';
+import { NodeInputs, SourceNode } from './nodes/code-nodes';
 
 export enum StrategyType {
   VARIABLE = 'Variable Names',
@@ -29,21 +24,49 @@ export interface AssignemntToStrategy extends BaseStrategy {
     assignTo: string;
   };
 }
+export const assignemntToStrategy = (
+  assignTo: string
+): AssignemntToStrategy => ({
+  type: StrategyType.ASSIGNMENT_TO,
+  config: { assignTo },
+});
+
 export interface Texture2DStrategy extends BaseStrategy {
   type: StrategyType.TEXTURE_2D;
 }
+export const texture2DStrategy = (): Texture2DStrategy => ({
+  type: StrategyType.TEXTURE_2D,
+  config: {},
+});
+
 export interface UniformStrategy extends BaseStrategy {
   type: StrategyType.UNIFORM;
 }
+export const uniformStrategy = (): UniformStrategy => ({
+  type: StrategyType.UNIFORM,
+  config: {},
+});
+
+export const namedAttributeStrategy = (
+  attributeName: string
+): NamedAttributeStrategy => ({
+  type: StrategyType.NAMED_ATTRIBUTE,
+  config: { attributeName },
+});
 export interface NamedAttributeStrategy extends BaseStrategy {
   type: StrategyType.NAMED_ATTRIBUTE;
   config: {
     attributeName: string;
   };
 }
+
 export interface VariableStrategy extends BaseStrategy {
   type: StrategyType.VARIABLE;
 }
+export const variableStrategy = (): VariableStrategy => ({
+  type: StrategyType.VARIABLE,
+  config: {},
+});
 
 export type Strategy =
   | UniformStrategy
@@ -231,7 +254,12 @@ export const strategyRunners: Strategies<NodeContext> = {
   [StrategyType.VARIABLE]: (node, ast, strategy) => {
     // const cast = strategy as VariableStrategy;
     console.log('running start', ast);
-    return Object.entries(ast.scopes[0].bindings).reduce(
+    return Object.entries(
+      (ast.scopes as Scope[]).reduce<ScopeIndex>(
+        (acc, scope) => ({ ...acc, ...scope.bindings }),
+        {}
+      )
+    ).reduce(
       (acc, [name, binding]: [string, any]) => ({
         ...acc,
         ...(binding.references as AstNode[]).reduce<NodeInputs>(
@@ -266,15 +294,3 @@ export const strategyRunners: Strategies<NodeContext> = {
     );
   },
 };
-
-export const mapInputs = (
-  mappings: InputMapping,
-  inputs: NodeInputs
-): NodeInputs =>
-  Object.entries(inputs).reduce<NodeInputs>(
-    (acc, [name, fn]) => ({
-      ...acc,
-      [mappings[name] || name]: fn,
-    }),
-    {}
-  );

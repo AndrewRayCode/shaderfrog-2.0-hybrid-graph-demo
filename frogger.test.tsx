@@ -10,17 +10,9 @@ import {
   StrategyType,
 } from './src/core/strategy';
 import * as graphModule from './src/core/graph';
-import {
-  NodeType,
-  Graph,
-  GraphNode,
-  evaluateNode,
-  DataNode,
-  makeEdge,
-  SourceNode,
-} from './src/core/graph';
+import { Graph, evaluateNode } from './src/core/graph';
 import { shaderSectionsToAst } from './src/ast/shader-sections';
-import { outputNode, addNode, sourceNode, numberNode } from './src/core/node';
+import { addNode } from './src/core/nodes/engine-node';
 import {
   makeExpression,
   returnGlPositionVec3Right,
@@ -31,6 +23,9 @@ import {
   findShaderSections,
 } from './src/ast/shader-sections';
 import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
+import { numberNode } from './src/core/nodes/data-nodes';
+import { makeEdge } from './src/core/nodes/edge';
+import { SourceNode } from './src/core/nodes/code-nodes';
 
 const inspect = (thing: any): void =>
   console.log(util.inspect(thing, false, null, true));
@@ -62,9 +57,9 @@ describe('evaluateNode()', () => {
   it('should do the thing', () => {
     const finalAdd = addNode(id());
     const add2 = addNode(id());
-    const num1 = numberNode(id(), 3);
-    const num2 = numberNode(id(), 5);
-    const num3 = numberNode(id(), 7);
+    const num1 = numberNode(id(), 'number', '3');
+    const num2 = numberNode(id(), 'number', '5');
+    const num3 = numberNode(id(), 'number', '7');
     const graph: Graph = {
       nodes: [num1, num2, num3, finalAdd, add2],
       edges: [

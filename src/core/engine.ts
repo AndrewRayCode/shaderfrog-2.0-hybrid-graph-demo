@@ -1,10 +1,11 @@
 import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
 import { AstNode } from '@shaderfrog/glsl-parser/dist/ast';
 import { MergeOptions } from '../ast/shader-sections';
-import { Graph, NodeInputs, NodeParser } from './graph';
+import { Graph, NodeParser } from './graph';
 import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor';
 import { generate, parser } from '@shaderfrog/glsl-parser';
 import { ShaderStage, GraphNode, NodeType } from './graph';
+import { NodeInputs } from './nodes/code-nodes';
 
 export enum EngineNodeType {
   output = 'output',

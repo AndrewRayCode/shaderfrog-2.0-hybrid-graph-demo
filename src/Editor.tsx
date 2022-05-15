@@ -35,18 +35,13 @@ import {
   compileGraph,
   computeAllContexts,
   computeGraphContext,
-  NodeInputs,
   MAGIC_OUTPUT_STMTS,
   NodeType,
   alphabet,
-  NumberNode,
   isDataNode,
   isSourceNode,
-  SourceNode,
-  makeEdge,
-  Edge as GraphEdge,
-  EdgeType,
 } from './core/graph';
+import { Edge as GraphEdge, EdgeType } from './core/nodes/edge';
 import {
   outputNode,
   addNode,
@@ -55,7 +50,7 @@ import {
   physicalNode,
   toonNode,
   expressionNode,
-} from './core/node';
+} from './core/nodes/engine-node';
 import {
   Engine,
   EngineContext,
@@ -107,18 +102,42 @@ import { UICompileGraphResult } from './uICompileGraphResult';
 import { useLocalStorage } from './useLocalStorage';
 import { Strategy, StrategyType } from './core/strategy';
 import { ensure } from './util/ensure';
+import { NumberNode, numberNode } from './core/nodes/data-nodes';
+import { makeEdge } from './core/nodes/edge';
+import { SourceNode } from './core/nodes/code-nodes';
+import { id } from './util/id';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
-const numberNode = (id: string, name: string): NumberNode => ({
-  id,
-  name,
-  type: 'number',
-  value: 1,
-  range: [0, 1],
-  inputs: [],
-  outputs: ['out'],
-});
+const expandDataElements = (graph: Graph): Graph =>
+  graph.nodes.reduce<Graph>((updated, node) => {
+    if ('config' in node && node.config.uniforms) {
+      const newElements = node.config.uniforms.reduce<
+        [GraphNode[], GraphEdge[]]
+      >(
+        (elems, uniform) => {
+          if (uniform.type === 'number') {
+            const n = numberNode(id(), 'number', uniform.value, {
+              range: uniform.range,
+              stepper: uniform.stepper,
+            });
+            return [
+              [...elems[0], n],
+              [...elems[1], makeEdge(n.id, node.id, 'out', uniform.name)],
+            ];
+          }
+          return elems;
+        },
+        [[], []]
+      );
+
+      return {
+        nodes: [...updated.nodes, ...newElements[0]],
+        edges: [...updated.edges, ...newElements[1]],
+      };
+    }
+    return updated;
+  }, graph);
 
 const useFlef = () => {
   const [flowElements, setFlowElements, resetFlowElements] =
@@ -128,8 +147,6 @@ const useFlef = () => {
     });
 
   const [graph, setGraph, resetGraph] = useLocalStorage<Graph>('graph', () => {
-    let counter = 0;
-    const id = () => '' + counter++;
     const expression = expressionNode(id(), 'Expression', 'a + b / c');
     const outputF = outputNode(id(), 'Output', 'fragment');
     const outputV = outputNode(id(), 'Output', 'vertex', outputF.id);
@@ -155,93 +172,108 @@ const useFlef = () => {
     const hellOnEarthF = hellOnEarthFrag(id());
     const hellOnEarthV = hellOnEarthVert(id(), hellOnEarthF.id);
     const perlinCloudsF = perlinCloudsFNode(id());
-    const num1 = numberNode(id(), 'number');
-    return {
-      nodes: [
-        expression,
-        outputF,
-        outputV,
-        phongF,
-        phongV,
-        num1,
-        physicalF,
-        physicalV,
-        // toonF,
-        // toonV,
-        fluidF,
-        staticShader,
-        hellOnEarthF,
-        hellOnEarthV,
-        perlinCloudsF,
-        purpleNoise,
-        heatShaderF,
-        heatShaderV,
-        fireF,
-        fireV,
-        add,
-        add2,
-        multiply,
-        outlineF,
-        outlineV,
-        solidColorF,
-      ],
-      edges: [
-        // TODO: Try SDF image shader https://www.youtube.com/watch?v=1b5hIMqz_wM
-        // TODO: Put other images in the graph like the toon step shader
-        // TODO: Could be cool to try outline shader https://shaderfrog.com/app/view/4876
-        // TODO: Have uniforms added per shader in the graph
-        // TODO: AnyCode node to try manipulating above shader for normal map
-        // TODO: Make uniforms like map: change the uniforms
-        // TODO: Here we hardcode "out" for the inputs which needs to line up with
-        //       the custom handles.
-        // TODO: Add more syntax highlighting to the GLSL editor, look at vscode
-        //       plugin? https://github.com/stef-levesque/vscode-shader/tree/master/syntaxes
-        // TODO: Babylon.js light doesn't seem to animate
-        // TODO: Babylon.js shader doesn't seem to get re-applied until I leave
-        //       and come back to the scene
-        // TODO: Opposite of above, dragging in solid color to albedo, leaving and
-        //       coming back to scene, shader is black
-        // TODO: Adding shader inputs like bumpTexture should not require
-        //       duplicating that manually into babylengine
-        // TODO: Make nodes addable/removable in the graph
-        // TODO: Allow for a source expression only node that has a normal-map-ifier
-        // TODO: Enable backfilling of uv param?
-        // TODO: Allow for shader being duplicated in a main fn to allow it to
-        //       be both normal map and albdeo
-        makeEdge(physicalV.id, outputV.id, 'out', 'position', 'vertex'),
-        makeEdge(physicalF.id, outputF.id, 'out', 'color', 'fragment'),
-        // {
-        //   from: hellOnEarthF.id,
-        //   to: physicalF.id,
-        //   output: 'out',
-        //   input: 'normal',
-        //   stage: 'fragment',
-        // },
-        makeEdge(num1.id, solidColorF.id, 'out', 'blorf', 'number'),
-        makeEdge(solidColorF.id, physicalF.id, 'out', 'albedo', 'fragment'),
-        // {
-        //   from: solidColorF.id,
-        //   to: add.id,
-        //   output: 'out',
-        //   input: 'b',
-        //   stage: 'fragment',
-        // ),
-        // {
-        //   from: heatShaderF.id,
-        //   to: add.id,
-        //   output: 'out',
-        //   input: 'b',
-        //   stage: 'fragment',
-        // },
-        // {
-        //   from: heatShaderV.id,
-        //   to: phongV.id,
-        //   output: 'out',
-        //   input: 'position',
-        //   stage: 'vertex',
-        // },
-      ],
-    };
+    const num1 = numberNode(id(), 'number', '1');
+    return (
+      expandDataElements({
+        nodes: [fireF, fireV, outputF, outputV],
+        edges: [
+          makeEdge(fireF.id, outputF.id, 'out', 'color', 'fragment'),
+          makeEdge(fireV.id, outputV.id, 'out', 'position', 'vertex'),
+        ],
+      }) || {
+        nodes: [
+          expression,
+          outputF,
+          outputV,
+          phongF,
+          phongV,
+          num1,
+          physicalF,
+          physicalV,
+          // toonF,
+          // toonV,
+          fluidF,
+          staticShader,
+          hellOnEarthF,
+          hellOnEarthV,
+          perlinCloudsF,
+          purpleNoise,
+          heatShaderF,
+          heatShaderV,
+          fireF,
+          fireV,
+          add,
+          add2,
+          multiply,
+          outlineF,
+          outlineV,
+          solidColorF,
+        ],
+        edges: [
+          // TODO: Try SDF image shader https://www.youtube.com/watch?v=1b5hIMqz_wM
+          // TODO: Put other images in the graph like the toon step shader
+          // TODO: Could be cool to try outline shader https://shaderfrog.com/app/view/4876
+          // TODO: Have uniforms added per shader in the graph
+          // TODO: AnyCode node to try manipulating above shader for normal map
+          // TODO: Make uniforms like map: change the uniforms
+          // TODO: Here we hardcode "out" for the inputs which needs to line up with
+          //       the custom handles.
+          // TODO: Add more syntax highlighting to the GLSL editor, look at vscode
+          //       plugin? https://github.com/stef-levesque/vscode-shader/tree/master/syntaxes
+          // TODO: Babylon.js light doesn't seem to animate
+          // TODO: Babylon.js shader doesn't seem to get re-applied until I leave
+          //       and come back to the scene
+          // TODO: Opposite of above, dragging in solid color to albedo, leaving and
+          //       coming back to scene, shader is black
+          // TODO: Adding shader inputs like bumpTexture should not require
+          //       duplicating that manually into babylengine
+          // TODO: Make nodes addable/removable in the graph
+          // TODO: Allow for a source expression only node that has a normal-map-ifier
+          // TODO: Enable backfilling of uv param?
+          // TODO: Allow for shader being duplicated in a main fn to allow it to
+          //       be both normal map and albdeo
+          // TODO: In a source node, if two functions declare a variable, the
+          //       current "Variable" strategy will only pick the second one as
+          //       an input.
+          // TODO: The variable strategy needs to handle multiple variable
+          //       replacements of the same name (looping over references), and
+          //       maybe handle if that variable is declared in the program by
+          //       removing the declaration line
+          makeEdge(physicalV.id, outputV.id, 'out', 'position', 'vertex'),
+          makeEdge(physicalF.id, outputF.id, 'out', 'color', 'fragment'),
+          // {
+          //   from: hellOnEarthF.id,
+          //   to: physicalF.id,
+          //   output: 'out',
+          //   input: 'normal',
+          //   stage: 'fragment',
+          // },
+          makeEdge(num1.id, solidColorF.id, 'out', 'blorf', 'number'),
+          makeEdge(solidColorF.id, physicalF.id, 'out', 'albedo', 'fragment'),
+          // {
+          //   from: solidColorF.id,
+          //   to: add.id,
+          //   output: 'out',
+          //   input: 'b',
+          //   stage: 'fragment',
+          // ),
+          // {
+          //   from: heatShaderF.id,
+          //   to: add.id,
+          //   output: 'out',
+          //   input: 'b',
+          //   stage: 'fragment',
+          // },
+          // {
+          //   from: heatShaderV.id,
+          //   to: phongV.id,
+          //   output: 'out',
+          //   input: 'position',
+          //   stage: 'vertex',
+          // },
+        ],
+      }
+    );
   });
 
   return {

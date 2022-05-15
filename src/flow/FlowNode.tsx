@@ -7,9 +7,10 @@ import {
   Edge as FlowEdge,
   HandleProps,
 } from 'react-flow-renderer';
-import { GraphDataType, ShaderStage } from '../core/graph';
+import { ShaderStage } from '../core/graph';
 
 import { useUpdateNodeInternals } from 'react-flow-renderer';
+import { GraphDataType } from '../core/nodes/data-nodes';
 
 const handleTop = 45;
 const textHeight = 10;

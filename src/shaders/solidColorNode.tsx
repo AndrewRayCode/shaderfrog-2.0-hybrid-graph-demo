@@ -1,5 +1,5 @@
-import { StrategyType } from '../core/strategy';
-import { sourceNode } from '../core/node';
+import { texture2DStrategy, uniformStrategy } from '../core/strategy';
+import { sourceNode } from '../core/nodes/engine-node';
 
 const solidColorNode = (id: string) =>
   sourceNode(
@@ -8,16 +8,7 @@ const solidColorNode = (id: string) =>
     {
       version: 2,
       preprocess: true,
-      strategies: [
-        {
-          type: StrategyType.UNIFORM,
-          config: {},
-        },
-        {
-          type: StrategyType.TEXTURE_2D,
-          config: {},
-        },
-      ],
+      strategies: [uniformStrategy(), texture2DStrategy()],
     },
     `precision highp float;
 precision highp int;

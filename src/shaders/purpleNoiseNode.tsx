@@ -1,4 +1,4 @@
-import { sourceNode } from '../core/node';
+import { sourceNode } from '../core/nodes/engine-node';
 
 const purpleNoiseNode = (id: string) =>
   sourceNode(

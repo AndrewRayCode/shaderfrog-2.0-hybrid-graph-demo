@@ -1,5 +1,5 @@
-import { sourceNode } from '../core/node';
-import { StrategyType } from '../core/strategy';
+import { sourceNode } from '../core/nodes/engine-node';
+import { texture2DStrategy } from '../core/strategy';
 
 const perlinCloudsF = (id: string) =>
   sourceNode(
@@ -8,12 +8,7 @@ const perlinCloudsF = (id: string) =>
     {
       version: 2,
       preprocess: true,
-      strategies: [
-        {
-          type: StrategyType.TEXTURE_2D,
-          config: {},
-        },
-      ],
+      strategies: [texture2DStrategy()],
     },
     `precision highp float;
 precision highp int;

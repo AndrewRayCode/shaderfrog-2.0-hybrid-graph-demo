@@ -1,5 +1,5 @@
 import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
-import { NodeParser, NodeType, SourceNode } from '../../core/graph';
+import { NodeParser, NodeType } from '../../core/graph';
 import importers from './importers';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 
@@ -10,6 +10,7 @@ import {
   returnGlPositionHardCoded,
   returnGlPositionVec3Right,
 } from '../../ast/manipulate';
+import { SourceNode } from '../../core/nodes/code-nodes';
 
 export type RuntimeContext = {
   scene: any;

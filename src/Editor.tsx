@@ -455,9 +455,12 @@ const setBiStages = (flowElements: FlowElements) => {
 // Given the compiled nodes in the engine context, for a node id, produce the
 // inputs and outputs
 const inputsFromCtx = (ctx: EngineContext<any>, id: string) =>
-  Object.keys(ctx.nodes[id]?.inputs || []).filter(
-    (name) => name !== MAGIC_OUTPUT_STMTS
-  );
+  (ctx.nodes[id]?.inputs || [])
+    .filter(({ name }) => name !== MAGIC_OUTPUT_STMTS)
+    .map((input) => ({
+      name: input.name,
+      validTarget: false,
+    }));
 
 const initializeFlowElementsFromGraph = (
   graph: Graph,
@@ -479,10 +482,7 @@ const initializeFlowElementsFromGraph = (
           stage: node.stage,
           active: false,
           biStage: node.biStage || false,
-          inputs: inputsFromCtx(ctx, node.id).map((name) => ({
-            name,
-            validTarget: false,
-          })),
+          inputs: inputsFromCtx(ctx, node.id),
           outputs: node.outputs.map((o) => ({
             validTarget: false,
             name: '' + o,
@@ -493,10 +493,7 @@ const initializeFlowElementsFromGraph = (
           type: node.type,
           value: node.value,
           onChange,
-          inputs: inputsFromCtx(ctx, node.id).map((name) => ({
-            name,
-            validTarget: false,
-          })),
+          inputs: inputsFromCtx(ctx, node.id),
           outputs: node.outputs.map((o) => ({
             validTarget: false,
             name: '' + o,
@@ -667,10 +664,7 @@ const Editor: React.FC = () => {
             data: {
               ...node.data,
               active: compileResult.activeNodeIds.has(node.id),
-              inputs: inputsFromCtx(ctx, node.id).map((name) => ({
-                validTarget: false,
-                name,
-              })),
+              inputs: inputsFromCtx(ctx, node.id),
             },
           };
         });

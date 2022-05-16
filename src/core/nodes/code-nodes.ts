@@ -4,19 +4,25 @@ import { Strategy } from '../strategy';
 import { DataType } from './data-nodes';
 import { CoreNode } from './node';
 
-export type NodeInputs = Record<string, (a: AstNode) => void>;
+export type InputCategory = 'data' | 'code';
+export type NodeInput = {
+  name: string;
+  id: string;
+  category: InputCategory;
+  // I don't like filler being on the *data* produced by the input finders.
+  // Later, look into making a separate filler cache object, by ID or something
+  filler: (a: AstNode) => void;
+};
+// export type NodeInputs = Record<string, (a: AstNode) => void>;
 
 export const mapInputs = (
   mappings: InputMapping,
-  inputs: NodeInputs
-): NodeInputs =>
-  Object.entries(inputs).reduce<NodeInputs>(
-    (acc, [name, fn]) => ({
-      ...acc,
-      [mappings[name] || name]: fn,
-    }),
-    {}
-  );
+  inputs: NodeInput[]
+): NodeInput[] =>
+  inputs.map(({ name, ...input }) => ({
+    ...input,
+    name: mappings[name] || name,
+  }));
 
 export type InputMapping = { [original: string]: string };
 export type NodeConfig = {

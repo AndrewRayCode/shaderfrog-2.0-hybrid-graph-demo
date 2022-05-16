@@ -152,16 +152,16 @@ void main() {
     );
 
     // It should find uniforms with simple types, excluding sampler2D
-    expect(Object.keys(fillers)).toEqual([
+    expect(fillers.map(({ name }) => name)).toEqual([
       'input',
       'output',
       'other',
       'zenput',
     ]);
 
-    fillers['input'](makeExpression('a'));
-    fillers['output'](makeExpression('b'));
-    fillers['zenput'](makeExpression('c'));
+    fillers.find(({ name }) => name === 'input')?.filler(makeExpression('a'));
+    fillers.find(({ name }) => name === 'output')?.filler(makeExpression('b'));
+    fillers.find(({ name }) => name === 'zenput')?.filler(makeExpression('c'));
     const result = generate(ast);
 
     // Expect the filling of references happened
@@ -186,13 +186,11 @@ void main() {
   vec4 computed = texture2D(noiseImage, uvPow * 1.0);
 }`);
     expect(
-      Object.keys(
-        applyStrategy(
-          { type: StrategyType.TEXTURE_2D, config: {} },
-          {} as SourceNode,
-          ast
-        )
-      )
+      applyStrategy(
+        { type: StrategyType.TEXTURE_2D, config: {} },
+        {} as SourceNode,
+        ast
+      ).map(({ name }) => name)
     ).toEqual(['noiseImage']);
   });
 
@@ -203,13 +201,11 @@ void main() {
   computed += texture2D(noiseImage, uvPow * 2.0);
 }`);
     expect(
-      Object.keys(
-        applyStrategy(
-          { type: StrategyType.TEXTURE_2D, config: {} },
-          {} as SourceNode,
-          ast
-        )
-      )
+      applyStrategy(
+        { type: StrategyType.TEXTURE_2D, config: {} },
+        {} as SourceNode,
+        ast
+      ).map(({ name }) => name)
     ).toEqual(['noiseImage_0', 'noiseImage_1']);
   });
 });

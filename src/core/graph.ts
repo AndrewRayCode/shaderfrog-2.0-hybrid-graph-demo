@@ -34,7 +34,7 @@ import {
   BinaryNode,
   CodeNode,
   mapInputs,
-  NodeInputs,
+  NodeInput,
   SourceNode,
 } from './nodes/code-nodes';
 
@@ -71,7 +71,7 @@ export type NodeContext = {
   source?: string;
   // Inputs are determined at parse time and should probably be in the graph,
   // not here on the runtime context for the node
-  inputs?: NodeInputs;
+  inputs?: NodeInput[];
   id?: string;
   name?: string;
 };
@@ -95,7 +95,7 @@ export type FindInputs = (
   ast: AstNode,
   nodeContext: NodeContext,
   inputEdges: Edge[]
-) => NodeInputs;
+) => NodeInput[];
 
 export type Evaluator = (node: GraphNode) => any;
 export type Evaluate = (
@@ -207,14 +207,9 @@ export const coreParsers: CoreParser = {
       return ast;
     },
     findInputs: (engineContext, node, ast) => {
-      const inputs = node.config.strategies.reduce<NodeInputs>(
-        (strategies, strategy) => ({
-          ...strategies,
-          ...applyStrategy(strategy, node, ast),
-        }),
-        {}
+      return node.config.strategies.flatMap<NodeInput>((strategy) =>
+        applyStrategy(strategy, node, ast)
       );
-      return inputs;
     },
     produceFiller: (node, ast) => {
       return node.expressionOnly
@@ -229,22 +224,21 @@ export const coreParsers: CoreParser = {
       return parser.parse(node.source);
     },
     findInputs: (engineContext, node, ast) => {
-      return node.config.strategies.reduce<NodeInputs>(
-        (strategies, strategy) => {
-          return {
-            ...strategies,
-            ...applyStrategy(strategy, node, ast),
-          };
-        },
-        // Magic special input on output node only
+      return [
+        ...node.config.strategies.flatMap<NodeInput>((strategy) =>
+          applyStrategy(strategy, node, ast)
+        ),
         {
-          [MAGIC_OUTPUT_STMTS]: (fillerAst: AstNode) => {
+          name: MAGIC_OUTPUT_STMTS,
+          id: MAGIC_OUTPUT_STMTS,
+          category: 'code',
+          filler: (fillerAst: AstNode) => {
             ast.program
               .find((stmt: AstNode) => stmt.type === 'function')
               .body.statements.unshift(makeFnStatement(generate(fillerAst)));
           },
-        }
-      );
+        },
+      ];
     },
     produceFiller: (node, ast) => {
       return makeExpression('impossible_call()');
@@ -273,11 +267,13 @@ export const coreParsers: CoreParser = {
     findInputs: (engineContext, node, ast, nodeContext, inputEdges) => {
       return new Array(Math.max(inputEdges.length + 1, 2))
         .fill(0)
-        .map((_, index) => alphabet.charAt(index))
-        .reduce(
-          (inputs, letter) => ({
-            ...inputs,
-            [letter]: (fillerAst: AstNode) => {
+        .map((_, index) => {
+          const letter = alphabet.charAt(index);
+          return {
+            name: letter,
+            category: 'code',
+            id: letter,
+            filler: (fillerAst: AstNode) => {
               let foundPath: Path | undefined;
               const visitors: NodeVisitors = {
                 identifier: {
@@ -301,9 +297,8 @@ export const coreParsers: CoreParser = {
                 nodeContext.ast = fillerAst;
               }
             },
-          }),
-          {}
-        );
+          };
+        });
     },
     produceFiller: (node, ast) => {
       return ast.program;
@@ -453,14 +448,20 @@ export const compileNode = <T>(
       if (!inputs) {
         throw new Error("I'm drunk and I think this case should be impossible");
       }
-      if (!(edge.input in inputs)) {
-        throw new Error(
-          `GraphNode "${node.name}" has no input ${
-            edge.input
-          }!\nAvailable:${Object.keys(inputs).join(', ')}`
-        );
-      }
-      inputs[edge.input](fillerAst);
+      // if (!(edge.input in inputs)) {
+      //   throw new Error(
+      //     `GraphNode "${node.name}" has no input ${
+      //       edge.input
+      //     }!\nAvailable:${Object.keys(inputs).join(', ')}`
+      //   );
+      // }
+
+      ensure(
+        inputs.find(({ name }) => name == edge.input),
+        `GraphNode "${node.name}" has no input ${
+          edge.input
+        }!\nAvailable:${Object.keys(inputs).join(', ')}`
+      ).filler(fillerAst);
       // console.log(generate(ast.program));
     });
 

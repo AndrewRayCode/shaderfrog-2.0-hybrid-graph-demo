@@ -5,7 +5,7 @@ import { Graph, NodeParser } from './graph';
 import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor';
 import { generate, parser } from '@shaderfrog/glsl-parser';
 import { ShaderStage, GraphNode, NodeType } from './graph';
-import { NodeInputs } from './nodes/code-nodes';
+import { NodeInput } from './nodes/code-nodes';
 
 export enum EngineNodeType {
   output = 'output',
@@ -31,7 +31,7 @@ export type NodeContext = {
   source?: string;
   // Inputs are determined at parse time and should probably be in the graph,
   // not here on the runtime context for the node
-  inputs?: NodeInputs;
+  inputs?: NodeInput[];
   id?: string;
   name?: string;
 };

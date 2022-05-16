@@ -1,12 +1,6 @@
 import * as BABYLON from 'babylonjs';
 import { Engine, EngineNodeType, EngineContext } from '../../core/engine';
-import {
-  nodeName,
-  GraphNode,
-  doesLinkThruShader,
-  NodeParser,
-  SourceNode,
-} from '../../core/graph';
+import { nodeName, doesLinkThruShader, NodeParser } from '../../core/graph';
 import importers from './importers';
 
 import {
@@ -15,6 +9,7 @@ import {
 } from '../../ast/manipulate';
 
 import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
+import { SourceNode } from '../../core/nodes/code-nodes';
 
 export type RuntimeContext = {
   scene: BABYLON.Scene;

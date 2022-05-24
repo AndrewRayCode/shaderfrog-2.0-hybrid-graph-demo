@@ -1,4 +1,4 @@
-import { CoreNode } from './node';
+import { CoreNode } from './core-node';
 
 type Vec = 'vec2' | 'vec3' | 'vec4';
 type Mat =

@@ -5,7 +5,7 @@ import { Graph, NodeParser } from './graph';
 import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor';
 import { generate, parser } from '@shaderfrog/glsl-parser';
 import { ShaderStage, GraphNode, NodeType } from './graph';
-import { NodeInput } from './nodes/code-nodes';
+import { NodeInput } from './nodes/core-node';
 
 export enum EngineNodeType {
   output = 'output',

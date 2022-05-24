@@ -2,27 +2,10 @@ import { AstNode } from '@shaderfrog/glsl-parser/dist/ast';
 import { ShaderStage } from '../graph';
 import { Strategy } from '../strategy';
 import { DataType } from './data-nodes';
-import { CoreNode } from './node';
+import { CoreNode, NodeInput } from './core-node';
 
-export type InputCategory = 'data' | 'code';
-export type NodeInput = {
-  name: string;
-  id: string;
-  category: InputCategory;
-  // I don't like filler being on the *data* produced by the input finders.
-  // Later, look into making a separate filler cache object, by ID or something
-  filler: (a: AstNode) => void;
-};
-// export type NodeInputs = Record<string, (a: AstNode) => void>;
-
-export const mapInputs = (
-  mappings: InputMapping,
-  inputs: NodeInput[]
-): NodeInput[] =>
-  inputs.map(({ name, ...input }) => ({
-    ...input,
-    name: mappings[name] || name,
-  }));
+export const mapInputName = (node: CodeNode, { name }: NodeInput): string =>
+  node.config?.inputMapping?.[name] || name;
 
 export type InputMapping = { [original: string]: string };
 export type NodeConfig = {

@@ -1,4 +1,5 @@
 import styles from '../pages/editor/editor.module.css';
+import debounce from 'lodash.debounce';
 
 import { SplitPane } from 'react-multi-split-pane';
 import cx from 'classnames';
@@ -56,6 +57,7 @@ import {
   EngineContext,
   convertToEngine,
   EngineNodeType,
+  NodeContext,
 } from './core/engine';
 import { shaderSectionsToAst } from './ast/shader-sections';
 
@@ -452,20 +454,21 @@ const setBiStages = (flowElements: FlowElements) => {
   };
 };
 
-// Given the compiled nodes in the engine context, for a node id, produce the
-// inputs and outputs
-const inputsFromCtx = (ctx: EngineContext<any>, id: string) =>
-  (ctx.nodes[id]?.inputs || [])
+const toFlowInputs = (node: GraphNode) =>
+  (node.inputs || [])
     .filter(({ name }) => name !== MAGIC_OUTPUT_STMTS)
     .map((input) => ({
+      id: input.id,
       name: input.name,
       validTarget: false,
+      category: input.category,
     }));
 
 const initializeFlowElementsFromGraph = (
   graph: Graph,
   ctx: EngineContext<any>,
-  onChange: any
+  onChange: any,
+  onToggle: any
 ): FlowElements => {
   let engines = 0;
   let maths = 0;
@@ -482,7 +485,8 @@ const initializeFlowElementsFromGraph = (
           stage: node.stage,
           active: false,
           biStage: node.biStage || false,
-          inputs: inputsFromCtx(ctx, node.id),
+          onToggle,
+          inputs: toFlowInputs(node),
           outputs: node.outputs.map((o) => ({
             validTarget: false,
             name: '' + o,
@@ -493,7 +497,7 @@ const initializeFlowElementsFromGraph = (
           type: node.type,
           value: node.value,
           onChange,
-          inputs: inputsFromCtx(ctx, node.id),
+          inputs: toFlowInputs(node),
           outputs: node.outputs.map((o) => ({
             validTarget: false,
             name: '' + o,
@@ -534,6 +538,57 @@ const initializeFlowElementsFromGraph = (
   );
 
   return setBiStages({ nodes, edges });
+};
+
+// Convert flow elements to graph
+const fromFlowToGraph = (graph: Graph, flowElements: FlowElements): Graph => {
+  graph.edges = flowElements.edges.map(
+    (edge: FlowEdge<FlowEdgeData>): GraphEdge => ({
+      from: edge.source,
+      to: edge.target,
+      output: 'out',
+      input: edge.targetHandle as string,
+      type: edge.data?.type,
+    })
+  );
+
+  const flowNodesById = flowElements.nodes.reduce<
+    Record<string, FlowNode<FlowNodeData>>
+  >((acc, node) => ({ ...acc, [node.id]: node }), {});
+
+  graph.nodes = graph.nodes.map((node) => {
+    const fromFlow = flowNodesById[node.id];
+    const {
+      data: { inputs: flowInputs },
+    } = flowNodesById[node.id];
+
+    return {
+      ...node,
+      inputs: node.inputs.map((i) => {
+        // mainStmts is hidden from the graph
+        if (i.name === MAGIC_OUTPUT_STMTS) {
+          return i;
+        }
+
+        const inputFromFlow = ensure(
+          flowInputs.find((f) => f.name === i.name),
+          `Flow Node ${node.name} has no input ${i.name}`
+        );
+        return {
+          ...i,
+          ...(inputFromFlow.category
+            ? { category: inputFromFlow.category }
+            : null),
+        };
+      }),
+      ...('value' in node
+        ? { value: (fromFlow.data as FlowNodeDataData).value }
+        : null),
+    };
+  });
+  console.log('new nodes', graph.nodes);
+
+  return graph;
 };
 
 const Editor: React.FC = () => {
@@ -588,6 +643,11 @@ const Editor: React.FC = () => {
   // flag is set, and read in a useEffect
   const [needsCompile, setNeedsCompile] = useState<boolean>(false);
 
+  const debouncedSetNeedsCompile = useMemo(
+    () => debounce(setNeedsCompile, 500),
+    []
+  );
+
   const [state, setState, extendState] = useAsyncExtendedState<{
     fragError: string | null;
     vertError: string | null;
@@ -629,22 +689,11 @@ const Editor: React.FC = () => {
       pauseCompile: boolean,
       flowElements: FlowElements
     ) => {
-      // Convert the flow edges into the graph edges, to reflect the latest
-      // user's changes
-      // @ts-ignore
-      graph.edges = flowElements.edges.map(
-        (edge: FlowEdge<FlowEdgeData>): GraphEdge => ({
-          from: edge.source,
-          to: edge.target,
-          output: 'out',
-          input: edge.targetHandle as string,
-          type: edge.data?.type,
-        })
-      );
+      const updatedGraph = fromFlowToGraph(graph, flowElements);
 
       setGuiMsg('Compiling!');
 
-      compileGraphAsync(graph, engine, ctx).then((compileResult) => {
+      compileGraphAsync(updatedGraph, engine, ctx).then((compileResult) => {
         setNeedsCompile(false);
         console.log('comple async complete!', { compileResult });
         setGuiMsg('');
@@ -657,14 +706,19 @@ const Editor: React.FC = () => {
         setOriginal(ctx.debuggingNonsense.fragmentSource);
         setOriginalVert(ctx.debuggingNonsense.vertexSource);
 
+        const byId = graph.nodes.reduce<Record<string, GraphNode>>(
+          (acc, node) => ({ ...acc, [node.id]: node }),
+          {}
+        );
+
         // Update the available inputs from the node after the compile
         const updatedNodes = flowElements.nodes.map((node) => {
           return {
             ...node,
+            inputs: toFlowInputs(byId[node.id]),
             data: {
               ...node.data,
               active: compileResult.activeNodeIds.has(node.id),
-              inputs: inputsFromCtx(ctx, node.id),
             },
           };
         });
@@ -684,7 +738,7 @@ const Editor: React.FC = () => {
     [updateNodeInternals, graph, setFlowElements]
   );
 
-  const onDunkie = useCallback(
+  const onNodeInputChange = useCallback(
     (id: string, event: React.FormEvent<HTMLInputElement>) => {
       setFlowElements(({ nodes, edges }) => ({
         nodes: nodes.map((node) =>
@@ -700,8 +754,37 @@ const Editor: React.FC = () => {
         ),
         edges,
       }));
+      debouncedSetNeedsCompile(true);
     },
-    [setFlowElements]
+    [setFlowElements, debouncedSetNeedsCompile]
+  );
+
+  const onNodeCategoryToggle = useCallback(
+    (id: string, inputName: string) => {
+      setFlowElements(({ nodes, edges }) => ({
+        nodes: nodes.map((node) =>
+          node.id === id
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  inputs: node.data.inputs.map((i) =>
+                    i.name === inputName
+                      ? {
+                          ...i,
+                          category: i.category === 'data' ? 'code' : 'data',
+                        }
+                      : i
+                  ),
+                },
+              }
+            : node
+        ),
+        edges,
+      }));
+      debouncedSetNeedsCompile(true);
+    },
+    [setFlowElements, debouncedSetNeedsCompile]
   );
 
   // Let child components call compile after, say, their lighting has finished
@@ -732,13 +815,18 @@ const Editor: React.FC = () => {
 
         const initFlowElements = initialElements.nodes.length
           ? initialElements
-          : initializeFlowElementsFromGraph(graph, newCtx, onDunkie);
+          : initializeFlowElementsFromGraph(
+              graph,
+              newCtx,
+              onNodeInputChange,
+              onNodeCategoryToggle
+            );
 
         compile(engine, newCtx, pauseCompile, initFlowElements);
         setGuiMsg('');
       }, 10);
     },
-    [compile, engine, pauseCompile, onDunkie]
+    [compile, engine, pauseCompile, onNodeInputChange, onNodeCategoryToggle]
   );
 
   // Once we receive a new engine context, re-initialize the graph. This method
@@ -905,7 +993,7 @@ const Editor: React.FC = () => {
   );
 
   const onNodeDoubleClick = (event: any, node: any) => {
-    if (!('value' in node)) {
+    if (!('value' in node.data)) {
       setActiveShader(graph.nodes.find((n) => n.id === node.id) as SourceNode);
       setEditorTabIndex(1);
     }

@@ -5,7 +5,7 @@
   border: 1px solid #666;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
   position: relative;
-  min-width: 175px;
+  min-width: 185px;
 }
 
 .flowlabel {
@@ -106,6 +106,24 @@
   background: #fff;
 }
 
+.flownode .body {
+  position: absolute;
+  top: 35px;
+  left: 10px;
+  right: 10px;
+}
+
+.flownode .switch {
+  display: inline-block;
+  cursor: pointer;
+}
+.flownode .switch:hover {
+  opacity: 0.5;
+}
+.flownode .switch:active {
+  opacity: 0.25;
+}
+
 /* -------------- */
 /* Data theme     */
 /* -------------- */
@@ -115,16 +133,15 @@
 .flownode.number input {
   width: 50%;
 }
-.flownode .body {
-  position: absolute;
-  top: 35px;
-  left: 10px;
-  right: 10px;
+
+.selected .number.flownode {
+  border: 1px solid #00d5ff;
 }
 
-/* -------------- */
-/* Data theme */
-/* -------------- */
+.selected .number .flowlabel {
+  background: linear-gradient(to right, rgb(9, 22, 84), rgb(13, 29, 108));
+  border-bottom: 1px solid #00d5ff;
+}
 
 .react-flow__edge.number .react-flow__edge-path {
   stroke: #00d5ff;

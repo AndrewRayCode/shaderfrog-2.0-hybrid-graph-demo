@@ -27,16 +27,16 @@ import {
   makeFnStatement,
 } from '../ast/manipulate';
 import { ensure } from '../util/ensure';
-import { applyStrategy, Strategy } from './strategy';
+import { applyStrategy } from './strategy';
 import { DataNode } from './nodes/data-nodes';
 import { Edge } from './nodes/edge';
 import {
   BinaryNode,
   CodeNode,
-  mapInputs,
-  NodeInput,
+  mapInputName,
   SourceNode,
 } from './nodes/code-nodes';
+import { NodeInput } from './nodes/core-node';
 
 export type ShaderStage = 'fragment' | 'vertex';
 
@@ -66,15 +66,23 @@ export const isSourceNode = (node: GraphNode): node is SourceNode =>
 
 export const MAGIC_OUTPUT_STMTS = 'mainStmts';
 
+export type InputFiller = (a: AstNode) => AstNode;
+export type InputFillers = Record<string, InputFiller>;
 export type NodeContext = {
   ast: AstNode | ParserProgram;
   source?: string;
-  // Inputs are determined at parse time and should probably be in the graph,
-  // not here on the runtime context for the node
-  inputs?: NodeInput[];
-  id?: string;
-  name?: string;
+  id: string;
+  inputFillers: InputFillers;
 };
+
+export type ComputedInput = [NodeInput, InputFiller];
+
+export type FindInputs = (
+  engineContext: EngineContext<any>,
+  node: SourceNode,
+  ast: AstNode,
+  inputEdges: Edge[]
+) => ComputedInput[];
 
 export type OnBeforeCompile = (
   engineContext: EngineContext<any>,
@@ -88,14 +96,6 @@ export type ProduceAst = (
   node: SourceNode,
   inputEdges: Edge[]
 ) => AstNode | ParserProgram;
-
-export type FindInputs = (
-  engineContext: EngineContext<any>,
-  node: SourceNode,
-  ast: AstNode,
-  nodeContext: NodeContext,
-  inputEdges: Edge[]
-) => NodeInput[];
 
 export type Evaluator = (node: GraphNode) => any;
 export type Evaluate = (
@@ -183,7 +183,6 @@ export const coreParsers: CoreParser = {
       let ast;
       if (node.expressionOnly) {
         ast = makeExpressionWithScopes(node.source);
-        console.log('made expression', ast);
       } else {
         const preprocessed = preprocess(node.source, {
           preserve: {
@@ -207,7 +206,7 @@ export const coreParsers: CoreParser = {
       return ast;
     },
     findInputs: (engineContext, node, ast) => {
-      return node.config.strategies.flatMap<NodeInput>((strategy) =>
+      return node.config.strategies.flatMap((strategy) =>
         applyStrategy(strategy, node, ast)
       );
     },
@@ -225,19 +224,22 @@ export const coreParsers: CoreParser = {
     },
     findInputs: (engineContext, node, ast) => {
       return [
-        ...node.config.strategies.flatMap<NodeInput>((strategy) =>
+        ...node.config.strategies.flatMap((strategy) =>
           applyStrategy(strategy, node, ast)
         ),
-        {
-          name: MAGIC_OUTPUT_STMTS,
-          id: MAGIC_OUTPUT_STMTS,
-          category: 'code',
-          filler: (fillerAst: AstNode) => {
+        [
+          {
+            name: MAGIC_OUTPUT_STMTS,
+            id: MAGIC_OUTPUT_STMTS,
+            category: 'code',
+          },
+          (fillerAst: AstNode) => {
             ast.program
               .find((stmt: AstNode) => stmt.type === 'function')
               .body.statements.unshift(makeFnStatement(generate(fillerAst)));
+            return ast;
           },
-        },
+        ],
       ];
     },
     produceFiller: (node, ast) => {
@@ -264,16 +266,18 @@ export const coreParsers: CoreParser = {
       };
       return fragmentAst;
     },
-    findInputs: (engineContext, node, ast, nodeContext, inputEdges) => {
+    findInputs: (engineContext, node, ast, inputEdges) => {
       return new Array(Math.max(inputEdges.length + 1, 2))
         .fill(0)
         .map((_, index) => {
           const letter = alphabet.charAt(index);
-          return {
-            name: letter,
-            category: 'code',
-            id: letter,
-            filler: (fillerAst: AstNode) => {
+          return [
+            {
+              name: letter,
+              category: 'code',
+              id: letter,
+            },
+            (fillerAst: AstNode) => {
               let foundPath: Path | undefined;
               const visitors: NodeVisitors = {
                 identifier: {
@@ -284,7 +288,7 @@ export const coreParsers: CoreParser = {
                   },
                 },
               };
-              visit(nodeContext.ast, visitors);
+              visit(ast, visitors);
               if (!foundPath) {
                 throw new Error(
                   `Im drunk and I think this case is impossible, no "${letter}" found in binary node?`
@@ -293,11 +297,12 @@ export const coreParsers: CoreParser = {
 
               if (foundPath.parent && foundPath.key) {
                 foundPath.parent[foundPath.key] = fillerAst;
+                return ast;
               } else {
-                nodeContext.ast = fillerAst;
+                return fillerAst;
               }
             },
-          };
+          ];
         });
     },
     produceFiller: (node, ast) => {
@@ -387,17 +392,19 @@ export const compileNode = <T>(
   stage: ShaderStage,
   ids: NodeIds
 ): CompileNodeResult => {
+  console.log('compiling', node.name, (node as SourceNode).stage);
   // THIS DUPLICATES OTHER LINE
   const parser = {
     ...(coreParsers[node.type] || coreParsers[NodeType.SOURCE]),
     ...(engine.parsers[node.type] || {}),
   };
 
+  const { inputs } = node;
+
   const { onBeforeCompile } = parser;
   if (onBeforeCompile) {
     onBeforeCompile(engineContext, node as SourceNode);
   }
-  // const parser = parsers[node.type];
 
   // Will I one day get good enough at typescript to be able to remove this
   // check? Or will I learn that I need it?
@@ -409,61 +416,68 @@ export const compileNode = <T>(
   }
 
   const nodeContext = isDataNode(node)
-    ? {}
+    ? null
     : ensure(
         engineContext.nodes[node.id],
         `No node context found for "${node.name}" (id ${node.id})!`
       );
-  const { ast, inputs } = nodeContext as NodeContext;
+  const { ast, inputFillers } = (nodeContext || {}) as NodeContext;
+  if (!inputs) {
+    throw new Error("I'm drunk and I think this case should be impossible");
+  }
+
   let compiledIds = ids;
 
   const inputEdges = edges.filter((edge) => edge.to === node.id);
   if (inputEdges.length) {
     let continuation = emptyShaderSections();
-    inputEdges.forEach((edge) => {
-      const fromNode = ensure(
-        graph.nodes.find((node) => edge.from === node.id),
-        `GraphNode for edge ${edge.from} not found`
-      );
-
-      const [inputSections, fillerAst, childIds] = compileNode(
-        engine,
-        graph,
-        edges,
-        engineContext,
-        // graphContext,
-        fromNode,
-        stage,
-        ids
-      );
-      if (!fillerAst) {
-        throw new Error(
-          `Expected a filler ast from node ID ${fromNode.id} (${fromNode.type}) but none was returned`
+    inputEdges
+      .map((edge) => ({
+        edge,
+        fromNode: ensure(
+          graph.nodes.find((node) => edge.from === node.id),
+          `GraphNode for edge ${edge.from} not found`
+        ),
+        input: ensure(
+          inputs.find(({ name }) => name == edge.input),
+          `GraphNode "${node.name}" has no input ${
+            edge.input
+          }!\nAvailable:${inputs.map(({ name }) => name).join(', ')}`
+        ),
+      }))
+      .filter(({ input }) => input.category !== 'data')
+      .forEach(({ fromNode, edge, input }) => {
+        const [inputSections, fillerAst, childIds] = compileNode(
+          engine,
+          graph,
+          edges,
+          engineContext,
+          fromNode,
+          stage,
+          ids
         );
-      }
+        if (!fillerAst) {
+          throw new TypeError(
+            `Expected a filler ast from node ID ${fromNode.id} (${fromNode.type}) but none was returned`
+          );
+        }
 
-      continuation = mergeShaderSections(continuation, inputSections);
-      compiledIds = { ...compiledIds, ...childIds };
+        continuation = mergeShaderSections(continuation, inputSections);
+        compiledIds = { ...compiledIds, ...childIds };
 
-      if (!inputs) {
-        throw new Error("I'm drunk and I think this case should be impossible");
-      }
-      // if (!(edge.input in inputs)) {
-      //   throw new Error(
-      //     `GraphNode "${node.name}" has no input ${
-      //       edge.input
-      //     }!\nAvailable:${Object.keys(inputs).join(', ')}`
-      //   );
-      // }
-
-      ensure(
-        inputs.find(({ name }) => name == edge.input),
-        `GraphNode "${node.name}" has no input ${
-          edge.input
-        }!\nAvailable:${Object.keys(inputs).join(', ')}`
-      ).filler(fillerAst);
-      // console.log(generate(ast.program));
-    });
+        if (nodeContext) {
+          nodeContext.ast =
+            inputFillers[
+              ensure(
+                inputs.find(({ name }) => name == edge.input),
+                `GraphNode "${node.name}" has no input ${
+                  edge.input
+                }!\nAvailable:${Object.keys(inputs).join(', ')}`
+              ).id
+            ](fillerAst);
+        }
+        // console.log(generate(ast.program));
+      });
 
     // Order matters here! *Prepend* the input nodes to this one, because
     // you have to declare functions in order of use in GLSL
@@ -496,6 +510,22 @@ export const compileNode = <T>(
   }
 };
 
+// Merge existing node inputs with new ones found from the source code. This
+// currently destroys removed inputs
+const mergeNodeInputs = (
+  node: CodeNode,
+  updatedInputs: NodeInput[]
+): NodeInput[] => {
+  const byName = node.inputs.reduce<Record<string, NodeInput>>(
+    (acc, i) => ({ ...acc, [i.name]: i }),
+    {}
+  );
+  return updatedInputs.map((i) => {
+    const name = mapInputName(node, i);
+    return { ...i, ...byName[i.name], name };
+  });
+};
+
 const computeNodeContext = <T>(
   engineContext: EngineContext<T>,
   engine: Engine<T>,
@@ -521,17 +551,22 @@ const computeNodeContext = <T>(
     ast = manipulateAst(engineContext, engine, graph, node, ast, inputEdges);
   }
 
-  const nodeContext: NodeContext = { ast, id: node.id, name: node.name };
-  const inputs = parser.findInputs(
-    engineContext,
+  // Find the combination if inputs (data) and fillers (runtime context data)
+  // and copy the input data onto the node, and the fillers onto the context
+  const updatedInputs = parser.findInputs(engineContext, node, ast, inputEdges);
+  node.inputs = mergeNodeInputs(
     node,
-    ast,
-    nodeContext,
-    inputEdges
+    updatedInputs.map(([i]) => i)
   );
-  nodeContext.inputs = node.config.inputMapping
-    ? mapInputs(node.config.inputMapping, inputs)
-    : inputs;
+
+  const nodeContext: NodeContext = {
+    ast,
+    id: node.id,
+    inputFillers: updatedInputs.reduce<InputFillers>(
+      (acc, [input, filler]) => ({ ...acc, [input.id]: filler }),
+      {}
+    ),
+  };
 
   // Tricky code warning: We only want to mangle the AST if this is a source
   // code node like "physical" or a user shader, and (probably?) not an
@@ -686,6 +721,7 @@ export const compileGraph = <T>(
     output: 'main',
     input: MAGIC_OUTPUT_STMTS,
     stage: 'vertex',
+    category: 'code',
   }));
 
   const [vertex, ,] = compileNode(

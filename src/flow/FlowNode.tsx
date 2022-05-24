@@ -11,11 +11,13 @@ import { ShaderStage } from '../core/graph';
 
 import { useUpdateNodeInternals } from 'react-flow-renderer';
 import { GraphDataType } from '../core/nodes/data-nodes';
+import { InputCategory } from '../core/nodes/core-node';
 
 const handleTop = 45;
 const textHeight = 10;
 type NodeHandle = {
   validTarget: boolean;
+  category?: InputCategory;
   name: string;
 };
 
@@ -36,6 +38,7 @@ export interface FlowNodeSourceData extends CoreFlowNode {
    * Whether or not this node can be used for both shader fragment and vertex
    */
   biStage: boolean;
+  onToggle: (id: string, name: string) => void;
 }
 export type FlowNodeData = FlowNodeSourceData | FlowNodeDataData;
 
@@ -198,6 +201,14 @@ const SourceNodeComponent = ({
                 left: 15,
               }}
             >
+              <div
+                className="switch"
+                onClick={(e) => (
+                  e.preventDefault(), data.onToggle(id, input.name)
+                )}
+              >
+                {input.category === 'data' ? '➡️' : '🔒'}
+              </div>
               {input.name}
             </div>
           </React.Fragment>

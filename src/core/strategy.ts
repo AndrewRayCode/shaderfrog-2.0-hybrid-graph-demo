@@ -2,8 +2,8 @@ import { generate } from '@shaderfrog/glsl-parser';
 import { visit, AstNode, NodeVisitors } from '@shaderfrog/glsl-parser/dist/ast';
 import { Scope, ScopeIndex } from '@shaderfrog/glsl-parser/dist/parser/parser';
 import { findAssignmentTo } from '../ast/manipulate';
-import { GraphNode, mangleName, NodeContext } from './graph';
-import { NodeInput, SourceNode } from './nodes/code-nodes';
+import { ComputedInput, GraphNode, mangleName } from './graph';
+import { SourceNode } from './nodes/code-nodes';
 
 export enum StrategyType {
   VARIABLE = 'Variable Names',
@@ -79,19 +79,19 @@ type StrategyImpl = (
   node: SourceNode,
   ast: AstNode,
   strategy: Strategy
-) => NodeInput[];
+) => ComputedInput[];
 
-type Strategies<T> = Record<StrategyType, StrategyImpl>;
+type Strategies = Record<StrategyType, StrategyImpl>;
 
 export const applyStrategy = (
   strategy: Strategy,
   node: SourceNode,
   ast: AstNode
-): NodeInput[] => strategyRunners[strategy.type](node, ast, strategy);
+) => strategyRunners[strategy.type](node, ast, strategy);
 
-export const strategyRunners: Strategies<NodeContext> = {
+export const strategyRunners: Strategies = {
   [StrategyType.UNIFORM]: (graphNode, ast, strategy) => {
-    return (ast.program as AstNode[]).flatMap<NodeInput>((node) => {
+    return (ast.program as AstNode[]).flatMap<ComputedInput>((node) => {
       // The uniform declration type, like vec4
       const uniformType =
         node.declaration?.specified_type?.specifier?.specifier?.token;
@@ -117,11 +117,13 @@ export const strategyRunners: Strategies<NodeContext> = {
         // 4. Later, the inputs are filled in, and now, we have an input with
         //    the name "x" but the ast now has the mangled name "x_1". So
         //    here, we look for the *mangled* name in the strategy runner
-        return names.map<NodeInput>((name) => ({
-          name,
-          id: name,
-          category: 'code',
-          filler: (filler: AstNode) => {
+        return names.map<ComputedInput>((name) => [
+          {
+            name,
+            id: name,
+            category: 'data',
+          },
+          (filler: AstNode) => {
             const mangledName = mangleName(name, graphNode);
             // Remove the declaration line, or the declared uniform
             if (declarations.length === 1) {
@@ -143,8 +145,10 @@ export const strategyRunners: Strategies<NodeContext> = {
                 ref.declaration.identifier.identifier = generate(filler);
               }
             });
+
+            return ast;
           },
-        }));
+        ]);
       }
       return [];
     });
@@ -154,14 +158,17 @@ export const strategyRunners: Strategies<NodeContext> = {
     const assignNode = findAssignmentTo(ast, cast.config.assignTo);
     return assignNode
       ? [
-          {
-            name: cast.config.assignTo,
-            id: cast.config.assignTo,
-            category: 'code',
-            filler: (fillerAst: AstNode) => {
-              assignNode.expression.right = fillerAst;
+          [
+            {
+              name: cast.config.assignTo,
+              id: cast.config.assignTo,
+              category: 'code',
             },
-          },
+            (fillerAst: AstNode) => {
+              assignNode.expression.right = fillerAst;
+              return ast;
+            },
+          ],
         ]
       : [];
   },
@@ -204,19 +211,22 @@ export const strategyRunners: Strategies<NodeContext> = {
         []
       )
     );
-    const inputs = texture2Dcalls.map<NodeInput>(
+    const inputs = texture2Dcalls.map<ComputedInput>(
       ([name, parent, key], index) => {
         const iName = names.has(name) ? `${name}_${index}` : name;
-        return {
-          // Suffix a texture2d input name with its index if it's used more than
-          // once
-          name: iName,
-          id: iName,
-          category: 'code',
-          filler: (fillerAst: AstNode) => {
-            parent[key] = fillerAst;
+        return [
+          {
+            // Suffix a texture2d input name with its index if it's used more than
+            // once
+            name: iName,
+            id: iName,
+            category: 'code',
           },
-        };
+          (fillerAst: AstNode) => {
+            parent[key] = fillerAst;
+            return ast;
+          },
+        ];
       }
     );
 
@@ -226,11 +236,13 @@ export const strategyRunners: Strategies<NodeContext> = {
     const cast = strategy as NamedAttributeStrategy;
     const { attributeName } = cast.config;
     return [
-      {
-        name: attributeName,
-        category: 'code',
-        id: attributeName,
-        filler: (fillerAst: AstNode) => {
+      [
+        {
+          name: attributeName,
+          category: 'code',
+          id: attributeName,
+        },
+        (fillerAst: AstNode) => {
           Object.entries(ast.scopes[0].bindings).forEach(
             ([name, binding]: [string, any]) => {
               binding.references.forEach((ref: AstNode) => {
@@ -248,8 +260,9 @@ export const strategyRunners: Strategies<NodeContext> = {
               });
             }
           );
+          return ast;
         },
-      },
+      ],
     ];
   },
   [StrategyType.VARIABLE]: (node, ast, strategy) => {
@@ -261,20 +274,21 @@ export const strategyRunners: Strategies<NodeContext> = {
         {}
       )
     ).flatMap((binding: any) => {
-      return (binding.references as AstNode[]).reduce<NodeInput[]>(
+      return (binding.references as AstNode[]).reduce<ComputedInput[]>(
         (acc, ref) => {
           let identifier: string, replacer;
 
-          console.log('looking at', ref);
           if (ref.type === 'declaration') {
             identifier = ref.identifier.identifier;
             replacer = (fillerAst: AstNode) => {
               ref.identifier.identifier = generate(fillerAst);
+              return ast;
             };
           } else if (ref.type === 'identifier') {
             identifier = ref.identifier;
             replacer = (fillerAst: AstNode) => {
               ref.identifier = generate(fillerAst);
+              return ast;
             };
             // } else if (ref.type === 'parameter_declaration') {
             //   identifier = ref.declaration.identifier.identifier;
@@ -286,12 +300,14 @@ export const strategyRunners: Strategies<NodeContext> = {
           }
           return [
             ...acc,
-            {
-              name: identifier,
-              id: identifier,
-              category: 'code',
-              filler: replacer,
-            },
+            [
+              {
+                name: identifier,
+                id: identifier,
+                category: 'code',
+              },
+              replacer,
+            ],
           ];
         },
         []

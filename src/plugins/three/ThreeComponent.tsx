@@ -343,6 +343,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       name: 'ShaderFrog Phong Material',
       lights: true,
       uniforms,
+      transparent: true,
       vertexShader: compileResult?.vertexResult,
       fragmentShader: compileResult?.fragmentResult,
       // onBeforeCompile: () => {

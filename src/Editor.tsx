@@ -180,10 +180,10 @@ const useFlef = () => {
     const num1 = numberNode(id(), 'number', '1');
     return (
       expandDataElements({
-        nodes: [fireF, fireV, outputF, outputV],
+        nodes: [physicalF, physicalV, fireF, fireV, outputF, outputV],
         edges: [
-          makeEdge(fireF.id, outputF.id, 'out', 'color', 'fragment'),
-          makeEdge(fireV.id, outputV.id, 'out', 'position', 'vertex'),
+          makeEdge(physicalF.id, outputF.id, 'out', 'color', 'fragment'),
+          makeEdge(physicalV.id, outputV.id, 'out', 'position', 'vertex'),
         ],
       }) || {
         nodes: [
@@ -586,7 +586,6 @@ const fromFlowToGraph = (graph: Graph, flowElements: FlowElements): Graph => {
         : null),
     };
   });
-  console.log('new nodes', graph.nodes);
 
   return graph;
 };
@@ -1334,7 +1333,7 @@ const StrategyEditor = ({
   if (!ctx) {
     return null;
   }
-  const inputs = Object.keys(ensure(ctx.nodes[node.id]?.inputs));
+  const { inputs } = node;
   return (
     <div>
       <div className={styles.uiGroup}>
@@ -1410,7 +1409,9 @@ const StrategyEditor = ({
       </div>
       <div className={styles.uiGroup}>
         <h2 className={styles.uiHeader}>Node Inputs</h2>
-        {inputs.length ? inputs.join(', ') : 'No inputs found'}
+        {inputs.length
+          ? inputs.map((i) => i.name).join(', ')
+          : 'No inputs found'}
       </div>
     </div>
   );

@@ -143,6 +143,14 @@ export const strategyRunners: Strategies = {
                 ref.declaration.identifier.identifier === mangledName
               ) {
                 ref.declaration.identifier.identifier = generate(filler);
+              } else if (ref.identifier) {
+                ref.identifier = generate(filler);
+              } else {
+                console.warn(
+                  'Unknown uniform reference for',
+                  graphNode.name,
+                  'ref'
+                );
               }
             });
 

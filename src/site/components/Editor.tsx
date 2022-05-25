@@ -1,4 +1,4 @@
-import styles from '../pages/editor/editor.module.css';
+import styles from '../../pages/editor/editor.module.css';
 import debounce from 'lodash.debounce';
 
 import { SplitPane } from 'react-multi-split-pane';
@@ -12,6 +12,7 @@ import React, {
   useMemo,
   useRef,
   useState,
+  MouseEvent,
 } from 'react';
 
 import ReactFlow, {
@@ -26,6 +27,8 @@ import ReactFlow, {
   Edge,
   ReactFlowProvider,
   useUpdateNodeInternals,
+  useReactFlow,
+  XYPosition,
   // FlowElement,
 } from 'react-flow-renderer';
 
@@ -41,8 +44,8 @@ import {
   alphabet,
   isDataNode,
   isSourceNode,
-} from './core/graph';
-import { Edge as GraphEdge, EdgeType } from './core/nodes/edge';
+} from '../../core/graph';
+import { Edge as GraphEdge, EdgeType } from '../../core/nodes/edge';
 import {
   outputNode,
   addNode,
@@ -51,34 +54,34 @@ import {
   physicalNode,
   toonNode,
   expressionNode,
-} from './core/nodes/engine-node';
+} from '../../core/nodes/engine-node';
 import {
   Engine,
   EngineContext,
   convertToEngine,
   EngineNodeType,
   NodeContext,
-} from './core/engine';
-import { shaderSectionsToAst } from './ast/shader-sections';
+} from '../../core/engine';
+import { shaderSectionsToAst } from '../../ast/shader-sections';
 
-import useThrottle from './useThrottle';
+import useThrottle from '../useThrottle';
 
-import { hellOnEarthFrag, hellOnEarthVert } from './shaders/hellOnEarth';
-import perlinCloudsFNode from './shaders/perlinClouds';
-import purpleNoiseNode from './shaders/purpleNoiseNode';
-import staticShaderNode from './shaders/staticShaderNode';
-import fluidCirclesNode from './shaders/fluidCirclesNode';
-import solidColorNode from './shaders/solidColorNode';
+import { hellOnEarthFrag, hellOnEarthVert } from '../../shaders/hellOnEarth';
+import perlinCloudsFNode from '../../shaders/perlinClouds';
+import purpleNoiseNode from '../../shaders/purpleNoiseNode';
+import staticShaderNode from '../../shaders/staticShaderNode';
+import fluidCirclesNode from '../../shaders/fluidCirclesNode';
+import solidColorNode from '../../shaders/solidColorNode';
 import {
   heatShaderFragmentNode,
   heatShaderVertexNode,
-} from './shaders/heatmapShaderNode';
-import { fireFrag, fireVert } from './shaders/fireNode';
-import { outlineShaderF, outlineShaderV } from './shaders/outlineShader';
+} from '../../shaders/heatmapShaderNode';
+import { fireFrag, fireVert } from '../../shaders/fireNode';
+import { outlineShaderF, outlineShaderV } from '../../shaders/outlineShader';
 
 // import contrastNoise from '..';
-import { useAsyncExtendedState } from './useAsyncExtendedState';
-// import { usePromise } from './usePromise';
+import { useAsyncExtendedState } from '../useAsyncExtendedState';
+// import { usePromise } from '../usePromise';
 
 import ConnectionLine from './flow/ConnectionLine';
 import FlowEdgeComponent, { FlowEdgeData, LinkEdgeData } from './flow/FlowEdge';
@@ -93,21 +96,24 @@ import {
 import { Tabs, Tab, TabGroup, TabPanel, TabPanels } from './Tabs';
 import CodeEditor from './CodeEditor';
 
-import { Editor as ThreeComponent, engine as threngine } from './plugins/three';
+import {
+  Editor as ThreeComponent,
+  engine as threngine,
+} from '../../plugins/three';
 
 import {
   Editor as BabylonComponent,
   engine as babylengine,
-} from './plugins/babylon';
-import { Hoisty, useHoisty } from './hoistedRefContext';
-import { UICompileGraphResult } from './uICompileGraphResult';
-import { useLocalStorage } from './useLocalStorage';
-import { Strategy, StrategyType } from './core/strategy';
-import { ensure } from './util/ensure';
-import { numberNode } from './core/nodes/data-nodes';
-import { makeEdge } from './core/nodes/edge';
-import { SourceNode } from './core/nodes/code-nodes';
-import { id } from './util/id';
+} from '../../plugins/babylon';
+import { Hoisty, useHoisty } from '../hoistedRefContext';
+import { UICompileGraphResult } from '../uICompileGraphResult';
+import { useLocalStorage } from '../useLocalStorage';
+import { Strategy, StrategyType } from '../../core/strategy';
+import { ensure } from '../../util/ensure';
+import { numberNode } from '../../core/nodes/data-nodes';
+import { makeEdge } from '../../core/nodes/edge';
+import { SourceNode } from '../../core/nodes/code-nodes';
+import { id } from '../../util/id';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
@@ -1070,6 +1076,47 @@ const Editor: React.FC = () => {
   const onEdgeUpdateEnd = () => resetTargets();
   const onConnectStop = () => resetTargets();
 
+  const [mouse, setMouse] = useState<XYPosition>({ x: 0, y: 0 });
+  const { project } = useReactFlow();
+  const onMouseMove = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      setMouse(project({ x: event.clientX, y: event.clientY }));
+    },
+    [project]
+  );
+
+  useEffect(() => {
+    const listener = (e: KeyboardEvent) => {
+      console.log(e.key);
+      if (e.key === 'a') {
+        const newNode: FlowNode<FlowNodeData> = {
+          id: id(),
+          position: mouse,
+          type: 'data',
+          data: {
+            label: 'number',
+            type: 'number',
+            value: '666',
+            inputs: [],
+            onChange: onNodeInputChange,
+            outputs: [
+              {
+                name: 'out',
+                validTarget: false,
+              },
+            ],
+          },
+        };
+        setFlowElements({
+          ...flowElements,
+          nodes: [...flowElements.nodes, newNode],
+        });
+      }
+    };
+    window.addEventListener('keyup', listener);
+    return () => window.removeEventListener('keyup', listener);
+  }, [flowElements, mouse, onNodeInputChange, setFlowElements]);
+
   useEffect(() => {
     if (needsCompile) {
       compile(engine, ctx as EngineContext<any>, pauseCompile, flowElements);
@@ -1135,7 +1182,7 @@ const Editor: React.FC = () => {
               </Tab>
             </TabGroup>
             <TabPanels>
-              <TabPanel>
+              <TabPanel onMouseMove={onMouseMove}>
                 <ReactFlow
                   // Possible fix for this being broken in dev+hot reload mode
                   // https://discord.com/channels/771389069270712320/859774873500778517/956225780252291112

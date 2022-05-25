@@ -5,11 +5,11 @@ import { Graph } from '../../core/graph';
 import { EngineContext } from '../../core/engine';
 import { babylengine, RuntimeContext } from './bablyengine';
 
-import styles from '../../../pages/editor/editor.module.css';
+import styles from '../../pages/editor/editor.module.css';
 
 import { useBabylon } from './useBabylon';
-import { usePrevious } from '../../usePrevious';
-import { UICompileGraphResult } from '../../uICompileGraphResult';
+import { usePrevious } from '../../site/usePrevious';
+import { UICompileGraphResult } from '../../site/uICompileGraphResult';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
@@ -123,12 +123,8 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
   const fc: any = graph.nodes.find((node) => node.name === 'Fluid Circles')?.id;
   const pu: any = graph.nodes.find((node) => node.name === 'Purple Metal')?.id;
   const edgeId: any = graph.nodes.find((node) => node.name === 'Triplanar')?.id;
-  const hs1: any = graph.nodes.find(
-    (node) => node.name === 'Fake Heatmap'
-  )?.id;
-  const hs2: any = graph.nodes.find(
-    (node) => node.name === 'Fake Heatmap'
-  )?.id;
+  const hs1: any = graph.nodes.find((node) => node.name === 'Fake Heatmap')?.id;
+  const hs2: any = graph.nodes.find((node) => node.name === 'Fake Heatmap')?.id;
 
   useEffect(() => {
     if (sceneData.mesh) {

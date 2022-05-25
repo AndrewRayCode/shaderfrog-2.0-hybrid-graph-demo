@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useContext } from 'react';
 import * as BABYLON from 'babylonjs';
-import { useHoisty } from '../../hoistedRefContext';
+import { useHoisty } from '../../site/hoistedRefContext';
 
 type SceneData = {
   lights: BABYLON.Node[];

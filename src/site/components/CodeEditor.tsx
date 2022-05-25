@@ -1,8 +1,8 @@
 import MonacoEditor, { Monaco } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { monacoGlsl } from './monaco-glsl';
+import { monacoGlsl } from '../../monaco-glsl';
 
-import { Engine } from './core/engine';
+import { Engine } from '../../core/engine';
 
 type AnyFn = (...args: any) => any;
 

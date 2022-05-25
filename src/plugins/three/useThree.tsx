@@ -2,7 +2,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { useCallback, useEffect, useRef, useState, useContext } from 'react';
 import * as three from 'three';
 
-import { useHoisty } from '../../hoistedRefContext';
+import { useHoisty } from '../../site/hoistedRefContext';
 
 type Callback = (time: number) => void;
 

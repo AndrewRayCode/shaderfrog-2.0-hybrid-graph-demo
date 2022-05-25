@@ -101,7 +101,7 @@ const TabPanels = ({ selected, children }: TabPanelsProps) => (
     )}
   </>
 );
-type TabPanelProps = { children: React.ReactNode; className?: string };
+interface TabPanelProps extends React.HTMLAttributes<HTMLDivElement> {}
 const TabPanel = ({ children, ...props }: TabPanelProps) => {
   return <div {...props}>{children}</div>;
 };

@@ -1,17 +1,17 @@
-import styles from '../../../pages/editor/editor.module.css';
-
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as three from 'three';
 import { Graph } from '../../core/graph';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import { EngineContext } from '../../core/engine';
 
+import styles from '../../pages/editor/editor.module.css';
+
 import { RuntimeContext } from './threngine';
 
 import { useThree } from './useThree';
-import { usePrevious } from '../../usePrevious';
-import { UICompileGraphResult } from '../../uICompileGraphResult';
-import { PreviewLight } from '../../Editor';
+import { usePrevious } from '../../site/usePrevious';
+import { UICompileGraphResult } from '../../site/uICompileGraphResult';
+import { PreviewLight } from '../../site/components/Editor';
 
 const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
 
@@ -260,7 +260,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       normalScale: { value: new three.Vector2(2.0, 2.0) },
       color: { value: new three.Color(1.0, 1.0, 1.0) },
 
-      // map: { value: new three.TextureLoader().load('/contrast-noise.png') },
+      map: { value: new three.TextureLoader().load('/contrast-noise.png') },
       normalMap: {
         value: new three.TextureLoader().load('/blank-normal-map.png'),
       },
@@ -344,6 +344,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       lights: true,
       uniforms,
       transparent: true,
+      opacity: 1.0,
       vertexShader: compileResult?.vertexResult,
       fragmentShader: compileResult?.fragmentResult,
       // onBeforeCompile: () => {

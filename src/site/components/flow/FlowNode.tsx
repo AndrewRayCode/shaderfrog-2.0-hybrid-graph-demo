@@ -7,15 +7,21 @@ import {
   Edge as FlowEdge,
   HandleProps,
 } from 'react-flow-renderer';
-import { ShaderStage } from '../core/graph';
+import { ShaderStage } from '../../../core/graph';
 
 import { useUpdateNodeInternals } from 'react-flow-renderer';
-import { GraphDataType } from '../core/nodes/data-nodes';
-import { InputCategory } from '../core/nodes/core-node';
+import { GraphDataType } from '../../../core/nodes/data-nodes';
+import { InputCategory } from '../../../core/nodes/core-node';
 
 const handleTop = 45;
 const textHeight = 10;
-type NodeHandle = {
+type InputNodeHandle = {
+  validTarget: boolean;
+  category?: InputCategory;
+  name: string;
+  bakeable: boolean;
+};
+type OutputNodeHandle = {
   validTarget: boolean;
   category?: InputCategory;
   name: string;
@@ -23,8 +29,8 @@ type NodeHandle = {
 
 export interface CoreFlowNode {
   label: string;
-  outputs: NodeHandle[];
-  inputs: NodeHandle[];
+  outputs: OutputNodeHandle[];
+  inputs: InputNodeHandle[];
 }
 export interface FlowNodeDataData extends CoreFlowNode {
   type: GraphDataType;
@@ -38,7 +44,7 @@ export interface FlowNodeSourceData extends CoreFlowNode {
    * Whether or not this node can be used for both shader fragment and vertex
    */
   biStage: boolean;
-  onToggle: (id: string, name: string) => void;
+  onInputCategoryToggle: (id: string, name: string) => void;
 }
 export type FlowNodeData = FlowNodeSourceData | FlowNodeDataData;
 
@@ -204,10 +210,14 @@ const SourceNodeComponent = ({
               <div
                 className="switch"
                 onClick={(e) => (
-                  e.preventDefault(), data.onToggle(id, input.name)
+                  e.preventDefault(), data.onInputCategoryToggle(id, input.name)
                 )}
               >
-                {input.category === 'data' ? '➡️' : '🔒'}
+                {input.bakeable
+                  ? input.category === 'data'
+                    ? '➡️'
+                    : '🔒'
+                  : null}
               </div>
               {input.name}
             </div>

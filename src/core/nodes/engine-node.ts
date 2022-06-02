@@ -54,7 +54,13 @@ export const sourceNode = (
   type: NodeType.SOURCE,
   config,
   inputs: [],
-  outputs: ['out'],
+  outputs: [
+    {
+      name: 'out',
+      category: 'data',
+      id: '1',
+    },
+  ],
   source,
   stage,
   originalEngine,
@@ -130,7 +136,13 @@ export const expressionNode = (
     strategies: [variableStrategy()],
   },
   inputs: [],
-  outputs: ['out'],
+  outputs: [
+    {
+      name: 'out',
+      category: 'data',
+      id: '1',
+    },
+  ],
   source,
 });
 
@@ -157,7 +169,13 @@ export const phongNode = (
           : [namedAttributeStrategy('position')],
     },
     inputs: [],
-    outputs: ['out'],
+    outputs: [
+      {
+        name: 'out',
+        category: 'data',
+        id: '1',
+      },
+    ],
     source: '',
     stage,
     nextStageNodeId,
@@ -190,7 +208,13 @@ export const physicalNode = (
       ],
     },
     inputs: [],
-    outputs: ['out'],
+    outputs: [
+      {
+        name: 'out',
+        category: 'data',
+        id: '1',
+      },
+    ],
     source: '',
     stage,
     nextStageNodeId,
@@ -217,7 +241,13 @@ export const toonNode = (
       strategies: [texture2DStrategy()],
     },
     inputs: [],
-    outputs: ['out'],
+    outputs: [
+      {
+        name: 'out',
+        category: 'data',
+        id: '1',
+      },
+    ],
     source: '',
     stage,
     nextStageNodeId,
@@ -234,7 +264,13 @@ export const addNode = (id: string): BinaryNode => ({
     strategies: [],
   },
   inputs: [],
-  outputs: ['out'],
+  outputs: [
+    {
+      name: 'out',
+      category: 'data',
+      id: '1',
+    },
+  ],
   source: `a + b`,
   operator: '+',
   expressionOnly: true,
@@ -251,7 +287,13 @@ export const multiplyNode = (id: string): BinaryNode => ({
     strategies: [],
   },
   inputs: [],
-  outputs: ['out'],
+  outputs: [
+    {
+      name: 'out',
+      category: 'data',
+      id: '1',
+    },
+  ],
   source: `a * b`,
   operator: '*',
   expressionOnly: true,

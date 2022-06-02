@@ -1,0 +1,24 @@
+.contextMenu {
+  position: absolute;
+  z-index: 10;
+  background: #000;
+  color: #fff;
+  border-radius: 8px;
+  border: 1px solid #333;
+  padding: 0 0 8px 0;
+}
+
+.contextHeader {
+  padding: 4px 12px;
+  color: #666;
+  border-bottom: 1px solid #444;
+}
+
+.contextRow {
+  padding: 4px 4px 4px 12px;
+}
+
+.contextRow:hover {
+  background: #224;
+  cursor: pointer;
+}

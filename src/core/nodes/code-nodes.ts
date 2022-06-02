@@ -1,4 +1,3 @@
-import { AstNode } from '@shaderfrog/glsl-parser/dist/ast';
 import { ShaderStage } from '../graph';
 import { Strategy } from '../strategy';
 import { DataType } from './data-nodes';

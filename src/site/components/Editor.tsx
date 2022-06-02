@@ -1,4 +1,6 @@
+import { useHotkeys } from 'react-hotkeys-hook';
 import styles from '../../pages/editor/editor.module.css';
+import ctxStyles from './context.menu.module.css';
 import debounce from 'lodash.debounce';
 
 import { SplitPane } from 'react-multi-split-pane';
@@ -38,7 +40,7 @@ import {
   ShaderStage,
   compileGraph,
   computeAllContexts,
-  computeGraphContext,
+  computeContextForNodes,
   MAGIC_OUTPUT_STMTS,
   NodeType,
   alphabet,
@@ -113,7 +115,8 @@ import { ensure } from '../../util/ensure';
 import { numberNode } from '../../core/nodes/data-nodes';
 import { makeEdge } from '../../core/nodes/edge';
 import { SourceNode } from '../../core/nodes/code-nodes';
-import { id } from '../../util/id';
+import { makeId } from '../../util/id';
+import { hasParent } from '../../util/hasParent';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
@@ -125,7 +128,7 @@ const expandDataElements = (graph: Graph): Graph =>
       >(
         (elems, uniform) => {
           if (uniform.type === 'number') {
-            const n = numberNode(id(), 'number', uniform.value, {
+            const n = numberNode(makeId(), 'number', uniform.value, {
               range: uniform.range,
               stepper: uniform.stepper,
             });
@@ -158,35 +161,49 @@ const useFlef = () => {
     });
 
   const [graph, setGraph, resetGraph] = useLocalStorage<Graph>('graph', () => {
-    const expression = expressionNode(id(), 'Expression', 'a + b / c');
-    const outputF = outputNode(id(), 'Output', 'fragment');
-    const outputV = outputNode(id(), 'Output', 'vertex', outputF.id);
-    const phongF = phongNode(id(), 'Phong', 'fragment');
-    const phongV = phongNode(id(), 'Phong', 'vertex', phongF.id);
-    const physicalF = physicalNode(id(), 'Physical', 'fragment');
-    const physicalV = physicalNode(id(), 'Physical', 'vertex', physicalF.id);
-    const toonF = toonNode(id(), 'Toon', 'fragment');
-    const toonV = toonNode(id(), 'Toon', 'vertex', toonF.id);
-    const fluidF = fluidCirclesNode(id());
-    const staticShader = staticShaderNode(id());
-    const purpleNoise = purpleNoiseNode(id());
-    const heatShaderF = heatShaderFragmentNode(id());
-    const heatShaderV = heatShaderVertexNode(id(), heatShaderF.id);
-    const fireF = fireFrag(id());
-    const fireV = fireVert(id(), fireF.id);
-    const add = addNode(id());
-    const add2 = addNode(id());
-    const multiply = multiplyNode(id());
-    const outlineF = outlineShaderF(id());
-    const outlineV = outlineShaderV(id(), outlineF.id);
-    const solidColorF = solidColorNode(id());
-    const hellOnEarthF = hellOnEarthFrag(id());
-    const hellOnEarthV = hellOnEarthVert(id(), hellOnEarthF.id);
-    const perlinCloudsF = perlinCloudsFNode(id());
-    const num1 = numberNode(id(), 'number', '1');
+    const expression = expressionNode(makeId(), 'Expression', 'a + b / c');
+    const outputF = outputNode(makeId(), 'Output', 'fragment');
+    const outputV = outputNode(makeId(), 'Output', 'vertex', outputF.id);
+    const phongF = phongNode(makeId(), 'Phong', 'fragment');
+    const phongV = phongNode(makeId(), 'Phong', 'vertex', phongF.id);
+    const physicalF = physicalNode(makeId(), 'Physical', 'fragment');
+    const physicalV = physicalNode(
+      makeId(),
+      'Physical',
+      'vertex',
+      physicalF.id
+    );
+    const toonF = toonNode(makeId(), 'Toon', 'fragment');
+    const toonV = toonNode(makeId(), 'Toon', 'vertex', toonF.id);
+    const fluidF = fluidCirclesNode(makeId());
+    const staticShader = staticShaderNode(makeId());
+    const purpleNoise = purpleNoiseNode(makeId());
+    const heatShaderF = heatShaderFragmentNode(makeId());
+    const heatShaderV = heatShaderVertexNode(makeId(), heatShaderF.id);
+    const fireF = fireFrag(makeId());
+    const fireV = fireVert(makeId(), fireF.id);
+    const add = addNode(makeId());
+    const add2 = addNode(makeId());
+    const multiply = multiplyNode(makeId());
+    const outlineF = outlineShaderF(makeId());
+    const outlineV = outlineShaderV(makeId(), outlineF.id);
+    const solidColorF = solidColorNode(makeId());
+    const hellOnEarthF = hellOnEarthFrag(makeId());
+    const hellOnEarthV = hellOnEarthVert(makeId(), hellOnEarthF.id);
+    const perlinCloudsF = perlinCloudsFNode(makeId());
+    const num1 = numberNode(makeId(), 'number', '1');
     return (
       expandDataElements({
-        nodes: [physicalF, physicalV, fireF, fireV, outputF, outputV],
+        nodes: [
+          physicalF,
+          physicalV,
+          fireF,
+          fireV,
+          outputF,
+          outputV,
+          outlineF,
+          outlineV,
+        ],
         edges: [
           makeEdge(physicalF.id, outputF.id, 'out', 'color', 'fragment'),
           makeEdge(physicalV.id, outputV.id, 'out', 'position', 'vertex'),
@@ -466,15 +483,53 @@ const toFlowInputs = (node: GraphNode) =>
     .map((input) => ({
       id: input.id,
       name: input.name,
+      bakeable: input.bakeable,
       validTarget: false,
       category: input.category,
     }));
 
+const graphNodeToFlowNode = (
+  node: GraphNode,
+  onChange: any,
+  onInputCategoryToggle: any,
+  position: XYPosition
+): FlowNode<FlowNodeData> => {
+  const data: FlowNodeData = isSourceNode(node)
+    ? {
+        label: node.name,
+        stage: node.stage,
+        active: false,
+        biStage: node.biStage || false,
+        inputs: toFlowInputs(node),
+        outputs: node.outputs.map((o) => ({
+          validTarget: false,
+          name: o.name,
+        })),
+        onInputCategoryToggle,
+      }
+    : {
+        label: node.name,
+        type: node.type,
+        value: node.value,
+        onChange,
+        inputs: toFlowInputs(node),
+        outputs: node.outputs.map((o) => ({
+          validTarget: false,
+          name: o.name,
+        })),
+      };
+  return {
+    id: node.id,
+    data,
+    type: isSourceNode(node) ? 'source' : 'data',
+    position,
+  };
+};
+
 const initializeFlowElementsFromGraph = (
   graph: Graph,
-  ctx: EngineContext<any>,
   onChange: any,
-  onToggle: any
+  onInputCategoryToggle: any
 ): FlowElements => {
   let engines = 0;
   let maths = 0;
@@ -484,50 +539,25 @@ const initializeFlowElementsFromGraph = (
   const maxHeight = 4;
   console.log('Initializing flow elements from', { graph });
 
-  const nodes = graph.nodes.map((node): FlowNode<FlowNodeData> => {
-    const data: FlowNodeData = isSourceNode(node)
-      ? {
-          label: node.name,
-          stage: node.stage,
-          active: false,
-          biStage: node.biStage || false,
-          onToggle,
-          inputs: toFlowInputs(node),
-          outputs: node.outputs.map((o) => ({
-            validTarget: false,
-            name: '' + o,
-          })),
-        }
-      : {
-          label: node.name,
-          type: node.type,
-          value: node.value,
-          onChange,
-          inputs: toFlowInputs(node),
-          outputs: node.outputs.map((o) => ({
-            validTarget: false,
-            name: '' + o,
-          })),
-        };
-    return {
-      id: node.id,
-      data,
-      type: isSourceNode(node) ? 'source' : 'data',
-      position:
-        node.type === EngineNodeType.output
-          ? { x: spacing * 2, y: outputs++ * 100 }
-          : node.type === EngineNodeType.phong ||
-            node.type === EngineNodeType.toon ||
-            node.type === EngineNodeType.physical
-          ? { x: spacing, y: engines++ * 100 }
-          : node.type === EngineNodeType.binary
-          ? { x: 0, y: maths++ * 100 }
-          : {
-              x: -spacing - spacing * Math.floor(shaders / maxHeight),
-              y: (shaders++ % maxHeight) * 120,
-            },
-    };
-  });
+  const nodes = graph.nodes.map((node) =>
+    graphNodeToFlowNode(
+      node,
+      onChange,
+      onInputCategoryToggle,
+      node.type === EngineNodeType.output
+        ? { x: spacing * 2, y: outputs++ * 100 }
+        : node.type === EngineNodeType.phong ||
+          node.type === EngineNodeType.toon ||
+          node.type === EngineNodeType.physical
+        ? { x: spacing, y: engines++ * 100 }
+        : node.type === EngineNodeType.binary
+        ? { x: 0, y: maths++ * 100 }
+        : {
+            x: -spacing - spacing * Math.floor(shaders / maxHeight),
+            y: (shaders++ % maxHeight) * 120,
+          }
+    )
+  );
 
   // console.log('edge', { edge });
   const edges: FlowEdgeOrLink[] = graph.edges.map(
@@ -632,13 +662,8 @@ const Editor: React.FC = () => {
   const [activeShader, setActiveShader] = useState<SourceNode>(
     graph.nodes[0] as SourceNode
   );
-  const [preprocessed, setPreprocessed] = useState<string | undefined>('');
-  const [preprocessedVert, setPreprocessedVert] = useState<string | undefined>(
-    ''
-  );
+
   const [vertex, setVertex] = useState<string | undefined>('');
-  const [original, setOriginal] = useState<string | undefined>('');
-  const [originalVert, setOriginalVert] = useState<string | undefined>('');
   const [finalFragment, setFinalFragment] = useState<string | undefined>('');
   const [compileResult, setCompileResult] = useState<UICompileGraphResult>();
 
@@ -705,13 +730,8 @@ const Editor: React.FC = () => {
         setCompileResult(compileResult);
         setFinalFragment(compileResult.fragmentResult);
         setVertex(compileResult.vertexResult);
-        // Mutated from the processAst call for now
-        setPreprocessed(ctx.debuggingNonsense.fragmentPreprocessed);
-        setPreprocessedVert(ctx.debuggingNonsense.vertexPreprocessed);
-        setOriginal(ctx.debuggingNonsense.fragmentSource);
-        setOriginalVert(ctx.debuggingNonsense.vertexSource);
 
-        const byId = graph.nodes.reduce<Record<string, GraphNode>>(
+        const byId = updatedGraph.nodes.reduce<Record<string, GraphNode>>(
           (acc, node) => ({ ...acc, [node.id]: node }),
           {}
         );
@@ -720,9 +740,9 @@ const Editor: React.FC = () => {
         const updatedNodes = flowElements.nodes.map((node) => {
           return {
             ...node,
-            inputs: toFlowInputs(byId[node.id]),
             data: {
               ...node.data,
+              inputs: toFlowInputs(byId[node.id]),
               active: compileResult.activeNodeIds.has(node.id),
             },
           };
@@ -764,7 +784,7 @@ const Editor: React.FC = () => {
     [setFlowElements, debouncedSetNeedsCompile]
   );
 
-  const onNodeCategoryToggle = useCallback(
+  const onInputCategoryToggle = useCallback(
     (id: string, inputName: string) => {
       setFlowElements(({ nodes, edges }) => ({
         nodes: nodes.map((node) =>
@@ -822,16 +842,15 @@ const Editor: React.FC = () => {
           ? initialElements
           : initializeFlowElementsFromGraph(
               graph,
-              newCtx,
               onNodeInputChange,
-              onNodeCategoryToggle
+              onInputCategoryToggle
             );
 
         compile(engine, newCtx, pauseCompile, initFlowElements);
         setGuiMsg('');
       }, 10);
     },
-    [compile, engine, pauseCompile, onNodeInputChange, onNodeCategoryToggle]
+    [compile, engine, pauseCompile, onNodeInputChange, onInputCategoryToggle]
   );
 
   // Once we receive a new engine context, re-initialize the graph. This method
@@ -1076,46 +1095,61 @@ const Editor: React.FC = () => {
   const onEdgeUpdateEnd = () => resetTargets();
   const onConnectStop = () => resetTargets();
 
-  const [mouse, setMouse] = useState<XYPosition>({ x: 0, y: 0 });
+  const mouse = useRef<{ real: XYPosition; projected: XYPosition }>({
+    real: { x: 0, y: 0 },
+    projected: { x: 0, y: 0 },
+  });
   const { project } = useReactFlow();
   const onMouseMove = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
-      setMouse(project({ x: event.clientX, y: event.clientY }));
+      mouse.current.real = { x: event.clientX, y: event.clientY };
+      mouse.current.projected = project(mouse.current.real);
     },
     [project]
   );
 
-  useEffect(() => {
-    const listener = (e: KeyboardEvent) => {
-      console.log(e.key);
-      if (e.key === 'a') {
-        const newNode: FlowNode<FlowNodeData> = {
-          id: id(),
-          position: mouse,
-          type: 'data',
-          data: {
-            label: 'number',
-            type: 'number',
-            value: '666',
-            inputs: [],
-            onChange: onNodeInputChange,
-            outputs: [
-              {
-                name: 'out',
-                validTarget: false,
-              },
-            ],
-          },
-        };
-        setFlowElements({
-          ...flowElements,
-          nodes: [...flowElements.nodes, newNode],
-        });
-      }
+  const [menuPos, setMenuPos] = useState<XYPosition | null>();
+
+  const onMenuAdd = (type: string) => {
+    console.log(type);
+    const id = makeId();
+    // let newNode: FlowNode<FlowNodeData>;
+    let newGn: GraphNode;
+
+    if (type === 'number') {
+      newGn = numberNode(id, 'number', '1');
+    } else if (type === 'multiply') {
+      newGn = multiplyNode(id);
+    } else if (type === 'add') {
+      newGn = addNode(id);
+    } else {
+      throw new Error('Unknown type "' + type + '"');
+    }
+    // TODO: When adding an add node, there's the error "flow node has no input"
+    // "a" - inside fromFlowToGraph() below - why?
+    computeContextForNodes(ctx as EngineContext<any>, engine, graph, [newGn]);
+    const newNode = graphNodeToFlowNode(
+      newGn,
+      onNodeInputChange,
+      onInputCategoryToggle,
+      project(menuPos as XYPosition)
+    );
+    // console.log('computed', { newGn });
+    const updatedFlowElements = {
+      ...flowElements,
+      nodes: [...flowElements.nodes, newNode],
     };
-    window.addEventListener('keyup', listener);
-    return () => window.removeEventListener('keyup', listener);
-  }, [flowElements, mouse, onNodeInputChange, setFlowElements]);
+    const updatedGraph = {
+      ...graph,
+      nodes: [...graph.nodes, newGn],
+    };
+    setFlowElements(updatedFlowElements);
+    setGraph(fromFlowToGraph(updatedGraph, updatedFlowElements));
+    setMenuPos(null);
+  };
+
+  useHotkeys('esc', () => setMenuPos(null));
+  useHotkeys('shift+a', () => setMenuPos(mouse.current.real));
 
   useEffect(() => {
     if (needsCompile) {
@@ -1123,8 +1157,14 @@ const Editor: React.FC = () => {
     }
   }, [needsCompile, flowElements, ctx, pauseCompile, compile, engine]);
 
+  const onContainerClick = (event: React.MouseEvent<HTMLElement>) => {
+    if (!hasParent(event.target as HTMLElement, '#x-context-menu')) {
+      setMenuPos(null);
+    }
+  };
+
   return (
-    <div className={styles.container}>
+    <div className={styles.container} onClick={onContainerClick}>
       <SplitPane
         split="vertical"
         onChange={onSplitResize}
@@ -1183,6 +1223,9 @@ const Editor: React.FC = () => {
             </TabGroup>
             <TabPanels>
               <TabPanel onMouseMove={onMouseMove}>
+                {menuPos ? (
+                  <ContextMenu position={menuPos} onAdd={onMenuAdd} />
+                ) : null}
                 <ReactFlow
                   // Possible fix for this being broken in dev+hot reload mode
                   // https://discord.com/channels/771389069270712320/859774873500778517/956225780252291112
@@ -1460,6 +1503,38 @@ const StrategyEditor = ({
           ? inputs.map((i) => i.name).join(', ')
           : 'No inputs found'}
       </div>
+    </div>
+  );
+};
+
+const ctxNodes: [string, string][] = [
+  ['number', 'Number'],
+  ['add', 'Add'],
+  ['multiply', 'Multiply'],
+];
+const ContextMenu = ({
+  position,
+  onAdd,
+}: {
+  onAdd: (name: string) => void;
+  position: XYPosition;
+}) => {
+  return (
+    <div
+      id="x-context-menu"
+      className={ctxStyles.contextMenu}
+      style={{ top: position.y, left: position.x }}
+    >
+      <div className={ctxStyles.contextHeader}>Add a Node</div>
+      {ctxNodes.map(([type, display]) => (
+        <div
+          key={type}
+          className={ctxStyles.contextRow}
+          onClick={() => onAdd(type)}
+        >
+          {display}
+        </div>
+      ))}
     </div>
   );
 };

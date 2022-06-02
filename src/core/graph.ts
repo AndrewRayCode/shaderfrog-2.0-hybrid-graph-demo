@@ -232,6 +232,7 @@ export const coreParsers: CoreParser = {
             name: MAGIC_OUTPUT_STMTS,
             id: MAGIC_OUTPUT_STMTS,
             category: 'code',
+            bakeable: false,
           },
           (fillerAst: AstNode) => {
             ast.program
@@ -267,6 +268,12 @@ export const coreParsers: CoreParser = {
       return fragmentAst;
     },
     findInputs: (engineContext, node, ast, inputEdges) => {
+      console.log(
+        'generating inputs for binary',
+        new Array(Math.max(inputEdges.length + 1, 2))
+          .fill(0)
+          .map((_, index) => alphabet.charAt(index))
+      );
       return new Array(Math.max(inputEdges.length + 1, 2))
         .fill(0)
         .map((_, index) => {
@@ -276,6 +283,7 @@ export const coreParsers: CoreParser = {
               name: letter,
               category: 'code',
               id: letter,
+              bakeable: false,
             },
             (fillerAst: AstNode) => {
               let foundPath: Path | undefined;
@@ -582,7 +590,7 @@ const computeNodeContext = <T>(
   return nodeContext;
 };
 
-const computeContextForNodes = <T>(
+export const computeContextForNodes = <T>(
   engineContext: EngineContext<T>,
   engine: Engine<T>,
   graph: Graph,

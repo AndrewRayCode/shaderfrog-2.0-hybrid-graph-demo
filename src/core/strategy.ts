@@ -122,6 +122,7 @@ export const strategyRunners: Strategies = {
             name,
             id: name,
             category: 'data',
+            bakeable: true,
           },
           (filler: AstNode) => {
             const mangledName = mangleName(name, graphNode);
@@ -171,6 +172,7 @@ export const strategyRunners: Strategies = {
               name: cast.config.assignTo,
               id: cast.config.assignTo,
               category: 'code',
+              bakeable: false,
             },
             (fillerAst: AstNode) => {
               assignNode.expression.right = fillerAst;
@@ -229,6 +231,7 @@ export const strategyRunners: Strategies = {
             name: iName,
             id: iName,
             category: 'code',
+            bakeable: false,
           },
           (fillerAst: AstNode) => {
             parent[key] = fillerAst;
@@ -249,6 +252,7 @@ export const strategyRunners: Strategies = {
           name: attributeName,
           category: 'code',
           id: attributeName,
+          bakeable: true,
         },
         (fillerAst: AstNode) => {
           Object.entries(ast.scopes[0].bindings).forEach(
@@ -313,6 +317,7 @@ export const strategyRunners: Strategies = {
                 name: identifier,
                 id: identifier,
                 category: 'code',
+                bakeable: false,
               },
               replacer,
             ],

@@ -1,4 +1,4 @@
-import { CoreNode } from './core-node';
+import { CoreNode, NodeInput, NodeOutput } from './core-node';
 
 type Vec = 'vec2' | 'vec3' | 'vec4';
 type Mat =
@@ -30,8 +30,8 @@ export const numberNode = (
   optionals?: {
     range?: [number, number];
     stepper?: number;
-    inputs?: Object[];
-    outputs?: Object[];
+    inputs?: NodeInput[];
+    outputs?: NodeOutput[];
   }
 ): NumberNode => ({
   type: 'number',
@@ -39,7 +39,13 @@ export const numberNode = (
   name,
   value,
   inputs: optionals?.inputs || [],
-  outputs: optionals?.outputs || ['out'],
+  outputs: optionals?.outputs || [
+    {
+      name: 'out',
+      id: '1',
+      category: 'data',
+    },
+  ],
   range: optionals?.range,
   stepper: optionals?.stepper,
 });

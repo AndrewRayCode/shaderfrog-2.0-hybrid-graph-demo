@@ -165,12 +165,13 @@ export const strategyRunners: Strategies = {
   [StrategyType.ASSIGNMENT_TO]: (node, ast, strategy) => {
     const cast = strategy as AssignemntToStrategy;
     const assignNode = findAssignmentTo(ast, cast.config.assignTo);
+    const name = cast.config.assignTo;
     return assignNode
       ? [
           [
             {
-              name: cast.config.assignTo,
-              id: cast.config.assignTo,
+              name,
+              id: name,
               category: 'code',
               bakeable: false,
             },

@@ -199,6 +199,7 @@ export const threngine: Engine<RuntimeContext> = {
             color: 0x00ff00,
             map: new three.Texture(),
             normalMap: new three.Texture(),
+            // roughnessMap: new three.Texture(),
           })
         );
       },
@@ -239,7 +240,7 @@ export const threngine: Engine<RuntimeContext> = {
             // TODO: Normals are wrong when using normalmap
             normalMap: new three.Texture(),
             envMap: envMapTexture,
-            // roughnessMap: new three.Texture(),
+            roughnessMap: new three.Texture(),
           })
         );
       },

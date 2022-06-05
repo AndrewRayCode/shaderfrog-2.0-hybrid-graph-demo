@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as three from 'three';
-import { Graph } from '../../core/graph';
+import { evaluateNode, Graph } from '../../core/graph';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import { EngineContext } from '../../core/engine';
 
@@ -12,6 +12,8 @@ import { useThree } from './useThree';
 import { usePrevious } from '../../site/usePrevious';
 import { UICompileGraphResult } from '../../site/uICompileGraphResult';
 import { PreviewLight } from '../../site/components/Editor';
+import { ensure } from '../../util/ensure';
+import { Edge } from '../../core/nodes/edge';
 
 const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
 
@@ -105,6 +107,30 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         light1.position.y = 1.3 * Math.sin(time * 0.0015);
 
         light1.lookAt(new three.Vector3(0, 0, 0));
+      }
+
+      if (compileResult?.activeUniforms) {
+        const { graph } = compileResult;
+        Object.entries(compileResult.activeUniforms).forEach(
+          ([nodeId, inputs]) => {
+            const node = ensure(graph.nodes.find(({ id }) => id === nodeId));
+            inputs.forEach((input) => {
+              const edge = graph.edges.find(
+                ({ to, input: i }) => to === nodeId && i === input.id
+              );
+              if (edge) {
+                const fromNode = ensure(
+                  graph.nodes.find(({ id }) => id === edge.from)
+                );
+                const result = evaluateNode(graph, fromNode);
+                // TODO: This doesn't work for engine variables because
+                // those aren't suffixed
+                mesh.material.uniforms[`${input.name}_${node.id}`].value =
+                  result;
+              }
+            });
+          }
+        );
       }
 
       // @ts-ignore
@@ -262,6 +288,9 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
       map: { value: new three.TextureLoader().load('/contrast-noise.png') },
       normalMap: {
+        value: new three.TextureLoader().load('/blank-normal-map.png'),
+      },
+      roughnessMap: {
         value: new three.TextureLoader().load('/blank-normal-map.png'),
       },
       image: {

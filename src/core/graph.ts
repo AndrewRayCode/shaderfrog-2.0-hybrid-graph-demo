@@ -390,15 +390,15 @@ export const collectConnectedNodes = (
 type NodeIds = Record<string, GraphNode>;
 export type CompileNodeResult = [ShaderSections, AstNode | void, NodeIds];
 
+const skipDataInputs = (input: NodeInput) => input.category !== 'data';
+
 export const compileNode = <T>(
   engine: Engine<T>,
   graph: Graph,
   edges: Edge[],
   engineContext: EngineContext<T>,
-  // graphContext: GraphContext,
   node: GraphNode,
-  stage: ShaderStage,
-  ids: NodeIds
+  activeIds: NodeIds = {}
 ): CompileNodeResult => {
   console.log('compiling', node.name, (node as SourceNode).stage);
   // THIS DUPLICATES OTHER LINE
@@ -434,7 +434,7 @@ export const compileNode = <T>(
     throw new Error("I'm drunk and I think this case should be impossible");
   }
 
-  let compiledIds = ids;
+  let compiledIds = activeIds;
 
   const inputEdges = edges.filter((edge) => edge.to === node.id);
   if (inputEdges.length) {
@@ -447,13 +447,13 @@ export const compileNode = <T>(
           `GraphNode for edge ${edge.from} not found`
         ),
         input: ensure(
-          inputs.find(({ name }) => name == edge.input),
+          inputs.find(({ id }) => id == edge.input),
           `GraphNode "${node.name}" has no input ${
             edge.input
-          }!\nAvailable:${inputs.map(({ name }) => name).join(', ')}`
+          }!\nAvailable:${inputs.map(({ id }) => id).join(', ')}`
         ),
       }))
-      .filter(({ input }) => input.category !== 'data')
+      .filter(({ input }) => skipDataInputs(input))
       .forEach(({ fromNode, edge, input }) => {
         const [inputSections, fillerAst, childIds] = compileNode(
           engine,
@@ -461,8 +461,7 @@ export const compileNode = <T>(
           edges,
           engineContext,
           fromNode,
-          stage,
-          ids
+          activeIds
         );
         if (!fillerAst) {
           throw new TypeError(
@@ -477,10 +476,10 @@ export const compileNode = <T>(
           nodeContext.ast =
             inputFillers[
               ensure(
-                inputs.find(({ name }) => name == edge.input),
+                inputs.find(({ id }) => id == edge.input),
                 `GraphNode "${node.name}" has no input ${
                   edge.input
-                }!\nAvailable:${Object.keys(inputs).join(', ')}`
+                }!\nAvailable:${inputs.map(({ id }) => id).join(', ')}`
               ).id
             ](fillerAst);
         }
@@ -616,6 +615,9 @@ export const computeContextForNodes = <T>(
 export type CompileGraphResult = {
   fragment: ShaderSections;
   vertex: ShaderSections;
+  outputFrag: GraphNode;
+  outputVert: GraphNode;
+  orphanNodes: GraphNode[];
   activeNodeIds: Set<string>;
 };
 
@@ -696,9 +698,7 @@ export const compileGraph = <T>(
     graph,
     graph.edges,
     engineContext,
-    outputFrag,
-    'fragment',
-    {}
+    outputFrag
   );
 
   const outputVert = graph.nodes.find(
@@ -737,9 +737,7 @@ export const compileGraph = <T>(
     graph,
     [...graph.edges, ...orphanEdges],
     engineContext,
-    outputVert,
-    'vertex',
-    {}
+    outputVert
   );
 
   // Imperative hack :( to allow engines to know some unique id of compilation
@@ -750,6 +748,9 @@ export const compileGraph = <T>(
   return {
     fragment,
     vertex,
+    outputFrag,
+    outputVert,
+    orphanNodes,
     activeNodeIds: new Set<string>([
       ...Object.keys(vertexIds),
       ...Object.keys(fragmentIds),

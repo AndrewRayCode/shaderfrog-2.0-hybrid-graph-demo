@@ -93,6 +93,8 @@ import {
   FlowNodeData,
   FlowNodeSourceData,
   FlowNodeDataData,
+  InputNodeHandle,
+  flowOutput,
 } from './flow/FlowNode';
 
 import { Tabs, Tab, TabGroup, TabPanel, TabPanels } from './Tabs';
@@ -108,7 +110,10 @@ import {
   engine as babylengine,
 } from '../../plugins/babylon';
 import { Hoisty, useHoisty } from '../hoistedRefContext';
-import { UICompileGraphResult } from '../uICompileGraphResult';
+import {
+  collectUniformsFromActiveNodes,
+  UICompileGraphResult,
+} from '../uICompileGraphResult';
 import { useLocalStorage } from '../useLocalStorage';
 import { Strategy, StrategyType } from '../../core/strategy';
 import { ensure } from '../../util/ensure';
@@ -117,6 +122,7 @@ import { makeEdge } from '../../core/nodes/edge';
 import { SourceNode } from '../../core/nodes/code-nodes';
 import { makeId } from '../../util/id';
 import { hasParent } from '../../util/hasParent';
+import { NodeInput } from '../../core/nodes/core-node';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
@@ -205,8 +211,8 @@ const useFlef = () => {
           outlineV,
         ],
         edges: [
-          makeEdge(physicalF.id, outputF.id, 'out', 'color', 'fragment'),
-          makeEdge(physicalV.id, outputV.id, 'out', 'position', 'vertex'),
+          makeEdge(physicalF.id, outputF.id, 'out', 'frogFragOut', 'fragment'),
+          makeEdge(physicalV.id, outputV.id, 'out', 'gl_Position', 'vertex'),
         ],
       }) || {
         nodes: [
@@ -388,6 +394,11 @@ const compileGraphAsync = async (
         shaderSectionsToAst(result.vertex, engine.mergeOptions).program
       );
 
+      const activeUniforms = collectUniformsFromActiveNodes(graph, [
+        result.outputFrag,
+        result.outputVert,
+      ]);
+
       const now = performance.now();
       console.log(`Compilation took:
 -------------------
@@ -396,9 +407,11 @@ total: ${(now - allStart).toFixed(3)}ms
 `);
       resolve({
         compileMs: (now - allStart).toFixed(3),
-        activeNodeIds: result.activeNodeIds,
+        result,
         fragmentResult,
         vertexResult,
+        activeUniforms,
+        graph,
       });
     }, 0);
   });
@@ -477,7 +490,7 @@ const setBiStages = (flowElements: FlowElements) => {
   };
 };
 
-const toFlowInputs = (node: GraphNode) =>
+const toFlowInputs = (node: GraphNode): InputNodeHandle[] =>
   (node.inputs || [])
     .filter(({ name }) => name !== MAGIC_OUTPUT_STMTS)
     .map((input) => ({
@@ -501,10 +514,7 @@ const graphNodeToFlowNode = (
         active: false,
         biStage: node.biStage || false,
         inputs: toFlowInputs(node),
-        outputs: node.outputs.map((o) => ({
-          validTarget: false,
-          name: o.name,
-        })),
+        outputs: node.outputs.map((o) => flowOutput(o.name)),
         onInputCategoryToggle,
       }
     : {
@@ -513,10 +523,7 @@ const graphNodeToFlowNode = (
         value: node.value,
         onChange,
         inputs: toFlowInputs(node),
-        outputs: node.outputs.map((o) => ({
-          validTarget: false,
-          name: o.name,
-        })),
+        outputs: node.outputs.map((o) => flowOutput(o.name)),
       };
   return {
     id: node.id,
@@ -607,8 +614,8 @@ const fromFlowToGraph = (graph: Graph, flowElements: FlowElements): Graph => {
         }
 
         const inputFromFlow = ensure(
-          flowInputs.find((f) => f.name === i.name),
-          `Flow Node ${node.name} has no input ${i.name}`
+          flowInputs.find((f) => f.id === i.id),
+          `Flow Node ${node.name} has no input ${i.id}`
         );
         return {
           ...i,
@@ -737,26 +744,26 @@ const Editor: React.FC = () => {
         );
 
         // Update the available inputs from the node after the compile
-        const updatedNodes = flowElements.nodes.map((node) => {
+        const updatedFlowNodes = flowElements.nodes.map((node) => {
           return {
             ...node,
             data: {
               ...node.data,
               inputs: toFlowInputs(byId[node.id]),
-              active: compileResult.activeNodeIds.has(node.id),
+              active: compileResult.result.activeNodeIds.has(node.id),
             },
           };
         });
 
         setFlowElements({
           ...flowElements,
-          nodes: updatedNodes,
+          nodes: updatedFlowNodes,
         });
 
         // This is a hack to make the edges update to their handles if they move
         // https://github.com/wbkd/react-flow/issues/2008
         setTimeout(() => {
-          updatedNodes.forEach((node) => updateNodeInternals(node.id));
+          updatedFlowNodes.forEach((node) => updateNodeInternals(node.id));
         }, 500);
       });
     },

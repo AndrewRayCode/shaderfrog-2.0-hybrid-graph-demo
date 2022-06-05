@@ -15,17 +15,24 @@ import { InputCategory } from '../../../core/nodes/core-node';
 
 const handleTop = 45;
 const textHeight = 10;
-type InputNodeHandle = {
+export type InputNodeHandle = {
   validTarget: boolean;
   category?: InputCategory;
   name: string;
+  id: string;
   bakeable: boolean;
 };
 type OutputNodeHandle = {
   validTarget: boolean;
   category?: InputCategory;
+  id: string;
   name: string;
 };
+export const flowOutput = (name: string, id?: string): OutputNodeHandle => ({
+  validTarget: false,
+  id: id || name,
+  name,
+});
 
 export interface CoreFlowNode {
   label: string;
@@ -100,7 +107,7 @@ const DataNodeComponent = ({
         {data.inputs.map((input, index) => (
           <React.Fragment key={input.name}>
             <Handle
-              id={input.name}
+              id={input.id}
               className={cx({ validTarget: input.validTarget })}
               type="target"
               position={Position.Left}
@@ -141,7 +148,7 @@ const DataNodeComponent = ({
               {output.name}
             </div>
             <Handle
-              id={output.name}
+              id={output.id}
               className={cx({ validTarget: output.validTarget })}
               type="source"
               position={Position.Right}
@@ -192,7 +199,7 @@ const SourceNodeComponent = ({
         {data.inputs.map((input, index) => (
           <React.Fragment key={input.name}>
             <Handle
-              id={input.name}
+              id={input.id}
               className={cx({ validTarget: input.validTarget })}
               type="target"
               position={Position.Left}
@@ -236,7 +243,7 @@ const SourceNodeComponent = ({
               {output.name}
             </div>
             <Handle
-              id={output.name}
+              id={output.id}
               className={cx({ validTarget: output.validTarget })}
               type="source"
               position={Position.Right}

@@ -73,25 +73,26 @@ export type NodeContext = {
   source?: string;
   id: string;
   inputFillers: InputFillers;
+  errors?: NodeErrors;
 };
 
 export type ComputedInput = [NodeInput, InputFiller];
 
 export type FindInputs = (
-  engineContext: EngineContext<any>,
+  engineContext: EngineContext,
   node: SourceNode,
   ast: AstNode,
   inputEdges: Edge[]
 ) => ComputedInput[];
 
 export type OnBeforeCompile = (
-  engineContext: EngineContext<any>,
+  engineContext: EngineContext,
   node: SourceNode
 ) => void;
 
 export type ProduceAst = (
-  engineContext: EngineContext<any>,
-  engine: Engine<any>,
+  engineContext: EngineContext,
+  engine: Engine,
   graph: Graph,
   node: SourceNode,
   inputEdges: Edge[]
@@ -113,15 +114,15 @@ type CoreNodeParser = {
 };
 
 export type ManipulateAst = (
-  engineContext: EngineContext<any>,
-  engine: Engine<any>,
+  engineContext: EngineContext,
+  engine: Engine,
   graph: Graph,
   node: SourceNode,
   ast: AstNode | ParserProgram,
   inputEdges: Edge[]
 ) => AstNode | ParserProgram;
 
-export type NodeParser<T> = {
+export type NodeParser = {
   onBeforeCompile?: OnBeforeCompile;
   manipulateAst?: ManipulateAst;
   findInputs?: FindInputs;
@@ -158,20 +159,21 @@ export const nodeName = (node: GraphNode): string =>
 
 type Runtime = {};
 
-export const mangleName = (name: string, node: SourceNode) => {
+export const mangleName = (name: string, node: GraphNode) => {
   // Mangle names by using the next stage id, if present
-  const id = node.nextStageNodeId || node.id;
+  const id = ('nextStageNodeId' in node && node.nextStageNodeId) || node.id;
   return `${name}_${id}`;
 };
+
+export const mangleVar = (name: string, engine: Engine, node: GraphNode) =>
+  engine.preserve.has(name) ? name : mangleName(name, node);
 
 export const mangle = (
   ast: ParserProgram,
   node: SourceNode,
-  engine: Engine<any>
+  engine: Engine
 ) => {
-  renameBindings(ast.scopes[0], (name) =>
-    engine.preserve.has(name) ? name : mangleName(name, node)
-  );
+  renameBindings(ast.scopes[0], (name) => mangleVar(name, engine, node));
   renameFunctions(ast.scopes[0], (name) =>
     name === 'main' ? nodeName(node) : mangleName(name, node)
   );
@@ -392,11 +394,11 @@ export type CompileNodeResult = [ShaderSections, AstNode | void, NodeIds];
 
 const skipDataInputs = (input: NodeInput) => input.category !== 'data';
 
-export const compileNode = <T>(
-  engine: Engine<T>,
+export const compileNode = (
+  engine: Engine,
   graph: Graph,
   edges: Edge[],
-  engineContext: EngineContext<T>,
+  engineContext: EngineContext,
   node: GraphNode,
   activeIds: NodeIds = {}
 ): CompileNodeResult => {
@@ -533,12 +535,19 @@ const mergeNodeInputs = (
   });
 };
 
-const computeNodeContext = <T>(
-  engineContext: EngineContext<T>,
-  engine: Engine<T>,
+type NodeErrors = { type: 'errors'; errors: any[] };
+const makeError = (...errors: any[]): NodeErrors => ({
+  type: 'errors',
+  errors,
+});
+const isError = (test: any): test is NodeErrors => test?.type === 'errors';
+
+const computeNodeContext = (
+  engineContext: EngineContext,
+  engine: Engine,
   graph: Graph,
   node: SourceNode
-): NodeContext => {
+): NodeContext | NodeErrors => {
   // THIS DUPLICATES OTHER LINE
   const parser = {
     ...(coreParsers[node.type] || coreParsers[NodeType.SOURCE]),
@@ -553,9 +562,14 @@ const computeNodeContext = <T>(
   const inputEdges = graph.edges.filter((edge) => edge.to === node.id);
 
   // const ast = (stage in parser ? parser[stage] : parser).produceAst(
-  let ast = parser.produceAst(engineContext, engine, graph, node, inputEdges);
-  if (manipulateAst) {
-    ast = manipulateAst(engineContext, engine, graph, node, ast, inputEdges);
+  let ast;
+  try {
+    ast = parser.produceAst(engineContext, engine, graph, node, inputEdges);
+    if (manipulateAst) {
+      ast = manipulateAst(engineContext, engine, graph, node, ast, inputEdges);
+    }
+  } catch (error) {
+    return makeError(error);
   }
 
   // Find the combination if inputs (data) and fillers (runtime context data)
@@ -589,21 +603,21 @@ const computeNodeContext = <T>(
   return nodeContext;
 };
 
-export const computeContextForNodes = <T>(
-  engineContext: EngineContext<T>,
-  engine: Engine<T>,
+export const computeContextForNodes = (
+  engineContext: EngineContext,
+  engine: Engine,
   graph: Graph,
   nodes: GraphNode[]
 ) =>
   nodes.filter(isSourceNode).reduce((context, node) => {
     console.log('computing context for', node.name);
 
-    const nodeContext = computeNodeContext(
-      engineContext,
-      engine as Engine<Runtime>,
-      graph,
-      node
-    );
+    let result = computeNodeContext(engineContext, engine, graph, node);
+    let nodeContext = isError(result)
+      ? {
+          errors: result,
+        }
+      : result;
 
     context[node.id] = {
       ...(context[node.id] || {}),
@@ -625,9 +639,9 @@ export type CompileGraphResult = {
  * Compute the context for every node in the graph, done on initial graph load
  * to compute the inputs/outputs for every node
  */
-export const computeAllContexts = <T>(
-  engineContext: EngineContext<T>,
-  engine: Engine<T>,
+export const computeAllContexts = (
+  engineContext: EngineContext,
+  engine: Engine,
   graph: Graph
 ) => {
   computeContextForNodes(engineContext, engine, graph, graph.nodes);
@@ -637,9 +651,9 @@ export const computeAllContexts = <T>(
  * Compute the contexts for nodes starting from the outputs, working backwards.
  * Used to only (re)-compute context for any actively used nodes
  */
-export const computeGraphContext = <T>(
-  engineContext: EngineContext<T>,
-  engine: Engine<T>,
+export const computeGraphContext = (
+  engineContext: EngineContext,
+  engine: Engine,
   graph: Graph
 ) => {
   const outputFrag = graph.nodes.find(
@@ -679,9 +693,9 @@ export const computeGraphContext = <T>(
   // computeSideContext(engineContext, engine, graph, 'vertex');
 };
 
-export const compileGraph = <T>(
-  engineContext: EngineContext<T>,
-  engine: Engine<T>,
+export const compileGraph = (
+  engineContext: EngineContext,
+  engine: Engine,
   graph: Graph
 ): CompileGraphResult => {
   computeGraphContext(engineContext, engine, graph);

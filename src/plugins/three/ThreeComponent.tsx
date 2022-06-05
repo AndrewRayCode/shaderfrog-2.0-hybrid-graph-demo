@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as three from 'three';
-import { evaluateNode, Graph } from '../../core/graph';
+import { evaluateNode, Graph, mangleVar } from '../../core/graph';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import { EngineContext } from '../../core/engine';
 
 import styles from '../../pages/editor/editor.module.css';
 
-import { RuntimeContext } from './threngine';
+import { threngine, ThreeRuntime } from './threngine';
 
 import { useThree } from './useThree';
 import { usePrevious } from '../../site/usePrevious';
@@ -14,6 +14,7 @@ import { UICompileGraphResult } from '../../site/uICompileGraphResult';
 import { PreviewLight } from '../../site/components/Editor';
 import { ensure } from '../../util/ensure';
 import { Edge } from '../../core/nodes/edge';
+import { Material } from 'three';
 
 const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
 
@@ -34,7 +35,7 @@ type ThreeSceneProps = {
   graph: Graph;
   lights: PreviewLight;
   previewObject: string;
-  setCtx: <T extends unknown>(ctx: EngineContext<T>) => void;
+  setCtx: (ctx: EngineContext) => void;
   setGlResult: AnyFn;
   setLights: AnyFn;
   setPreviewObject: AnyFn;
@@ -125,8 +126,9 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
                 const result = evaluateNode(graph, fromNode);
                 // TODO: This doesn't work for engine variables because
                 // those aren't suffixed
-                mesh.material.uniforms[`${input.name}_${node.id}`].value =
-                  result;
+                const name = mangleVar(input.name, threngine, node);
+                // @ts-ignore
+                mesh.material.uniforms[name].value = result;
               }
             });
           }
@@ -179,7 +181,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     image.magFilter = three.NearestFilter;
   }, []);
 
-  const [ctx] = useState<EngineContext<RuntimeContext>>({
+  const [ctx] = useState<EngineContext>({
     engine: 'three',
     compileCount: 0,
     runtime: {
@@ -208,7 +210,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
           const { texture } = renderTarget;
 
           ctx.runtime.envMapTexture = texture;
-          setCtx<RuntimeContext>(ctx);
+          setCtx(ctx);
         }
       );
     }
@@ -222,7 +224,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       threeTone,
       envMapTexture,
       sceneData: { mesh },
-    } = ctx.runtime;
+    } = ctx.runtime as ThreeRuntime;
     console.log('oh hai birfday boi boi boiiiii');
 
     const pc: any = graph.nodes.find(

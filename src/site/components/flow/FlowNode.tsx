@@ -132,7 +132,7 @@ const DataNodeComponent = ({
             className="nodrag"
             type="text"
             onChange={(e) => data.onChange(id, e)}
-            value={data.value}
+            defaultValue={data.value}
           />
         </div>
 

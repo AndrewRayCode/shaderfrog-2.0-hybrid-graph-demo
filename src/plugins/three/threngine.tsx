@@ -12,7 +12,7 @@ import {
 } from '../../ast/manipulate';
 import { SourceNode } from '../../core/nodes/code-nodes';
 
-export type RuntimeContext = {
+export type ThreeRuntime = {
   scene: any;
   camera: any;
   renderer: any;
@@ -35,7 +35,7 @@ export type RuntimeContext = {
 };
 
 const onBeforeCompileMegaShader = (
-  engineContext: EngineContext<RuntimeContext>,
+  engineContext: EngineContext,
   node: SourceNode,
   newMat: any
 ) => {
@@ -82,7 +82,7 @@ const onBeforeCompileMegaShader = (
   };
 };
 
-const megaShaderMainpulateAst: NodeParser<any>['manipulateAst'] = (
+const megaShaderMainpulateAst: NodeParser['manipulateAst'] = (
   engineContext,
   engine,
   graph,
@@ -102,7 +102,7 @@ const megaShaderMainpulateAst: NodeParser<any>['manipulateAst'] = (
   return programAst;
 };
 
-export const threngine: Engine<RuntimeContext> = {
+export const threngine: Engine = {
   name: 'three',
   importers,
   mergeOptions: {

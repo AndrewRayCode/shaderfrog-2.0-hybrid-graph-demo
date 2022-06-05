@@ -34,7 +34,7 @@ export type RuntimeContext = {
 let mIdx = 0;
 let id = () => mIdx++;
 const onBeforeCompileMegaShader = (
-  engineContext: EngineContext<RuntimeContext>,
+  engineContext: EngineContext,
   node: SourceNode
 ) => {
   const { scene, sceneData } = engineContext.runtime;
@@ -135,7 +135,7 @@ const onBeforeCompileMegaShader = (
   };
 };
 
-const megaShaderMainpulateAst: NodeParser<any>['manipulateAst'] = (
+const megaShaderMainpulateAst: NodeParser['manipulateAst'] = (
   engineContext,
   engine,
   graph,
@@ -163,7 +163,7 @@ const megaShaderMainpulateAst: NodeParser<any>['manipulateAst'] = (
   return programAst;
 };
 
-export const babylengine: Engine<RuntimeContext> = {
+export const babylengine: Engine = {
   name: 'babylon',
   importers,
   mergeOptions: {

@@ -51,6 +51,7 @@ import { Edge as GraphEdge, EdgeType } from '../../core/nodes/edge';
 import {
   outputNode,
   addNode,
+  sourceNode,
   multiplyNode,
   phongNode,
   physicalNode,
@@ -115,7 +116,7 @@ import {
   UICompileGraphResult,
 } from '../uICompileGraphResult';
 import { useLocalStorage } from '../useLocalStorage';
-import { Strategy, StrategyType } from '../../core/strategy';
+import { Strategy, StrategyType, uniformStrategy } from '../../core/strategy';
 import { ensure } from '../../util/ensure';
 import { numberNode } from '../../core/nodes/data-nodes';
 import { makeEdge } from '../../core/nodes/edge';
@@ -377,8 +378,8 @@ const edgeTypes = {
 
 const compileGraphAsync = async (
   graph: Graph,
-  engine: Engine<any>,
-  ctx: EngineContext<any>
+  engine: Engine,
+  ctx: EngineContext
 ): Promise<UICompileGraphResult> =>
   new Promise((resolve, reject) => {
     setTimeout(() => {
@@ -503,7 +504,7 @@ const toFlowInputs = (node: GraphNode): InputNodeHandle[] =>
 
 const graphNodeToFlowNode = (
   node: GraphNode,
-  onChange: any,
+  onNodeInputChange: any,
   onInputCategoryToggle: any,
   position: XYPosition
 ): FlowNode<FlowNodeData> => {
@@ -521,7 +522,7 @@ const graphNodeToFlowNode = (
         label: node.name,
         type: node.type,
         value: node.value,
-        onChange,
+        onChange: onNodeInputChange,
         inputs: toFlowInputs(node),
         outputs: node.outputs.map((o) => flowOutput(o.name)),
       };
@@ -535,7 +536,7 @@ const graphNodeToFlowNode = (
 
 const initializeFlowElementsFromGraph = (
   graph: Graph,
-  onChange: any,
+  onNodeInputChange: any,
   onInputCategoryToggle: any
 ): FlowElements => {
   let engines = 0;
@@ -549,7 +550,7 @@ const initializeFlowElementsFromGraph = (
   const nodes = graph.nodes.map((node) =>
     graphNodeToFlowNode(
       node,
-      onChange,
+      onNodeInputChange,
       onInputCategoryToggle,
       node.type === EngineNodeType.output
         ? { x: spacing * 2, y: outputs++ * 100 }
@@ -639,8 +640,8 @@ const Editor: React.FC = () => {
   const updateNodeInternals = useUpdateNodeInternals();
 
   const [{ lastEngine, engine }, setEngine] = useState<{
-    lastEngine: Engine<any> | null;
-    engine: Engine<any>;
+    lastEngine: Engine | null;
+    engine: Engine;
   }>({
     lastEngine: null,
     engine: threngine,
@@ -714,15 +715,15 @@ const Editor: React.FC = () => {
 
   // Store the engine context in state. There's a separate function for passing
   // to children to update the engine context, which has more side effects
-  const [ctx, setCtxState] = useState<EngineContext<any>>();
+  const [ctx, setCtxState] = useState<EngineContext>();
 
   // Compile function, meant to be called manually in places where we want to
   // trigger a compile. I tried making this a useEffect, however this function
   // needs to update "flowElements" at the end, which leads to an infinite loop
   const compile = useCallback(
     (
-      engine: Engine<any>,
-      ctx: EngineContext<any>,
+      engine: Engine,
+      ctx: EngineContext,
       pauseCompile: boolean,
       flowElements: FlowElements
     ) => {
@@ -824,7 +825,7 @@ const Editor: React.FC = () => {
   // of: parent updates lights, child gets updates, sets lights, then parent
   // handles recompile
   const childCompile = useCallback(
-    (ctx: EngineContext<any>) => {
+    (ctx: EngineContext) => {
       console.log('childCompile', ctx.nodes);
       return compile(engine, ctx, pauseCompile, flowElements);
     },
@@ -832,11 +833,7 @@ const Editor: React.FC = () => {
   );
 
   const initializeGraph = useCallback(
-    (
-      initialElements: FlowElements,
-      newCtx: EngineContext<any>,
-      graph: Graph
-    ) => {
+    (initialElements: FlowElements, newCtx: EngineContext, graph: Graph) => {
       setGuiMsg(`🥸 Initializing ${engine.name}...`);
       setTimeout(() => {
         computeAllContexts(newCtx, engine, graph);
@@ -863,7 +860,7 @@ const Editor: React.FC = () => {
   // Once we receive a new engine context, re-initialize the graph. This method
   // is passed to engine specific editor components
   const setCtx = useCallback(
-    <T extends unknown>(newCtx: EngineContext<T>) => {
+    (newCtx: EngineContext) => {
       if (newCtx.engine !== ctx?.engine) {
         ctx?.engine
           ? console.log('🔀 Changing engines!', { ctx, newCtx })
@@ -873,7 +870,7 @@ const Editor: React.FC = () => {
         setCtxState(newCtx);
         let newGraph = graph;
         if (lastEngine) {
-          const result = convertToEngine(newCtx, lastEngine, engine, graph);
+          const result = convertToEngine(lastEngine, engine, graph);
           newGraph = result[0];
 
           if (ctx?.engine) {
@@ -1129,12 +1126,27 @@ const Editor: React.FC = () => {
       newGn = multiplyNode(id);
     } else if (type === 'add') {
       newGn = addNode(id);
+    } else if (type === 'fragment' || type === 'vertex') {
+      newGn = sourceNode(
+        makeId(),
+        'Source Code',
+        { version: 2, preprocess: true, strategies: [uniformStrategy()] },
+        type === 'fragment'
+          ? `void main() {
+  gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
+}`
+          : `void main() {
+  gl_Position = vec4(1.0);
+}`,
+        type,
+        ctx?.engine
+      );
     } else {
       throw new Error('Unknown type "' + type + '"');
     }
     // TODO: When adding an add node, there's the error "flow node has no input"
     // "a" - inside fromFlowToGraph() below - why?
-    computeContextForNodes(ctx as EngineContext<any>, engine, graph, [newGn]);
+    computeContextForNodes(ctx as EngineContext, engine, graph, [newGn]);
     const newNode = graphNodeToFlowNode(
       newGn,
       onNodeInputChange,
@@ -1160,7 +1172,7 @@ const Editor: React.FC = () => {
 
   useEffect(() => {
     if (needsCompile) {
-      compile(engine, ctx as EngineContext<any>, pauseCompile, flowElements);
+      compile(engine, ctx as EngineContext, pauseCompile, flowElements);
     }
   }, [needsCompile, flowElements, ctx, pauseCompile, compile, engine]);
 
@@ -1272,7 +1284,7 @@ const Editor: React.FC = () => {
                           onClick={() =>
                             compile(
                               engine,
-                              ctx as EngineContext<any>,
+                              ctx as EngineContext,
                               pauseCompile,
                               flowElements
                             )
@@ -1287,7 +1299,7 @@ const Editor: React.FC = () => {
                         onSave={() => {
                           compile(
                             engine,
-                            ctx as EngineContext<any>,
+                            ctx as EngineContext,
                             pauseCompile,
                             flowElements
                           );
@@ -1316,7 +1328,7 @@ const Editor: React.FC = () => {
                         onSave={() =>
                           compile(
                             engine,
-                            ctx as EngineContext<any>,
+                            ctx as EngineContext,
                             pauseCompile,
                             flowElements
                           )
@@ -1425,7 +1437,7 @@ const StrategyEditor = ({
 }: {
   node: SourceNode;
   onSave: () => void;
-  ctx?: EngineContext<any>;
+  ctx?: EngineContext;
 }) => {
   if (!ctx) {
     return null;
@@ -1515,6 +1527,8 @@ const StrategyEditor = ({
 };
 
 const ctxNodes: [string, string][] = [
+  ['fragment', 'Fragment'],
+  ['vertex', 'Vertex'],
   ['number', 'Number'],
   ['add', 'Add'],
   ['multiply', 'Multiply'],

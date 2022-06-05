@@ -16,13 +16,13 @@ export enum EngineNodeType {
   binary = 'binary',
 }
 
-export interface Engine<T> {
+export interface Engine {
   name: string;
   preserve: Set<string>;
   mergeOptions: MergeOptions;
   // Component: FunctionComponent<{ engine: Engine; parsers: NodeParsers }>;
   // nodes: NodeParsers;
-  parsers: Record<string, NodeParser<T>>;
+  parsers: Record<string, NodeParser>;
   importers: EngineImporters;
 }
 
@@ -38,11 +38,11 @@ export type NodeContext = {
 
 // The context an engine builds as it evaluates. It can manage its own state
 // as the generic "RuntimeContext" which is passed to implemented engine methods
-export type EngineContext<RuntimeContext> = {
+export type EngineContext = {
   engine: string;
   compileCount: 0;
   nodes: Record<string, NodeContext>;
-  runtime: RuntimeContext;
+  runtime: any;
   debuggingNonsense: {
     vertexSource?: string;
     vertexPreprocessed?: string;
@@ -61,10 +61,9 @@ export type EngineImporters = {
 
 type EdgeUpdates = { [edgeId: string]: { oldInput: string; newInput: string } };
 
-export const convertToEngine = <T>(
-  engineContext: EngineContext<T>,
-  oldEngine: Engine<T>,
-  newEngine: Engine<T>,
+export const convertToEngine = (
+  oldEngine: Engine,
+  newEngine: Engine,
   graph: Graph
 ): [Graph, EdgeUpdates] => {
   const converter = newEngine.importers[oldEngine.name];

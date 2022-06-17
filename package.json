@@ -30,7 +30,8 @@
     "react-flow-renderer": "^10.2.1",
     "react-hotkeys-hook": "^3.4.6",
     "react-multi-split-pane": "^0.3.2",
-    "three": "^0.132.2"
+    "three": "^0.132.2",
+    "zustand": "^4.0.0-rc.1"
   },
   "devDependencies": {
     "@babel/core": "^7.15.5",

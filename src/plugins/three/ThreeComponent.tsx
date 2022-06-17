@@ -111,7 +111,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       }
 
       if (compileResult?.activeUniforms) {
-        const { graph } = compileResult;
         Object.entries(compileResult.activeUniforms).forEach(
           ([nodeId, inputs]) => {
             const node = ensure(graph.nodes.find(({ id }) => id === nodeId));
@@ -127,8 +126,12 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
                 // TODO: This doesn't work for engine variables because
                 // those aren't suffixed
                 const name = mangleVar(input.name, threngine, node);
+
                 // @ts-ignore
-                mesh.material.uniforms[name].value = result;
+                if (name in mesh.material.uniforms) {
+                  // @ts-ignore
+                  mesh.material.uniforms[name].value = result;
+                }
               }
             });
           }
@@ -220,6 +223,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     if (!compileResult?.fragmentResult) {
       return;
     }
+    const { graph } = compileResult;
     const {
       threeTone,
       envMapTexture,
@@ -271,6 +275,32 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     // );
     // scene.background = envMap;
     // console.log('created envmap', { envMap });
+
+    const fromGraphUniforms = Object.entries(
+      compileResult.activeUniforms || {}
+    ).reduce<Record<string, any>>((acc, [nodeId, inputs]) => {
+      const node = ensure(graph.nodes.find(({ id }) => id === nodeId));
+      const found = {} as Record<string, any>;
+      inputs.forEach((input) => {
+        const edge = graph.edges.find(
+          ({ to, input: i }) => to === nodeId && i === input.id
+        );
+        if (edge) {
+          const fromNode = ensure(
+            graph.nodes.find(({ id }) => id === edge.from)
+          );
+          const result = evaluateNode(graph, fromNode);
+          // TODO: This doesn't work for engine variables because
+          // those aren't suffixed
+          const name = mangleVar(input.name, threngine, node);
+          found[name] = { value: null };
+        }
+      });
+      return {
+        ...acc,
+        ...found,
+      };
+    }, {});
 
     const uniforms = {
       ...three.ShaderLib.phong.uniforms,
@@ -367,6 +397,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       [`start_${os1}`]: { value: 0 },
       [`end_${os1}`]: { value: 1 },
       [`alpha_${os1}`]: { value: 1 },
+
+      ...fromGraphUniforms,
     };
 
     // the before code
@@ -398,7 +430,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     mesh.material = newMat;
     // mesh.material = mmm;
     shadersUpdated.current = true;
-  }, [compileResult, ctx.runtime, graph.nodes]);
+  }, [compileResult, ctx.runtime]);
 
   // const lightsRef = useRef<three.Object3D[]>([]);
   const prevLights = usePrevious(lights);

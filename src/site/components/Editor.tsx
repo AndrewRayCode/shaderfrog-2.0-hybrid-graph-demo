@@ -2,6 +2,7 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import styles from '../../pages/editor/editor.module.css';
 import ctxStyles from './context.menu.module.css';
 import debounce from 'lodash.debounce';
+import create from 'zustand';
 
 import { SplitPane } from 'react-multi-split-pane';
 import cx from 'classnames';
@@ -123,9 +124,15 @@ import { makeEdge } from '../../core/nodes/edge';
 import { SourceNode } from '../../core/nodes/code-nodes';
 import { makeId } from '../../util/id';
 import { hasParent } from '../../util/hasParent';
-import { NodeInput } from '../../core/nodes/core-node';
+import { FlowEventHack } from '../flowEventHack';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
+
+// const useStore = create((set) => ({
+//   bears: 0,
+//   increasePopulation: () => set((state) => ({ bears: state.bears + 1 })),
+//   removeAllBears: () => set({ bears: 0 }),
+// }));
 
 const expandDataElements = (graph: Graph): Graph =>
   graph.nodes.reduce<Graph>((updated, node) => {
@@ -773,23 +780,32 @@ const Editor: React.FC = () => {
 
   const onNodeInputChange = useCallback(
     (id: string, event: React.FormEvent<HTMLInputElement>) => {
+      const { value } = event.currentTarget;
       setFlowElements(({ nodes, edges }) => ({
-        nodes: nodes.map((node) =>
+        nodes: nodes.map((node) => {
+          if (node.id === id) {
+            node.data = { ...node.data, value };
+          }
+          return node;
+        }),
+        edges,
+      }));
+      setGraph((graph) => ({
+        ...graph,
+        nodes: graph.nodes.map((node) =>
           node.id === id
             ? {
                 ...node,
-                data: {
-                  ...node.data,
-                  value: event.currentTarget.value,
-                },
+                value,
               }
             : node
         ),
-        edges,
       }));
-      debouncedSetNeedsCompile(true);
+
+      // TODO: How to avoid a recompile here if a data node *only* changes?
+      // debouncedSetNeedsCompile(true);
     },
-    [setFlowElements, debouncedSetNeedsCompile]
+    [setFlowElements, debouncedSetNeedsCompile, setGraph]
   );
 
   const onInputCategoryToggle = useCallback(
@@ -1020,51 +1036,59 @@ const Editor: React.FC = () => {
     [setFlowElements]
   );
 
-  const onNodeDoubleClick = (event: any, node: any) => {
-    if (!('value' in node.data)) {
-      setActiveShader(graph.nodes.find((n) => n.id === node.id) as SourceNode);
-      setEditorTabIndex(1);
-    }
-  };
+  const onNodeDoubleClick = useCallback(
+    (event: any, node: any) => {
+      if (!('value' in node.data)) {
+        setActiveShader(
+          graph.nodes.find((n) => n.id === node.id) as SourceNode
+        );
+        setEditorTabIndex(1);
+      }
+    },
+    [graph]
+  );
 
-  const setTargets = (nodeId: string, handleType: string) => {
-    setFlowElements((flowElements) => {
-      const source = graph.nodes.find(({ id }) => id === nodeId) as GraphNode;
-      return {
-        edges: flowElements.edges,
-        nodes: flowElements.nodes.map((node) => {
-          if (
-            node.data &&
-            'stage' in source &&
-            'stage' in node.data &&
-            'label' in node.data &&
-            (node.data.stage === source.stage ||
-              !source.stage ||
-              !node.data.stage) &&
-            node.id !== nodeId
-          ) {
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                inputs: node.data.inputs.map((input) => ({
-                  ...input,
-                  validTarget: handleType === 'source',
-                })),
-                outputs: node.data.outputs.map((output) => ({
-                  ...output,
-                  validTarget: handleType === 'target',
-                })),
-              },
-            };
-          }
-          return node;
-        }),
-      };
-    });
-  };
+  const setTargets = useCallback(
+    (nodeId: string, handleType: string) => {
+      setFlowElements((flowElements) => {
+        const source = graph.nodes.find(({ id }) => id === nodeId) as GraphNode;
+        return {
+          edges: flowElements.edges,
+          nodes: flowElements.nodes.map((node) => {
+            if (
+              node.data &&
+              'stage' in source &&
+              'stage' in node.data &&
+              'label' in node.data &&
+              (node.data.stage === source.stage ||
+                !source.stage ||
+                !node.data.stage) &&
+              node.id !== nodeId
+            ) {
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  inputs: node.data.inputs.map((input) => ({
+                    ...input,
+                    validTarget: handleType === 'source',
+                  })),
+                  outputs: node.data.outputs.map((output) => ({
+                    ...output,
+                    validTarget: handleType === 'target',
+                  })),
+                },
+              };
+            }
+            return node;
+          }),
+        };
+      });
+    },
+    [setFlowElements, graph]
+  );
 
-  const resetTargets = () => {
+  const resetTargets = useCallback(() => {
     setFlowElements((flowElements) => {
       return {
         edges: flowElements.edges,
@@ -1084,15 +1108,19 @@ const Editor: React.FC = () => {
         })),
       };
     });
-  };
+  }, [setFlowElements]);
 
-  const onEdgeUpdateStart = (event: any, edge: any) => {
-    const g = event.target.parentElement;
-    const handleType =
-      [...g.parentElement.children].indexOf(g) === 3 ? 'source' : 'target';
-    const nodeId = handleType === 'source' ? edge.source : edge.target;
-    setTargets(nodeId, handleType);
-  };
+  const onEdgeUpdateStart = useCallback(
+    (event: any, edge: any) => {
+      const g = event.target.parentElement;
+      const handleType =
+        [...g.parentElement.children].indexOf(g) === 3 ? 'source' : 'target';
+      const nodeId = handleType === 'source' ? edge.source : edge.target;
+      setTargets(nodeId, handleType);
+    },
+    [setTargets]
+  );
+
   const onConnectStart = (params: any, { nodeId, handleType }: any) => {
     setTargets(nodeId, handleType);
   };
@@ -1129,7 +1157,7 @@ const Editor: React.FC = () => {
     } else if (type === 'fragment' || type === 'vertex') {
       newGn = sourceNode(
         makeId(),
-        'Source Code',
+        'Source Code ' + id,
         { version: 2, preprocess: true, strategies: [uniformStrategy()] },
         type === 'fragment'
           ? `void main() {
@@ -1181,6 +1209,24 @@ const Editor: React.FC = () => {
       setMenuPos(null);
     }
   };
+
+  const onNodesDelete = useCallback(
+    (nodes: FlowNode[]) => {
+      const ids = nodes.reduce<Record<string, boolean>>(
+        (acc, n) => ({ ...acc, [n.id]: true }),
+        {}
+      );
+      setFlowElements(({ nodes, edges }) => ({
+        nodes: nodes.filter((node) => !(node.id in ids)),
+        edges,
+      }));
+      setGraph((graph) => ({
+        ...graph,
+        nodes: graph.nodes.filter((node) => !(node.id in ids)),
+      }));
+    },
+    [setFlowElements, setGraph]
+  );
 
   return (
     <div className={styles.container} onClick={onContainerClick}>
@@ -1245,34 +1291,37 @@ const Editor: React.FC = () => {
                 {menuPos ? (
                   <ContextMenu position={menuPos} onAdd={onMenuAdd} />
                 ) : null}
-                <ReactFlow
-                  // Possible fix for this being broken in dev+hot reload mode
-                  // https://discord.com/channels/771389069270712320/859774873500778517/956225780252291112
-                  multiSelectionKeyCode={null}
-                  nodes={flowElements.nodes}
-                  edges={flowElements.edges}
-                  style={flowStyles}
-                  onConnect={onConnect}
-                  onEdgeUpdate={onEdgeUpdate}
-                  onEdgesChange={onEdgesChange}
-                  onNodesChange={onNodesChange}
-                  onNodeDoubleClick={onNodeDoubleClick}
-                  onEdgesDelete={onEdgesDelete}
-                  connectionLineComponent={ConnectionLine}
-                  nodeTypes={nodeTypes}
-                  edgeTypes={edgeTypes}
-                  onConnectStart={onConnectStart}
-                  onEdgeUpdateStart={onEdgeUpdateStart}
-                  onEdgeUpdateEnd={onEdgeUpdateEnd}
-                  onConnectStop={onConnectStop}
-                >
-                  <Background
-                    variant={BackgroundVariant.Lines}
-                    gap={25}
-                    size={0.5}
-                    color="#444444"
-                  />
-                </ReactFlow>
+                <FlowEventHack onChange={onNodeInputChange}>
+                  <ReactFlow
+                    // Possible fix for this being broken in dev+hot reload mode
+                    // https://discord.com/channels/771389069270712320/859774873500778517/956225780252291112
+                    multiSelectionKeyCode={null}
+                    nodes={flowElements.nodes}
+                    edges={flowElements.edges}
+                    style={flowStyles}
+                    onConnect={onConnect}
+                    onEdgeUpdate={onEdgeUpdate}
+                    onEdgesChange={onEdgesChange}
+                    onNodesChange={onNodesChange}
+                    onNodesDelete={onNodesDelete}
+                    onNodeDoubleClick={onNodeDoubleClick}
+                    onEdgesDelete={onEdgesDelete}
+                    connectionLineComponent={ConnectionLine}
+                    nodeTypes={nodeTypes}
+                    edgeTypes={edgeTypes}
+                    onConnectStart={onConnectStart}
+                    onEdgeUpdateStart={onEdgeUpdateStart}
+                    onEdgeUpdateEnd={onEdgeUpdateEnd}
+                    onConnectStop={onConnectStop}
+                  >
+                    <Background
+                      variant={BackgroundVariant.Lines}
+                      gap={25}
+                      size={0.5}
+                      color="#444444"
+                    />
+                  </ReactFlow>
+                </FlowEventHack>
               </TabPanel>
               <TabPanel>
                 <div className={styles.belowTabs}>

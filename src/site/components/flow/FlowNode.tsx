@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { memo, useEffect } from 'react';
 import cx from 'classnames';
 import {
   Handle,
@@ -12,6 +12,7 @@ import { ShaderStage } from '../../../core/graph';
 import { useUpdateNodeInternals } from 'react-flow-renderer';
 import { GraphDataType } from '../../../core/nodes/data-nodes';
 import { InputCategory } from '../../../core/nodes/core-node';
+import { useFlowEventHack } from '../../flowEventHack';
 
 const handleTop = 45;
 const textHeight = 10;
@@ -93,180 +94,186 @@ const FlowWrap = ({
   </div>
 );
 
-const DataNodeComponent = ({
-  id,
-  data,
-}: {
-  id: string;
-  data: FlowNodeDataData;
-}) => {
-  return (
-    <FlowWrap data={data} className={data.type}>
-      <div className="flowlabel">{data.label}</div>
-      <div className="flowInputs">
-        {data.inputs.map((input, index) => (
-          <React.Fragment key={input.name}>
-            <Handle
-              id={input.id}
-              className={cx({ validTarget: input.validTarget })}
-              type="target"
-              position={Position.Left}
-              style={{ top: `${handleTop + index * 20}px` }}
-            />
-            <div
-              className={cx('react-flow_handle_label', {
-                validTarget: input.validTarget,
-              })}
-              style={{
-                top: `${handleTop - textHeight + index * 20}px`,
-                left: 15,
-              }}
-            >
-              {input.name}
-            </div>
-          </React.Fragment>
-        ))}
+const DataNodeComponent = memo(
+  ({ id, data }: { id: string; data: FlowNodeDataData }) => {
+    const onChange = useFlowEventHack();
 
-        <div className="body">
-          <input
-            className="nodrag"
-            type="text"
-            onChange={(e) => data.onChange(id, e)}
-            defaultValue={data.value}
-          />
+    return (
+      <FlowWrap data={data} className={data.type}>
+        <div className="flowlabel">{data.label}</div>
+        <div className="flowInputs">
+          {data.inputs.map((input, index) => (
+            <React.Fragment key={input.name}>
+              <Handle
+                id={input.id}
+                className={cx({ validTarget: input.validTarget })}
+                type="target"
+                position={Position.Left}
+                style={{ top: `${handleTop + index * 20}px` }}
+              />
+              <div
+                className={cx('react-flow_handle_label', {
+                  validTarget: input.validTarget,
+                })}
+                style={{
+                  top: `${handleTop - textHeight + index * 20}px`,
+                  left: 15,
+                }}
+              >
+                {input.name}
+              </div>
+            </React.Fragment>
+          ))}
+
+          <div className="body">
+            <input
+              className="nodrag"
+              type="text"
+              onChange={(e) => onChange(id, e)}
+              value={data.value}
+            />
+            <input
+              className="nodrag"
+              type="range"
+              min="0"
+              max="1"
+              step="0.001"
+              onChange={(e) => onChange(id, e)}
+              value={data.value}
+            ></input>
+          </div>
+
+          {data.outputs.map((output, index) => (
+            <React.Fragment key={output.name}>
+              <div
+                className="react-flow_handle_label"
+                style={{
+                  top: `${handleTop - textHeight + index * 20}px`,
+                  right: 15,
+                }}
+              >
+                {output.name}
+              </div>
+              <Handle
+                id={output.id}
+                className={cx({ validTarget: output.validTarget })}
+                type="source"
+                position={Position.Right}
+                style={{ top: `${handleTop + index * 20}px` }}
+              />
+            </React.Fragment>
+          ))}
+        </div>
+      </FlowWrap>
+    );
+  }
+);
+DataNodeComponent.displayName = 'DataNodeComponent';
+
+const SourceNodeComponent = memo(
+  ({ id, data }: { id: string; data: FlowNodeSourceData }) => {
+    // const updateNodeInternals = useUpdateNodeInternals();
+    // const key = `${computeIOKey(data.inputs)}${computeIOKey(data.outputs)}`;
+
+    // useEffect(() => {
+    //   console.log('Effect running', { id });
+    //   updateNodeInternals(id);
+    //   return () => {
+    //     updateNodeInternals(id);
+    //   };
+    // }, [id, updateNodeInternals, key]);
+
+    // TODO: can we make a test case react flow sandbox of chaning a node's
+    // named inputs and handles and it failing?
+    // console.log('rendering custom node component for ', data.label, data);
+    return (
+      <FlowWrap
+        data={data}
+        className={cx(data.stage, { inactive: !data.active })}
+      >
+        <div className="flowlabel">
+          {data.label}
+          {data.stage ? (
+            <div className="stage">
+              {data.stage === 'fragment' ? 'FRAG' : 'VERT'}
+            </div>
+          ) : null}
+        </div>
+        <div className="flowInputs">
+          {data.inputs.map((input, index) => (
+            <React.Fragment key={input.name}>
+              <Handle
+                id={input.id}
+                className={cx({ validTarget: input.validTarget })}
+                type="target"
+                position={Position.Left}
+                style={{ top: `${handleTop + index * 20}px` }}
+              />
+              <div
+                className={cx('react-flow_handle_label', {
+                  validTarget: input.validTarget,
+                })}
+                style={{
+                  top: `${handleTop - textHeight + index * 20}px`,
+                  left: 15,
+                }}
+              >
+                <div
+                  className="switch"
+                  onClick={(e) => (
+                    e.preventDefault(),
+                    data.onInputCategoryToggle(id, input.name)
+                  )}
+                >
+                  {input.bakeable
+                    ? input.category === 'data'
+                      ? '➡️'
+                      : '🔒'
+                    : null}
+                </div>
+                {input.name}
+              </div>
+            </React.Fragment>
+          ))}
+
+          {data.outputs.map((output, index) => (
+            <React.Fragment key={output.name}>
+              <div
+                className="react-flow_handle_label"
+                style={{
+                  top: `${handleTop - textHeight + index * 20}px`,
+                  right: 15,
+                }}
+              >
+                {output.name}
+              </div>
+              <Handle
+                id={output.id}
+                className={cx({ validTarget: output.validTarget })}
+                type="source"
+                position={Position.Right}
+                style={{ top: `${handleTop + index * 20}px` }}
+              />
+            </React.Fragment>
+          ))}
         </div>
 
-        {data.outputs.map((output, index) => (
-          <React.Fragment key={output.name}>
-            <div
-              className="react-flow_handle_label"
-              style={{
-                top: `${handleTop - textHeight + index * 20}px`,
-                right: 15,
-              }}
-            >
-              {output.name}
-            </div>
-            <Handle
-              id={output.id}
-              className={cx({ validTarget: output.validTarget })}
-              type="source"
-              position={Position.Right}
-              style={{ top: `${handleTop + index * 20}px` }}
-            />
-          </React.Fragment>
-        ))}
-      </div>
-    </FlowWrap>
-  );
-};
-
-const SourceNodeComponent = ({
-  id,
-  data,
-}: {
-  id: string;
-  data: FlowNodeSourceData;
-}) => {
-  // const updateNodeInternals = useUpdateNodeInternals();
-  // const key = `${computeIOKey(data.inputs)}${computeIOKey(data.outputs)}`;
-
-  // useEffect(() => {
-  //   console.log('Effect running', { id });
-  //   updateNodeInternals(id);
-  //   return () => {
-  //     updateNodeInternals(id);
-  //   };
-  // }, [id, updateNodeInternals, key]);
-
-  // TODO: can we make a test case react flow sandbox of chaning a node's
-  // named inputs and handles and it failing?
-  // console.log('rendering custom node component for ', data.label, data);
-  return (
-    <FlowWrap
-      data={data}
-      className={cx(data.stage, { inactive: !data.active })}
-    >
-      <div className="flowlabel">
-        {data.label}
-        {data.stage ? (
-          <div className="stage">
-            {data.stage === 'fragment' ? 'FRAG' : 'VERT'}
-          </div>
-        ) : null}
-      </div>
-      <div className="flowInputs">
-        {data.inputs.map((input, index) => (
-          <React.Fragment key={input.name}>
-            <Handle
-              id={input.id}
-              className={cx({ validTarget: input.validTarget })}
-              type="target"
-              position={Position.Left}
-              style={{ top: `${handleTop + index * 20}px` }}
-            />
-            <div
-              className={cx('react-flow_handle_label', {
-                validTarget: input.validTarget,
-              })}
-              style={{
-                top: `${handleTop - textHeight + index * 20}px`,
-                left: 15,
-              }}
-            >
-              <div
-                className="switch"
-                onClick={(e) => (
-                  e.preventDefault(), data.onInputCategoryToggle(id, input.name)
-                )}
-              >
-                {input.bakeable
-                  ? input.category === 'data'
-                    ? '➡️'
-                    : '🔒'
-                  : null}
-              </div>
-              {input.name}
-            </div>
-          </React.Fragment>
-        ))}
-
-        {data.outputs.map((output, index) => (
-          <React.Fragment key={output.name}>
-            <div
-              className="react-flow_handle_label"
-              style={{
-                top: `${handleTop - textHeight + index * 20}px`,
-                right: 15,
-              }}
-            >
-              {output.name}
-            </div>
-            <Handle
-              id={output.id}
-              className={cx({ validTarget: output.validTarget })}
-              type="source"
-              position={Position.Right}
-              style={{ top: `${handleTop + index * 20}px` }}
-            />
-          </React.Fragment>
-        ))}
-      </div>
-
-      <Handle
-        id="from"
-        className="next-stage-handle"
-        type="source"
-        position={Position.Right}
-      />
-      <Handle
-        id="to"
-        className="next-stage-handle"
-        type="target"
-        position={Position.Right}
-      />
-    </FlowWrap>
-  );
-};
+        <Handle
+          id="from"
+          className="next-stage-handle"
+          type="source"
+          position={Position.Right}
+        />
+        <Handle
+          id="to"
+          className="next-stage-handle"
+          type="target"
+          position={Position.Right}
+        />
+      </FlowWrap>
+    );
+  }
+);
+SourceNodeComponent.displayName = 'SourceNodeComponent';
 
 export { DataNodeComponent, SourceNodeComponent };

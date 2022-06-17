@@ -1,5 +1,6 @@
 import { createContext, useContext, useRef } from 'react';
 
+// TODO: Try replacing with zustand?
 export const HoistedRef = createContext<any>({});
 export type HoistedRefGetter = <T extends unknown>(
   key: string,

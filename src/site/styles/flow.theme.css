@@ -129,6 +129,7 @@
 /* -------------- */
 .flownode.number {
   background: rgb(6, 16, 68);
+  min-height: 80px;
 }
 .flownode.number input {
   width: 50%;

@@ -363,31 +363,72 @@ export const evaluateNode = (graph: Graph, node: GraphNode): any => {
   );
 };
 
-export const collectConnectedNodes = (
-  graph: Graph,
-  edges: Edge[],
-  node: GraphNode,
-  ids: NodeIds = {}
-): NodeIds => {
-  let compiledIds = ids;
-
-  const inputEdges = edges.filter((edge) => edge.to === node.id);
-  if (inputEdges.length) {
-    inputEdges.forEach((edge) => {
-      const fromNode = ensure(
-        graph.nodes.find((node) => edge.from === node.id),
-        `GraphNode for edge ${edge.from} not found`
-      );
-
-      const childIds = collectConnectedNodes(graph, edges, fromNode, ids);
-      compiledIds = { ...compiledIds, ...childIds };
-    });
-
-    return { ...compiledIds, [node.id]: node };
-  } else {
-    return { ...compiledIds, [node.id]: node };
-  }
+type Predicates = {
+  node?: (node: GraphNode, inputEdges: Edge[]) => boolean;
+  input?: (
+    input: NodeInput,
+    node: GraphNode,
+    inputEdge: Edge | undefined,
+    fromNode: GraphNode | undefined
+  ) => boolean;
 };
+export type SearchResult = {
+  nodes: Record<string, GraphNode>;
+  inputs: Record<string, NodeInput[]>;
+};
+
+export const filterGraphFromNode = (
+  graph: Graph,
+  node: GraphNode,
+  predicates: Predicates
+): SearchResult => {
+  const { inputs } = node;
+  const inputEdges = graph.edges.filter((edge) => edge.to === node.id);
+
+  const nodeAcc = {
+    ...(predicates.node && predicates.node(node, inputEdges)
+      ? { [node.id]: node }
+      : {}),
+  };
+
+  return inputs.reduce<SearchResult>(
+    (acc, input) => {
+      const inputEdge = inputEdges.find(
+        (inputEdge) => inputEdge.input == input.id
+      );
+      const fromNode = inputEdge
+        ? ensure(graph.nodes.find(({ id }) => id === inputEdge.from))
+        : undefined;
+
+      const inputAcc = {
+        ...acc.inputs,
+        ...(predicates.input &&
+        predicates.input(input, node, inputEdge, fromNode)
+          ? { [node.id]: [...(acc.inputs[node.id] || []), input] }
+          : {}),
+      };
+
+      if (inputEdge && fromNode) {
+        const result = filterGraphFromNode(graph, fromNode, predicates);
+        return {
+          nodes: { ...acc.nodes, ...result.nodes },
+          inputs: { ...acc.inputs, ...inputAcc, ...result.inputs },
+        };
+      }
+      return {
+        ...acc,
+        inputs: {
+          ...acc.inputs,
+          ...inputAcc,
+        },
+      };
+    },
+    { inputs: {}, nodes: nodeAcc }
+  );
+};
+
+export const collectConnectedNodes = (graph: Graph, node: GraphNode): NodeIds =>
+  filterGraphFromNode(graph, node, { node: () => true }).nodes;
 
 type NodeIds = Record<string, GraphNode>;
 export type CompileNodeResult = [ShaderSections, AstNode | void, NodeIds];
@@ -669,8 +710,8 @@ export const computeGraphContext = (
     throw new Error('No vertex output in graph');
   }
 
-  const vertexIds = collectConnectedNodes(graph, graph.edges, outputVert);
-  const fragmentIds = collectConnectedNodes(graph, graph.edges, outputFrag);
+  const vertexIds = collectConnectedNodes(graph, outputVert);
+  const fragmentIds = collectConnectedNodes(graph, outputFrag);
   const additionalIds = graph.nodes.filter(
     (node) =>
       isSourceNode(node) &&
@@ -722,7 +763,7 @@ export const compileGraph = (
     throw new Error('No vertex output in graph');
   }
 
-  const vertexIds = collectConnectedNodes(graph, graph.edges, outputVert);
+  const vertexIds = collectConnectedNodes(graph, outputVert);
 
   // Some fragment shaders reference vertex shaders which may not have been
   // given edges in the graph. Build invisible edges from these vertex nodes to

@@ -43,10 +43,10 @@ export interface CoreFlowNode {
 export interface FlowNodeDataData extends CoreFlowNode {
   type: GraphDataType;
   value: any;
-  onChange: (id: string, event: any) => void;
 }
 export interface FlowNodeSourceData extends CoreFlowNode {
   stage?: ShaderStage;
+  category?: InputCategory;
   active: boolean;
   /**
    * Whether or not this node can be used for both shader fragment and vertex
@@ -189,7 +189,7 @@ const SourceNodeComponent = memo(
     return (
       <FlowWrap
         data={data}
-        className={cx(data.stage, { inactive: !data.active })}
+        className={cx(data.stage, data.category, { inactive: !data.active })}
       >
         <div className="flowlabel">
           {data.label}

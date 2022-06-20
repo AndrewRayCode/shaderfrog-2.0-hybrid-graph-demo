@@ -127,7 +127,8 @@
 /* -------------- */
 /* Data theme     */
 /* -------------- */
-.flownode.number {
+.flownode.number,
+.flownode.code {
   background: rgb(6, 16, 68);
   min-height: 80px;
 }
@@ -135,11 +136,13 @@
   width: 50%;
 }
 
-.selected .number.flownode {
+.selected .number.flownode,
+.selected .code.flownode {
   border: 1px solid #00d5ff;
 }
 
-.selected .number .flowlabel {
+.selected .number .flowlabel,
+.selected .code .flowlabel {
   background: linear-gradient(to right, rgb(9, 22, 84), rgb(13, 29, 108));
   border-bottom: 1px solid #00d5ff;
 }

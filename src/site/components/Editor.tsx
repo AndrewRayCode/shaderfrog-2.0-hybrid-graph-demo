@@ -47,6 +47,7 @@ import {
   alphabet,
   isDataNode,
   isSourceNode,
+  collectConnectedNodes,
 } from '../../core/graph';
 import { Edge as GraphEdge, EdgeType } from '../../core/nodes/edge';
 import {
@@ -114,6 +115,7 @@ import {
 import { Hoisty, useHoisty } from '../hoistedRefContext';
 import {
   collectUniformsFromActiveNodes,
+  IndexedDataInputs,
   UICompileGraphResult,
 } from '../uICompileGraphResult';
 import { useLocalStorage } from '../useLocalStorage';
@@ -407,6 +409,26 @@ const compileGraphAsync = async (
         result.outputVert,
       ]);
 
+      // Find which nodes flow up into uniform inputs, for colorizing and for
+      // not recompiling when their data changes
+      const dataNodes = Object.entries(activeUniforms).reduce<
+        Record<string, GraphNode>
+      >((acc, [nodeId, inputs]) => {
+        return inputs.reduce((iAcc, input) => {
+          const fromEdge = graph.edges.find(
+            (edge) => edge.to === nodeId && edge.input === input.id
+          );
+          const fromNode =
+            fromEdge && graph.nodes.find((node) => node.id === fromEdge.from);
+          return fromNode
+            ? {
+                ...iAcc,
+                ...collectConnectedNodes(graph, fromNode),
+              }
+            : iAcc;
+        }, acc);
+      }, {});
+
       const now = performance.now();
       console.log(`Compilation took:
 -------------------
@@ -418,6 +440,7 @@ total: ${(now - allStart).toFixed(3)}ms
         result,
         fragmentResult,
         vertexResult,
+        dataNodes,
         activeUniforms,
         graph,
       });
@@ -443,10 +466,31 @@ const findInputStage = (
   );
 };
 
+const setFlowGraphNodeCategories = (
+  flowElements: FlowElements,
+  dataNodes: Record<string, GraphNode>
+): FlowElements => {
+  return {
+    ...flowElements,
+    nodes: flowElements.nodes.map((node) => {
+      if (node.id in dataNodes) {
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            category: 'code',
+          },
+        };
+      }
+      return node;
+    }),
+  };
+};
+
 // Some nodes, like add, can be used for either fragment or vertex stage. When
 // we connect edges in the graph, update it to figure out which stage we should
 // set the add node to based on inputs to the node.
-const setBiStages = (flowElements: FlowElements) => {
+const setFlowGraphNodeStages = (flowElements: FlowElements): FlowElements => {
   const targets = flowElements.edges.reduce<Record<string, FlowEdge[]>>(
     (acc, edge) => ({
       ...acc,
@@ -511,7 +555,6 @@ const toFlowInputs = (node: GraphNode): InputNodeHandle[] =>
 
 const graphNodeToFlowNode = (
   node: GraphNode,
-  onNodeInputChange: any,
   onInputCategoryToggle: any,
   position: XYPosition
 ): FlowNode<FlowNodeData> => {
@@ -529,7 +572,6 @@ const graphNodeToFlowNode = (
         label: node.name,
         type: node.type,
         value: node.value,
-        onChange: onNodeInputChange,
         inputs: toFlowInputs(node),
         outputs: node.outputs.map((o) => flowOutput(o.name)),
       };
@@ -543,7 +585,6 @@ const graphNodeToFlowNode = (
 
 const initializeFlowElementsFromGraph = (
   graph: Graph,
-  onNodeInputChange: any,
   onInputCategoryToggle: any
 ): FlowElements => {
   let engines = 0;
@@ -557,7 +598,6 @@ const initializeFlowElementsFromGraph = (
   const nodes = graph.nodes.map((node) =>
     graphNodeToFlowNode(
       node,
-      onNodeInputChange,
       onInputCategoryToggle,
       node.type === EngineNodeType.output
         ? { x: spacing * 2, y: outputs++ * 100 }
@@ -588,7 +628,7 @@ const initializeFlowElementsFromGraph = (
     })
   );
 
-  return setBiStages({ nodes, edges });
+  return setFlowGraphNodeStages({ nodes, edges });
 };
 
 // Convert flow elements to graph
@@ -763,10 +803,15 @@ const Editor: React.FC = () => {
           };
         });
 
-        setFlowElements({
-          ...flowElements,
-          nodes: updatedFlowNodes,
-        });
+        setFlowElements(
+          setFlowGraphNodeCategories(
+            {
+              ...flowElements,
+              nodes: updatedFlowNodes,
+            },
+            compileResult.dataNodes
+          )
+        );
 
         // This is a hack to make the edges update to their handles if they move
         // https://github.com/wbkd/react-flow/issues/2008
@@ -803,9 +848,16 @@ const Editor: React.FC = () => {
       }));
 
       // TODO: How to avoid a recompile here if a data node *only* changes?
-      // debouncedSetNeedsCompile(true);
+      if (!compileResult) {
+        return;
+      }
+      const { dataNodes } = compileResult;
+      if (!(id in dataNodes)) {
+        console.log({ id, dataNodes });
+        debouncedSetNeedsCompile(true);
+      }
     },
-    [setFlowElements, debouncedSetNeedsCompile, setGraph]
+    [setFlowElements, compileResult, debouncedSetNeedsCompile, setGraph]
   );
 
   const onInputCategoryToggle = useCallback(
@@ -860,17 +912,13 @@ const Editor: React.FC = () => {
 
         const initFlowElements = initialElements.nodes.length
           ? initialElements
-          : initializeFlowElementsFromGraph(
-              graph,
-              onNodeInputChange,
-              onInputCategoryToggle
-            );
+          : initializeFlowElementsFromGraph(graph, onInputCategoryToggle);
 
         compile(engine, newCtx, pauseCompile, initFlowElements);
         setGuiMsg('');
       }, 10);
     },
-    [compile, engine, pauseCompile, onNodeInputChange, onInputCategoryToggle]
+    [compile, engine, pauseCompile, onInputCategoryToggle]
   );
 
   // Once we receive a new engine context, re-initialize the graph. This method
@@ -996,7 +1044,7 @@ const Editor: React.FC = () => {
     );
 
     setFlowElements((flowElements) =>
-      setBiStages({
+      setFlowGraphNodeStages({
         edges: [...updatedEdges, addedEdge],
         nodes: flowElements.nodes,
       })
@@ -1016,7 +1064,7 @@ const Editor: React.FC = () => {
   const onEdgesChange = useCallback(
     (changes) =>
       setFlowElements((flowElements) =>
-        setBiStages({
+        setFlowGraphNodeStages({
           nodes: flowElements.nodes,
           edges: collapseBinaryEdges(
             graph,
@@ -1177,7 +1225,6 @@ const Editor: React.FC = () => {
     computeContextForNodes(ctx as EngineContext, engine, graph, [newGn]);
     const newNode = graphNodeToFlowNode(
       newGn,
-      onNodeInputChange,
       onInputCategoryToggle,
       project(menuPos as XYPosition)
     );

@@ -6,12 +6,14 @@
   border-radius: 8px;
   border: 1px solid #333;
   padding: 0 0 8px 0;
+  user-select: none;
 }
 
 .contextHeader {
   padding: 4px 12px;
-  color: #666;
+  color: rgb(165, 165, 165);
   border-bottom: 1px solid #444;
+  cursor: default;
 }
 
 .contextRow {
@@ -19,6 +21,6 @@
 }
 
 .contextRow:hover {
-  background: #224;
+  background: rgb(58, 58, 124);
   cursor: pointer;
 }

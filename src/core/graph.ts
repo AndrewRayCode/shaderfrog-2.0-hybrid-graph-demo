@@ -270,12 +270,6 @@ export const coreParsers: CoreParser = {
       return fragmentAst;
     },
     findInputs: (engineContext, node, ast, inputEdges) => {
-      console.log(
-        'generating inputs for binary',
-        new Array(Math.max(inputEdges.length + 1, 2))
-          .fill(0)
-          .map((_, index) => alphabet.charAt(index))
-      );
       return new Array(Math.max(inputEdges.length + 1, 2))
         .fill(0)
         .map((_, index) => {

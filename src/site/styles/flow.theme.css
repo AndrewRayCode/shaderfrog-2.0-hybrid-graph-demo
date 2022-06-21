@@ -1,3 +1,14 @@
+.react-flow__node.react-flow__node-output {
+  background: transparent;
+  border: 0 none;
+  border-radius: 0;
+  color: inherit;
+  font-size: inherit;
+  padding: 0;
+  text-align: unset;
+  width: auto;
+}
+
 .flownode {
   border-radius: 8px;
   background: #111;

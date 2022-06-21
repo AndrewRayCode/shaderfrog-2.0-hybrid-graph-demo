@@ -121,7 +121,7 @@ import {
 import { useLocalStorage } from '../useLocalStorage';
 import { Strategy, StrategyType, uniformStrategy } from '../../core/strategy';
 import { ensure } from '../../util/ensure';
-import { numberNode } from '../../core/nodes/data-nodes';
+import { GraphDataType, numberNode } from '../../core/nodes/data-nodes';
 import { makeEdge } from '../../core/nodes/edge';
 import { SourceNode } from '../../core/nodes/code-nodes';
 import { makeId } from '../../util/id';
@@ -219,6 +219,12 @@ const useFlef = () => {
           outputV,
           outlineF,
           outlineV,
+          hellOnEarthF,
+          hellOnEarthV,
+          perlinCloudsF,
+          purpleNoise,
+          heatShaderF,
+          heatShaderV,
         ],
         edges: [
           makeEdge(physicalF.id, outputF.id, 'out', 'frogFragOut', 'fragment'),
@@ -341,24 +347,24 @@ const useFlef = () => {
  * at the editor layer, before compile. This also hard codes assumptions about
  * (binary) node inputs into the graph, namely they can't have blank inputs.
  */
-const collapseBinaryEdges = (
-  graph: Graph,
-  edges: FlowEdgeOrLink[]
-): FlowEdgeOrLink[] => {
-  const binaryEdges = edges.reduce<Record<string, FlowEdgeOrLink[]>>(
+const collapseBinaryEdges = (flowGraph: FlowElements): FlowElements => {
+  // Find all edges that flow into a binary node, grouped by the target node's
+  // id, since we need to know the total number of edges per node first
+  const binaryEdges = flowGraph.edges.reduce<Record<string, FlowEdgeOrLink[]>>(
     (acc, edge) => {
-      const to = graph.nodes.find(({ id }) => id === edge.target);
-      return to?.type === NodeType.BINARY
+      const toNode = flowGraph.nodes.find(({ id }) => id === edge.target);
+      return toNode?.type === NodeType.BINARY
         ? {
             ...acc,
-            [to.id]: [...(acc[to.id] || []), edge],
+            [toNode.id]: [...(acc[toNode.id] || []), edge],
           }
         : acc;
     },
     {}
   );
 
-  return edges.map((edge) => {
+  // Then collapse them
+  const updatedEdges = flowGraph.edges.map((edge) => {
     return edge.target in binaryEdges
       ? {
           ...edge,
@@ -366,6 +372,10 @@ const collapseBinaryEdges = (
         }
       : edge;
   });
+  return {
+    ...flowGraph,
+    edges: updatedEdges,
+  };
 };
 
 const flowStyles = { height: '100vh', background: '#111' };
@@ -376,9 +386,32 @@ type FlowElements = {
   edges: FlowEdgeOrLink[];
 };
 
-const nodeTypes = {
-  data: DataNodeComponent,
+const nodeTypes: Record<NodeType | GraphDataType | EngineNodeType, any> = {
+  toon: SourceNodeComponent,
+  phong: SourceNodeComponent,
+  physical: SourceNodeComponent,
+  shader: SourceNodeComponent,
+  output: SourceNodeComponent,
+  binary: SourceNodeComponent,
   source: SourceNodeComponent,
+  vec2: DataNodeComponent,
+  vec3: DataNodeComponent,
+  vec4: DataNodeComponent,
+  mat2: DataNodeComponent,
+  mat3: DataNodeComponent,
+  mat4: DataNodeComponent,
+  mat2x2: DataNodeComponent,
+  mat2x3: DataNodeComponent,
+  mat2x4: DataNodeComponent,
+  mat3x2: DataNodeComponent,
+  mat3x3: DataNodeComponent,
+  mat3x4: DataNodeComponent,
+  mat4x2: DataNodeComponent,
+  mat4x3: DataNodeComponent,
+  mat4x4: DataNodeComponent,
+  sampler2D: DataNodeComponent,
+  number: DataNodeComponent,
+  array: DataNodeComponent,
 };
 
 const edgeTypes = {
@@ -578,7 +611,8 @@ const graphNodeToFlowNode = (
   return {
     id: node.id,
     data,
-    type: isSourceNode(node) ? 'source' : 'data',
+    // type: isSourceNode(node) ? 'source' : 'data',
+    type: node.type,
     position,
   };
 };
@@ -614,7 +648,6 @@ const initializeFlowElementsFromGraph = (
     )
   );
 
-  // console.log('edge', { edge });
   const edges: FlowEdgeOrLink[] = graph.edges.map(
     (edge): FlowEdge<FlowEdgeData> => ({
       id: `${edge.to}-${edge.from}`,
@@ -853,7 +886,6 @@ const Editor: React.FC = () => {
       }
       const { dataNodes } = compileResult;
       if (!(id in dataNodes)) {
-        console.log({ id, dataNodes });
         debouncedSetNeedsCompile(true);
       }
     },
@@ -1024,7 +1056,7 @@ const Editor: React.FC = () => {
       className: cx(type, edgeType),
       type: 'special',
     };
-    console.log({ newEdge, addedEdge });
+
     const updatedEdges = flowElements.edges.filter(
       (element) =>
         // Prevent one input handle from having multiple inputs
@@ -1043,12 +1075,13 @@ const Editor: React.FC = () => {
         )
     );
 
-    setFlowElements((flowElements) =>
-      setFlowGraphNodeStages({
+    setFlowElements((flowElements) => {
+      const updatedFlowElements = setFlowGraphNodeStages({
+        ...flowElements,
         edges: [...updatedEdges, addedEdge],
-        nodes: flowElements.nodes,
-      })
-    );
+      });
+      return collapseBinaryEdges(updatedFlowElements);
+    });
     setNeedsCompile(true);
   };
 
@@ -1063,16 +1096,14 @@ const Editor: React.FC = () => {
 
   const onEdgesChange = useCallback(
     (changes) =>
-      setFlowElements((flowElements) =>
-        setFlowGraphNodeStages({
+      setFlowElements((flowElements) => {
+        const updatedFlowGraph = setFlowGraphNodeStages({
           nodes: flowElements.nodes,
-          edges: collapseBinaryEdges(
-            graph,
-            applyEdgeChanges(changes, flowElements.edges)
-          ),
-        })
-      ),
-    [setFlowElements, graph]
+          edges: applyEdgeChanges(changes, flowElements.edges),
+        });
+        return collapseBinaryEdges(updatedFlowGraph);
+      }),
+    [setFlowElements]
   );
 
   const onNodesChange = useCallback(
@@ -1191,7 +1222,6 @@ const Editor: React.FC = () => {
   const [menuPos, setMenuPos] = useState<XYPosition | null>();
 
   const onMenuAdd = (type: string) => {
-    console.log(type);
     const id = makeId();
     // let newNode: FlowNode<FlowNodeData>;
     let newGn: GraphNode;
@@ -1228,7 +1258,7 @@ const Editor: React.FC = () => {
       onInputCategoryToggle,
       project(menuPos as XYPosition)
     );
-    // console.log('computed', { newGn });
+
     const updatedFlowElements = {
       ...flowElements,
       nodes: [...flowElements.nodes, newNode],
@@ -1340,9 +1370,6 @@ const Editor: React.FC = () => {
                 ) : null}
                 <FlowEventHack onChange={onNodeInputChange}>
                   <ReactFlow
-                    // Possible fix for this being broken in dev+hot reload mode
-                    // https://discord.com/channels/771389069270712320/859774873500778517/956225780252291112
-                    multiSelectionKeyCode={null}
                     nodes={flowElements.nodes}
                     edges={flowElements.edges}
                     style={flowStyles}

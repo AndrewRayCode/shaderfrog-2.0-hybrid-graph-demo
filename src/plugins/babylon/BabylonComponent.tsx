@@ -38,7 +38,7 @@ type BabylonComponentProps = {
   graph: Graph;
   lights: PreviewLight;
   previewObject: string;
-  setCtx: <T extends unknown>(ctx: EngineContext<T>) => void;
+  setCtx: <T extends unknown>(ctx: EngineContext) => void;
   setGlResult: AnyFn;
   setLights: AnyFn;
   setPreviewObject: AnyFn;
@@ -222,7 +222,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     });
   }, [previewObject, scene]);
 
-  const [ctx] = useState<EngineContext<RuntimeContext>>(() => {
+  const [ctx] = useState<EngineContext>(() => {
     return {
       engine: 'babylon',
       compileCount: 0,

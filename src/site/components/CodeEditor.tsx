@@ -6,22 +6,22 @@ import { Engine } from '../../core/engine';
 
 type AnyFn = (...args: any) => any;
 
-type MonacoProps<T> = {
-  engine: Engine<T>;
+type MonacoProps = {
+  engine: Engine;
   defaultValue?: string;
   value?: string;
   readOnly?: boolean;
   onChange?: AnyFn;
   onSave?: AnyFn;
 };
-const CodeEditor = <T extends unknown>({
+const CodeEditor = ({
   engine,
   value,
   defaultValue,
   readOnly,
   onChange,
   onSave,
-}: MonacoProps<T>) => {
+}: MonacoProps) => {
   const beforeMount = (monaco: Monaco) => {
     monaco.editor.defineTheme('frogTheme', {
       base: 'vs-dark', // can also be vs-dark or hc-black

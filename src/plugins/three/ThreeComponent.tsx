@@ -127,8 +127,13 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
                 // those aren't suffixed
                 const name = mangleVar(input.name, threngine, node);
 
-                // @ts-ignore
-                if (name in mesh.material.uniforms) {
+                if (
+                  mesh.material &&
+                  // @ts-ignore
+                  mesh.material.uniforms &&
+                  // @ts-ignore
+                  name in mesh.material.uniforms
+                ) {
                   // @ts-ignore
                   mesh.material.uniforms[name].value = result;
                 }

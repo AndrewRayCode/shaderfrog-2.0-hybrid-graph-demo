@@ -1224,48 +1224,66 @@ const Editor: React.FC = () => {
   const onMenuAdd = (type: string) => {
     const id = makeId();
     // let newNode: FlowNode<FlowNodeData>;
-    let newGn: GraphNode;
+    let newGns: GraphNode[];
 
     if (type === 'number') {
-      newGn = numberNode(id, 'number', '1');
+      newGns = [numberNode(id, 'number', '1')];
     } else if (type === 'multiply') {
-      newGn = multiplyNode(id);
+      newGns = [multiplyNode(id)];
     } else if (type === 'add') {
-      newGn = addNode(id);
+      newGns = [addNode(id)];
+    } else if (type === 'phong') {
+      newGns = [
+        phongNode(id, 'Phong', 'fragment'),
+        phongNode(makeId(), 'Phong', 'vertex', id),
+      ];
+    } else if (type === 'toon') {
+      newGns = [
+        toonNode(id, 'Toon', 'fragment'),
+        toonNode(makeId(), 'Toon', 'vertex', id),
+      ];
     } else if (type === 'fragment' || type === 'vertex') {
-      newGn = sourceNode(
-        makeId(),
-        'Source Code ' + id,
-        { version: 2, preprocess: true, strategies: [uniformStrategy()] },
-        type === 'fragment'
-          ? `void main() {
+      newGns = [
+        sourceNode(
+          makeId(),
+          'Source Code ' + id,
+          { version: 2, preprocess: true, strategies: [uniformStrategy()] },
+          type === 'fragment'
+            ? `void main() {
   gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
 }`
-          : `void main() {
+            : `void main() {
   gl_Position = vec4(1.0);
 }`,
-        type,
-        ctx?.engine
-      );
+          type,
+          ctx?.engine
+        ),
+      ];
     } else {
       throw new Error('Unknown type "' + type + '"');
     }
-    // TODO: When adding an add node, there's the error "flow node has no input"
-    // "a" - inside fromFlowToGraph() below - why?
-    computeContextForNodes(ctx as EngineContext, engine, graph, [newGn]);
-    const newNode = graphNodeToFlowNode(
-      newGn,
-      onInputCategoryToggle,
-      project(menuPos as XYPosition)
-    );
+    const newNodes = newGns.map((newGn, index) => {
+      // TODO: When adding an add node, there's the error "flow node has no input"
+      // "a" - inside fromFlowToGraph() below - why?
+      computeContextForNodes(ctx as EngineContext, engine, graph, [newGn]);
+      const pos = menuPos as XYPosition;
+      return graphNodeToFlowNode(
+        newGn,
+        onInputCategoryToggle,
+        project({
+          x: pos.x + index * 20,
+          y: pos.y + index * 20,
+        })
+      );
+    });
 
     const updatedFlowElements = {
       ...flowElements,
-      nodes: [...flowElements.nodes, newNode],
+      nodes: [...flowElements.nodes, ...newNodes],
     };
     const updatedGraph = {
       ...graph,
-      nodes: [...graph.nodes, newGn],
+      nodes: [...graph.nodes, ...newGns],
     };
     setFlowElements(updatedFlowElements);
     setGraph(fromFlowToGraph(updatedGraph, updatedFlowElements));
@@ -1661,7 +1679,8 @@ const ctxNodes: [string, string][] = [
   ['vertex', 'Vertex'],
   ['number', 'Number'],
   ['add', 'Add'],
-  ['multiply', 'Multiply'],
+  ['phong', 'Phong'],
+  ['toon', 'Toon'],
 ];
 const ContextMenu = ({
   position,

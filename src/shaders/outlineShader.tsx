@@ -3,7 +3,7 @@ import { sourceNode } from '../core/nodes/engine-node';
 const outlineShaderF = (id: string) =>
   sourceNode(
     id,
-    'Outline Shader',
+    'Outline',
     { version: 2, preprocess: true, strategies: [] },
     `
 precision highp float;
@@ -30,7 +30,7 @@ void main()
 const outlineShaderV = (id: string, nextStageNodeId: string) =>
   sourceNode(
     id,
-    'Outline Shader',
+    'Outline',
     { version: 2, preprocess: true, strategies: [] },
     `
 precision highp float;

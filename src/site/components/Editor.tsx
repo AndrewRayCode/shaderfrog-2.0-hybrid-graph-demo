@@ -1305,6 +1305,11 @@ const Editor: React.FC = () => {
     [setFlowElements, setGraph]
   );
 
+  const onContextMenu = useCallback((event: MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    setMenuPos(mouse.current.real);
+  }, []);
+
   return (
     <div className={styles.container} onClick={onContainerClick}>
       <SplitPane
@@ -1317,40 +1322,42 @@ const Editor: React.FC = () => {
             <div className={styles.activeEngine}>
               {engine === babylengine ? 'Babylon.js' : 'Three.js'}
             </div>
-            {window.location.href.indexOf('localhost') > -1 ? (
-              <button
-                className={styles.formButton}
-                onClick={() => {
-                  if (!ctx) {
-                    return;
-                  }
-                  if (engine === babylengine) {
-                    setCompileResult(undefined);
-                    setEngine({ lastEngine: engine, engine: threngine });
-                  } else {
-                    setCompileResult(undefined);
-                    setEngine({ lastEngine: engine, engine: babylengine });
-                  }
-                }}
-              >
-                {engine === babylengine
-                  ? 'Switch to Three.js'
-                  : 'Switch to Babylon.js'}
-              </button>
+            {window.location.href.indexOf('localhost') > 1000 ? (
+              <>
+                <button
+                  className={styles.formButton}
+                  onClick={() => {
+                    if (!ctx) {
+                      return;
+                    }
+                    if (engine === babylengine) {
+                      setCompileResult(undefined);
+                      setEngine({ lastEngine: engine, engine: threngine });
+                    } else {
+                      setCompileResult(undefined);
+                      setEngine({ lastEngine: engine, engine: babylengine });
+                    }
+                  }}
+                >
+                  {engine === babylengine
+                    ? 'Switch to Three.js'
+                    : 'Switch to Babylon.js'}
+                </button>
+                <button
+                  className={styles.formButton}
+                  onClick={() => {
+                    localStorage.clear();
+                    if (ctx) {
+                      const rGraph = resetGraph();
+                      const rElements = resetFlowElements();
+                      initializeGraph(rElements, ctx, rGraph);
+                    }
+                  }}
+                >
+                  Reset
+                </button>
+              </>
             ) : null}
-            <button
-              className={styles.formButton}
-              onClick={() => {
-                localStorage.clear();
-                if (ctx) {
-                  const rGraph = resetGraph();
-                  const rElements = resetFlowElements();
-                  initializeGraph(rElements, ctx, rGraph);
-                }
-              }}
-            >
-              Reset
-            </button>
           </div>
           <Tabs onSelect={setEditorTabIndex} selected={editorTabIndex}>
             <TabGroup>
@@ -1364,7 +1371,7 @@ const Editor: React.FC = () => {
               </Tab>
             </TabGroup>
             <TabPanels>
-              <TabPanel onMouseMove={onMouseMove}>
+              <TabPanel onMouseMove={onMouseMove} onContextMenu={onContextMenu}>
                 {menuPos ? (
                   <ContextMenu position={menuPos} onAdd={onMenuAdd} />
                 ) : null}

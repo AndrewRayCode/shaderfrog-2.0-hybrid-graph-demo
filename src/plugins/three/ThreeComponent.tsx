@@ -239,9 +239,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     const pc: any = graph.nodes.find(
       (node) => node.name === 'Perlin Clouds'
     )?.id;
-    const os1: any = graph.nodes.find(
-      (node) => node.name === 'Outline Shader'
-    )?.id;
+    const os1: any = graph.nodes.find((node) => node.name === 'Outline')?.id;
     const fs1: any = graph.nodes.find((node) => node.name === 'Fireball')?.id;
     const fc: any = graph.nodes.find(
       (node) => node.name === 'Fluid Circles'

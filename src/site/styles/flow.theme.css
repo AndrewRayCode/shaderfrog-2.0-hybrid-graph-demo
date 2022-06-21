@@ -26,6 +26,15 @@
   text-shadow: 0 0 2px #000;
 }
 
+.selected .flownode {
+  border: 1px solid #ccc;
+}
+
+.selected .flowlabel {
+  background: linear-gradient(to right, rgb(59, 59, 59), rgb(48, 48, 48));
+  border-bottom: 1px solid #ccc;
+}
+
 .flowlabel .stage {
   font-size: 12px;
   float: right;

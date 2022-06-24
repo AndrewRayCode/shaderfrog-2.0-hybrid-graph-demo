@@ -1094,6 +1094,8 @@ const Editor: React.FC = () => {
     setNeedsCompile(true);
   };
 
+  // Used for selecting edges, also called when an edge is removed, along with
+  // onEdgesDelete above
   const onEdgesChange = useCallback(
     (changes) =>
       setFlowElements((flowElements) => {

@@ -46,16 +46,19 @@
   opacity: 0.5;
 }
 
+/* The hidden handle in the middle of the node to link fragment to vertex stages */
 .flownode .react-flow__handle.next-stage-handle {
   position: absolute;
   top: 50%;
   left: 50%;
   right: auto;
-  z-index: -1;
+  display: none;
 }
 
-.next-stage-edge .react-flow__edge-path {
-  stroke-width: 3;
+.react-flow__edge,
+.react-flow__edge-path,
+.react-flow__connection {
+  pointer-events: none;
 }
 
 .flowInputs {
@@ -85,6 +88,7 @@
 }
 
 .react-flow__edge.selected .react-flow__edge-path {
+  pointer-events: none;
   stroke-width: 3;
 }
 
@@ -97,7 +101,6 @@
   width: 14px;
   height: 14px;
   transition: 0.1s all ease-out;
-  z-index: 10;
 }
 
 .flownode .react-flow__handle .react-flow__handle-left {

@@ -88,6 +88,7 @@ const FlowWrap = ({
     className={cx('flownode', className)}
     style={{
       height: `${handleTop + Math.max(data.inputs.length, 1) * 20}px`,
+      zIndex: 0,
     }}
   >
     {children}
@@ -105,6 +106,7 @@ const DataNodeComponent = memo(
           {data.inputs.map((input, index) => (
             <React.Fragment key={input.name}>
               <Handle
+                isConnectable
                 id={input.id}
                 className={cx({ validTarget: input.validTarget })}
                 type="target"
@@ -155,6 +157,7 @@ const DataNodeComponent = memo(
                 {output.name}
               </div>
               <Handle
+                isConnectable
                 id={output.id}
                 className={cx({ validTarget: output.validTarget })}
                 type="source"
@@ -183,9 +186,6 @@ const SourceNodeComponent = memo(
     //   };
     // }, [id, updateNodeInternals, key]);
 
-    // TODO: can we make a test case react flow sandbox of chaning a node's
-    // named inputs and handles and it failing?
-    // console.log('rendering custom node component for ', data.label, data);
     return (
       <FlowWrap
         data={data}
@@ -203,6 +203,7 @@ const SourceNodeComponent = memo(
           {data.inputs.map((input, index) => (
             <React.Fragment key={input.name}>
               <Handle
+                isConnectable
                 id={input.id}
                 className={cx({ validTarget: input.validTarget })}
                 type="target"
@@ -248,6 +249,7 @@ const SourceNodeComponent = memo(
                 {output.name}
               </div>
               <Handle
+                isConnectable
                 id={output.id}
                 className={cx({ validTarget: output.validTarget })}
                 type="source"
@@ -258,13 +260,16 @@ const SourceNodeComponent = memo(
           ))}
         </div>
 
+        {/* These are not currently shown - replace with floating edges? */}
         <Handle
+          isConnectable
           id="from"
           className="next-stage-handle"
           type="source"
           position={Position.Right}
         />
         <Handle
+          isConnectable
           id="to"
           className="next-stage-handle"
           type="target"

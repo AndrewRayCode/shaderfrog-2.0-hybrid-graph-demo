@@ -169,6 +169,65 @@ const expandDataElements = (graph: Graph): Graph =>
     return updated;
   }, graph);
 
+/**
+ * ✅ TODO ✅
+ *
+ * Experimentation ideas
+ * - Try SDF image shader https://www.youtube.com/watch?v=1b5hIMqz_wM
+ * - Put other images in the graph like the toon step shader
+ * - Have uniforms added per shader in the graph
+ *
+ * Polish / UX
+ * - Add more syntax highlighting to the GLSL editor, look at vscode
+ *   plugin? https://github.com/stef-levesque/vscode-shader/tree/master/syntaxes
+ * - Auto rename the data inputs to uniforms to be that uniform name
+ * - Recompiling re-parses / re-compiles the entire graph, nothing is memoized.
+ *   Can we use immer or something else to preserve and update the original AST
+ *   so it can be reused?
+ * - Allow dragging uniform edge out backwards to create a data node for it
+ * - Uniform strategy should be added as default ot all shaders
+ *
+ * Features
+ * - Enable backfilling of uv param
+ * - Allow for shader being duplicated in a main fn to allow it to
+ *   be both normal map and albdeo
+ * - Add types to the connections (like vec3/float), and show the types on
+ *   the inputs/ouputs, and prevent wrong types from being connected
+ * - Re-add the three > babylon conversion
+ * - Add image data nodes to the graph
+ * - Add persistable shaders to a db!
+ * - Shader node editor specific undo history
+ *
+ * Bugs
+ * - UI
+ *   - Edge drop targets on nodes still flakey for connecting edges
+ * - Babylon
+ *   - Babylon.js light doesn't seem to animate
+ *   - Babylon.js shader doesn't seem to get re-applied until I leave
+ *     and come back to the scene
+ *   - Opposite of above, dragging in solid color to albedo, leaving and
+ *     coming back to scene, shader is black
+ *   - Adding shader inputs like bumpTexture should not require
+ *     duplicating that manually into babylengine
+ * - Uniforms
+ *   - Plugging in a number node to a vec2 uniform (like perlin clouds speed)
+ *     causes a crash
+ * - Nodes / Graph
+ *   - Deleting a node while it's plugged into the output (maybe any connected
+ *     node, i repro'd with the Physical node) node causes crash
+ * - Core
+ *   - In a source node, if two functions declare a variable, the
+ *     current "Variable" strategy will only pick the second one as
+ *     an input.
+ *   - (same as above?) The variable strategy needs to handle multiple variable
+ *     replacements of the same name (looping over references), and
+ *     maybe handle if that variable is declared in the program by
+ *     removing the declaration line
+ *
+ * I don't remember what this is
+ * - Here we hardcode "out" for the inputs which needs to line up with
+ *   the custom handles.
+ */
 const useFlef = () => {
   const [flowElements, setFlowElements, resetFlowElements] =
     useLocalStorage<FlowElements>('flow', {
@@ -225,6 +284,7 @@ const useFlef = () => {
           purpleNoise,
           heatShaderF,
           heatShaderV,
+          staticShader,
         ],
         edges: [
           makeEdge(physicalF.id, outputF.id, 'out', 'frogFragOut', 'fragment'),
@@ -260,35 +320,6 @@ const useFlef = () => {
           solidColorF,
         ],
         edges: [
-          // TODO: Try SDF image shader https://www.youtube.com/watch?v=1b5hIMqz_wM
-          // TODO: Put other images in the graph like the toon step shader
-          // TODO: Could be cool to try outline shader https://shaderfrog.com/app/view/4876
-          // TODO: Have uniforms added per shader in the graph
-          // TODO: AnyCode node to try manipulating above shader for normal map
-          // TODO: Make uniforms like map: change the uniforms
-          // TODO: Here we hardcode "out" for the inputs which needs to line up with
-          //       the custom handles.
-          // TODO: Add more syntax highlighting to the GLSL editor, look at vscode
-          //       plugin? https://github.com/stef-levesque/vscode-shader/tree/master/syntaxes
-          // TODO: Babylon.js light doesn't seem to animate
-          // TODO: Babylon.js shader doesn't seem to get re-applied until I leave
-          //       and come back to the scene
-          // TODO: Opposite of above, dragging in solid color to albedo, leaving and
-          //       coming back to scene, shader is black
-          // TODO: Adding shader inputs like bumpTexture should not require
-          //       duplicating that manually into babylengine
-          // TODO: Make nodes addable/removable in the graph
-          // TODO: Allow for a source expression only node that has a normal-map-ifier
-          // TODO: Enable backfilling of uv param?
-          // TODO: Allow for shader being duplicated in a main fn to allow it to
-          //       be both normal map and albdeo
-          // TODO: In a source node, if two functions declare a variable, the
-          //       current "Variable" strategy will only pick the second one as
-          //       an input.
-          // TODO: The variable strategy needs to handle multiple variable
-          //       replacements of the same name (looping over references), and
-          //       maybe handle if that variable is declared in the program by
-          //       removing the declaration line
           makeEdge(physicalV.id, outputV.id, 'out', 'position', 'vertex'),
           makeEdge(physicalF.id, outputF.id, 'out', 'color', 'fragment'),
           // {
@@ -1342,7 +1373,7 @@ const Editor: React.FC = () => {
             <div className={styles.activeEngine}>
               {engine === babylengine ? 'Babylon.js' : 'Three.js'}
             </div>
-            {window.location.href.indexOf('localhost') > 1000 ? (
+            {window.location.href.indexOf('localhost') > -1 ? (
               <>
                 <button
                   className={styles.formButton}

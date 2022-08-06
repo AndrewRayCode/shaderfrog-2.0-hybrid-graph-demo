@@ -25,10 +25,6 @@ import { BinaryNode, CodeNode, NodeConfig } from './code-nodes';
 //   vertex: string;
 // }
 
-/**
- * TODO LOL
- */
-
 // export interface BinaryNode extends Node {
 //   operator: string;
 // }

@@ -6,7 +6,7 @@ const fireFrag = (id: string) =>
   sourceNode(
     id,
     'Fireball',
-    { version: 2, preprocess: true, strategies: [] },
+    { version: 2, preprocess: true, strategies: [uniformStrategy()] },
     `
     // Indstiller presisionen, hvor meget plads denne type variabel må bruge (high betyder meget plads)
 precision highp float;

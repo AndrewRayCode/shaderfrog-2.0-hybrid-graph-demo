@@ -1,10 +1,11 @@
 import { sourceNode } from '../core/nodes/engine-node';
+import { uniformStrategy } from '../core/strategy';
 
 const purpleNoiseNode = (id: string) =>
   sourceNode(
     id,
     'Purple Metal',
-    { version: 2, preprocess: true, strategies: [] },
+    { version: 2, preprocess: true, strategies: [uniformStrategy()] },
     `
 precision highp float;
 precision highp int;

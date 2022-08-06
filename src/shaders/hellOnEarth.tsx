@@ -1,10 +1,11 @@
 import { sourceNode } from '../core/nodes/engine-node';
+import { uniformStrategy } from '../core/strategy';
 
 const hellOnEarthFrag = (id: string) =>
   sourceNode(
     id,
     'Hell',
-    { version: 2, preprocess: true, strategies: [] },
+    { version: 2, preprocess: true, strategies: [uniformStrategy()] },
     `
 /**
  * Example Fragment Shader

@@ -1,10 +1,11 @@
 import { sourceNode } from '../core/nodes/engine-node';
+import { uniformStrategy } from '../core/strategy';
 
 const outlineShaderF = (id: string) =>
   sourceNode(
     id,
     'Outline',
-    { version: 2, preprocess: true, strategies: [] },
+    { version: 2, preprocess: true, strategies: [uniformStrategy()] },
     `
 precision highp float;
 
@@ -62,8 +63,4 @@ void main()
     nextStageNodeId
   );
 
-// TODO: The outline shader above doesn't work because it doesn't find the
-// position to return. One option now is to use the "returns position?"
-// checkbox on shaders. Another is to walk back n steps from the gl_Position
-// line until a vec() call is found.
 export { outlineShaderF, outlineShaderV };

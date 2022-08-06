@@ -1,10 +1,11 @@
 import { sourceNode } from '../core/nodes/engine-node';
+import { uniformStrategy } from '../core/strategy';
 
 const heatShaderFragmentNode = (id: string) =>
   sourceNode(
     id,
     'Fake Heatmap',
-    { version: 2, preprocess: true, strategies: [] },
+    { version: 2, preprocess: true, strategies: [uniformStrategy()] },
     `
     // Adapted from http://blogs.msdn.com/b/eternalcoding/archive/2014/04/17/learning-shaders-create-your-own-shaders-with-babylon-js.aspx
 

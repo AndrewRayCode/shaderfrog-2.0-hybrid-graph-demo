@@ -1,10 +1,11 @@
 import { sourceNode } from '../core/nodes/engine-node';
+import { uniformStrategy } from '../core/strategy';
 
 const fluidCirclesNode = (id: string) =>
   sourceNode(
     id,
     'Fluid Circles',
-    { version: 2, preprocess: true, strategies: [] },
+    { version: 2, preprocess: true, strategies: [uniformStrategy()] },
     `
     // Original https://www.shadertoy.com/view/MljSzW - Imported with permission
     // Created by Stefan Draganov - vortex/2015

@@ -36,6 +36,7 @@ type ThreeSceneProps = {
   lights: PreviewLight;
   previewObject: string;
   setCtx: (ctx: EngineContext) => void;
+  initialCtx: any;
   setGlResult: AnyFn;
   setLights: AnyFn;
   setPreviewObject: AnyFn;
@@ -50,6 +51,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   lights,
   previewObject,
   setCtx,
+  initialCtx,
   setGlResult,
   setLights,
   setPreviewObject,
@@ -165,6 +167,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       scene.remove(sceneData.mesh);
     }
 
+    console.log('re-creating scene mesh');
+
     let mesh;
     if (previewObject === 'torusknot') {
       const geometry = new three.TorusKnotGeometry(0.6, 0.25, 200, 32);
@@ -184,34 +188,42 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   }, [previousPreviewObject, sceneData, previewObject, scene]);
 
   const threeTone = useMemo(() => {
+    console.log('loading 3tone image');
     const image = new three.TextureLoader().load('/3tone.jpg');
     image.minFilter = three.NearestFilter;
     image.magFilter = three.NearestFilter;
   }, []);
 
-  const [ctx] = useState<EngineContext>({
-    engine: 'three',
-    compileCount: 0,
-    // TODO: Rename runtime to "engine" and make a new nodes and data top level
-    // key cache (if we keep the material cache) and type it in the graph
-    runtime: {
-      three,
-      renderer,
-      sceneData,
-      scene,
-      camera,
-      envMapTexture: null,
-      index: 0,
-      threeTone,
-      cache: { data: {}, nodes: {} },
-    },
-    nodes: {},
-    debuggingNonsense: {},
-  });
+  const [ctx] = useState<EngineContext>(
+    // EXPERIMENTAL! Added context from hoisted ref as initializer to avoid
+    // re-creating context including cache and envmaptexture. Remove this
+    // comment if there are no future issues switching between threejs source
+    // code tab and the scene
+    initialCtx || {
+      engine: 'three',
+      compileCount: 0,
+      // TODO: Rename runtime to "engine" and make a new nodes and data top level
+      // key cache (if we keep the material cache) and type it in the graph
+      runtime: {
+        three,
+        renderer,
+        sceneData,
+        scene,
+        camera,
+        envMapTexture: null,
+        index: 0,
+        threeTone,
+        cache: { data: {}, nodes: {} },
+      },
+      nodes: {},
+      debuggingNonsense: {},
+    }
+  );
 
   // Inform parent our context is created
   useEffect(() => {
     if (!ctx.runtime.envMapTexture) {
+      console.log('loading envmap texture');
       new RGBELoader().load(
         'envmaps/empty_warehouse_01_2k.hdr',
         (textureCb) => {
@@ -403,6 +415,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       ...fromGraphUniforms,
     };
 
+    console.log('re-creating three.js material! with envmap', envMapTexture);
     // the before code
     const newMat = new three.RawShaderMaterial({
       name: 'ShaderFrog Phong Material',

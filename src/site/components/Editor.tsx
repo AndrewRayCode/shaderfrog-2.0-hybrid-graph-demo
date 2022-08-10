@@ -181,6 +181,9 @@ const expandDataElements = (graph: Graph): Graph =>
  * - Maybe making vec3 data work next would be helpful
  * - bug adding toon because its not in graph when it looks for sibling
  * - Caching contexts would be helpful
+ * - Switching between threejs source code tab and runtime tab re-creates things
+ *   not stored on sceneData like the threetone and the mesh and I guess the
+ *   scene it self - can I reuse all of that on hoisted ref between switches?
  *
  * ✅ TODO ✅
  *
@@ -205,6 +208,8 @@ const expandDataElements = (graph: Graph): Graph =>
  *   - Uniform strategy should be added as default ot all shaders
  *   - If the source code tab is focused in three.js, recompilation doesn't happen
  *   - Add three.js ability to switch lighting megashader
+ *   - Sort node inputs into engine, uniforms, properties
+ *   - Show input type by the input
  * - Core
  *   - Recompiling re-parses / re-compiles the entire graph, nothing is memoized.
  *     Can we use immer or something else to preserve and update the original AST
@@ -996,6 +1001,13 @@ const Editor: React.FC = () => {
           }
         }
         initializeGraph(flowElements, newCtx, newGraph);
+        // This branch wasn't here before I started working on the bug where
+        // switching away from the scene to the source code tab and back removed
+        // the envmap and others. I want to try to cache the whole scene and
+        // objects here to avoid re-creating anything. I'm also curious if this
+        // causes any kind of infinite loupe
+      } else {
+        setCtxState(newCtx);
       }
     },
     [
@@ -1537,6 +1549,7 @@ const Editor: React.FC = () => {
               <TabPanel className={styles.scene}>
                 {engine === threngine ? (
                   <ThreeComponent
+                    initialCtx={ctx}
                     setCtx={setCtx}
                     graph={graph}
                     lights={lights}

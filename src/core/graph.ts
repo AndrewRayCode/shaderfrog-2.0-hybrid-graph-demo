@@ -454,45 +454,25 @@ export const compileNode = (
 
   const { inputs } = node;
 
+  // Removing this seems to prevent normal map shader source code updating from
+  // affecting the three.js shader. why?
   // TODO: Why did I call onBeforeCompile here, since I already do it in
   // computeNodeContext? I commented this out while working on caching the
   // three.js material. I'm curiosu what errors it may cause
-  // const { onBeforeCompile } = parser;
-  // if (onBeforeCompile) {
-  //   const { groupId } = node as SourceNode;
-  //   const sibling = graph.nodes.find(
-  //     (n) =>
-  //       n !== node && 'groupId' in n && (n as SourceNode).groupId === groupId
-  //   );
-  //   onBeforeCompile(
-  //     graph,
-  //     engineContext,
-  //     node as SourceNode,
-  //     sibling as SourceNode
-  //   );
-
-  // const key = cacheKey ? cacheKey(graph, node, sibling) : null;
-  // if (!key || key !== engineContext.runtime.cache.nodes[node.id]?.cacheKey) {
-  //   console.log(
-  //     'cache miss for',
-  //     { node, sibling },
-  //     key,
-  //     'vs',
-  //     engineContext.runtime.cache.nodes[node.id]?.cacheKey
-  //   );
-  //   engineContext.runtime.cache.nodes[node.id] = {
-  //     ...onBeforeCompile(
-  //       graph,
-  //       engineContext,
-  //       node as SourceNode,
-  //       sibling as SourceNode
-  //     ),
-  //     cacheKey: key,
-  //   };
-  // } else {
-  //   console.log('cache hit for', node);
-  // }
-  // }
+  const { onBeforeCompile } = parser;
+  if (onBeforeCompile) {
+    const { groupId } = node as SourceNode;
+    const sibling = graph.nodes.find(
+      (n) =>
+        n !== node && 'groupId' in n && (n as SourceNode).groupId === groupId
+    );
+    onBeforeCompile(
+      graph,
+      engineContext,
+      node as SourceNode,
+      sibling as SourceNode
+    );
+  }
 
   // Will I one day get good enough at typescript to be able to remove this
   // check? Or will I learn that I need it?

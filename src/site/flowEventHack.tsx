@@ -1,10 +1,7 @@
 import { createContext, useContext } from 'react';
 
 export const Context = createContext<any>({});
-export type ChangeHandler = (
-  id: string,
-  event: React.FormEvent<HTMLInputElement>
-) => void;
+export type ChangeHandler = (id: string, value: any) => void;
 
 export const useFlowEventHack = () => {
   return useContext(Context) as ChangeHandler;

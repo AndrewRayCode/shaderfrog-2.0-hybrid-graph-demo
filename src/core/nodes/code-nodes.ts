@@ -1,6 +1,6 @@
 import { ShaderStage } from '../graph';
 import { Strategy } from '../strategy';
-import { DataType } from './data-nodes';
+import { UniformDataType } from './data-nodes';
 import { CoreNode, NodeInput } from './core-node';
 
 export const mapInputName = (node: CodeNode, { name }: NodeInput): string =>
@@ -12,7 +12,7 @@ export type NodeConfig = {
   preprocess: boolean;
   inputMapping?: InputMapping;
   strategies: Strategy[];
-  uniforms?: DataType[];
+  uniforms?: UniformDataType[];
 };
 
 export interface CodeNode extends CoreNode {
@@ -21,7 +21,9 @@ export interface CodeNode extends CoreNode {
   expressionOnly?: boolean;
   stage?: ShaderStage;
   biStage?: boolean;
+  groupId?: string;
   nextStageNodeId?: string;
+  prevStageNodeId?: string;
   originalEngine?: string;
 }
 

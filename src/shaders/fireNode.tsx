@@ -1,4 +1,4 @@
-import { numberData } from '../core/nodes/data-nodes';
+import { numberUniformData } from '../core/nodes/data-nodes';
 import { sourceNode } from '../core/nodes/engine-node';
 import { uniformStrategy } from '../core/strategy';
 
@@ -46,10 +46,10 @@ const fireVert = (id: string, nextStageNodeId?: string) =>
 
       uniforms: [
         // { name: 'tExplosion', type: 'sampler2D', value: 'image' },
-        numberData('fireSpeed', '0.6'),
-        numberData('pulseHeight', '0.1'),
-        numberData('displacementHeight', '0.6'),
-        numberData('turbulenceDetail', '0.8'),
+        numberUniformData('fireSpeed', '0.6'),
+        numberUniformData('pulseHeight', '0.1'),
+        numberUniformData('displacementHeight', '0.6'),
+        numberUniformData('turbulenceDetail', '0.8'),
       ],
     },
     `

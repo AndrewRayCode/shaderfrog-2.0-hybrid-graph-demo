@@ -266,7 +266,7 @@ export const babylengine: Engine = {
   ]),
   parsers: {
     [EngineNodeType.physical]: {
-      onBeforeCompile: (engineContext, node) => {
+      onBeforeCompile: (graph, engineContext, node) => {
         onBeforeCompileMegaShader(engineContext, node);
       },
       manipulateAst: megaShaderMainpulateAst,

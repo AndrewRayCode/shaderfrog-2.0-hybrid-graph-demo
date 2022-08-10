@@ -1,5 +1,5 @@
 import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
-import { NodeParser, NodeType } from '../../core/graph';
+import { Graph, NodeParser, NodeType } from '../../core/graph';
 import importers from './importers';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 
@@ -11,6 +11,7 @@ import {
   returnGlPositionVec3Right,
 } from '../../ast/manipulate';
 import { SourceNode } from '../../core/nodes/code-nodes';
+import { Edge } from '../../core/nodes/edge';
 
 export type ThreeRuntime = {
   scene: any;
@@ -23,6 +24,9 @@ export type ThreeRuntime = {
   index: number;
   threeTone: any;
   cache: {
+    data: {
+      [key: string]: any;
+    };
     nodes: {
       [id: string]: {
         fragmentRef: any;
@@ -34,23 +38,36 @@ export type ThreeRuntime = {
   };
 };
 
+const cacher = (
+  engineContext: EngineContext,
+  graph: Graph,
+  node: SourceNode,
+  sibling: SourceNode,
+  newValue: (...args: any[]) => any
+) => {
+  const cacheKey = programCacheKey(graph, node, sibling);
+
+  if (engineContext.runtime.cache.data[cacheKey]) {
+    console.log('cache hit', cacheKey);
+  } else {
+    console.log('cache miss', cacheKey);
+  }
+  const materialData = engineContext.runtime.cache.data[cacheKey] || newValue();
+
+  engineContext.runtime.cache.data[cacheKey] = materialData;
+
+  // TODO: We mutate the nodes here, can we avoid that later?
+  node.source =
+    node.stage === 'fragment' ? materialData.fragment : materialData.vertex;
+  sibling.source =
+    sibling.stage === 'fragment' ? materialData.fragment : materialData.vertex;
+};
+
 const onBeforeCompileMegaShader = (
   engineContext: EngineContext,
-  node: SourceNode,
   newMat: any
 ) => {
-  // const { nodes } = engineContext.runtime.cache;
-  // TODO: Update cache based on lights (or other, like mesh + lights?)
-  // if (node.nextStageNodeId && nodes[node.nextStageNodeId] && node.stage) {
-  //   console.log('loading cached source from next stage', { node });
-  //   node.source =
-  //     engineContext.runtime.cache.nodes[node.nextStageNodeId][node.stage];
-  //   return;
-  // }
-
-  // TODO: This gets called 4 times currently, twice for compute initial
-  // context, and twice for compilation
-
+  console.log('compiling three megashader!');
   const { renderer, sceneData, scene, camera, threeTone, three } =
     engineContext.runtime;
   const { mesh } = sceneData;
@@ -72,9 +89,9 @@ const onBeforeCompileMegaShader = (
   const fragment = gl.getShaderSource(fragmentRef);
   const vertex = gl.getShaderSource(vertexRef);
 
-  node.source = node.stage === 'fragment' ? fragment : vertex;
-
-  engineContext.runtime.cache.nodes[node.id] = {
+  // Do we even need to do this? This is just for debugging right? Using the
+  // source on the node is the important thing.
+  return {
     fragmentRef,
     vertexRef,
     fragment,
@@ -100,6 +117,64 @@ const megaShaderMainpulateAst: NodeParser['manipulateAst'] = (
     }
   }
   return programAst;
+};
+
+const programCacheKey = (
+  graph: Graph,
+  node: SourceNode,
+  sibling: SourceNode
+) => {
+  return [node, sibling]
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map((n) => nodeCacheKey(graph, n))
+    .join('-');
+};
+
+const nodeCacheKey = (graph: Graph, node: SourceNode) => {
+  return (
+    '' +
+    node.id +
+    graph.edges
+      .filter((edge) => edge.to === node.id)
+      .map((edge) => `${edge.to}.${edge.input}`)
+      .sort()
+      .join(',')
+    // Currently excluding node inputs because these are calculated *after*
+    // the onbeforecompile, so the next compile, they'll all change!
+    // node.inputs.map((i) => `${i.id}${i.bakeable}`)
+  );
+};
+
+const threeMaterialProperties = (
+  three: any,
+  graph: Graph,
+  node: SourceNode,
+  sibling?: SourceNode
+): Record<string, any> => {
+  const inputEdges = graph.edges
+    .filter((edge) => edge.to === node.id || edge.to === sibling?.id)
+    .reduce<Record<string, Edge>>(
+      (acc, edge) => ({ ...acc, [edge.input]: edge }),
+      {}
+    );
+  const properties: any = {};
+  if ('map' in inputEdges) {
+    properties.map = new three.Texture();
+  }
+  if ('normalMap' in inputEdges) {
+    properties.map = new three.Texture();
+    properties.normalMap = new three.Texture();
+  }
+  if ('roughnessMap' in inputEdges) {
+    properties.roughnessMap = new three.Texture();
+  }
+
+  // color: new three.Vector3(1.0, 1.0, 1.0),
+  // map: new three.Texture(),
+  // // TODO: Normals are wrong when using normalmap
+  // normalMap: new three.Texture(),
+
+  return properties;
 };
 
 export const threngine: Engine = {
@@ -190,24 +265,23 @@ export const threngine: Engine = {
       },
     },
     [EngineNodeType.phong]: {
-      onBeforeCompile: (engineContext, node) => {
+      onBeforeCompile: (graph, engineContext, node, sibling) => {
         const { three } = engineContext.runtime;
-        onBeforeCompileMegaShader(
-          engineContext,
-          node,
-          new three.MeshPhongMaterial({
-            color: 0x00ff00,
-            map: new three.Texture(),
-            normalMap: new three.Texture(),
-            // roughnessMap: new three.Texture(),
-          })
+        cacher(engineContext, graph, node, sibling as SourceNode, () =>
+          onBeforeCompileMegaShader(
+            engineContext,
+            new three.MeshPhongMaterial({
+              ...threeMaterialProperties(three, graph, node, sibling),
+            })
+          )
         );
       },
       manipulateAst: megaShaderMainpulateAst,
     },
     [EngineNodeType.physical]: {
-      onBeforeCompile: (engineContext, node) => {
+      onBeforeCompile: (graph, engineContext, node, sibling) => {
         const { three, envMapTexture } = engineContext.runtime;
+
         // const envMap = new three.CubeTextureLoader().load([
         //   '/envmaps/pond/posx.jpg',
         //   '/envmaps/pond/negx.jpg',
@@ -225,38 +299,34 @@ export const threngine: Engine = {
         // const texture = new three.Texture();
         // texture.mapping = three.CubeUVReflectionMapping;
 
-        // console.log({ envMap });
-        onBeforeCompileMegaShader(
-          engineContext,
-          node,
-          new three.MeshPhysicalMaterial({
-            metalness: 1.0,
-            roughness: 0.0,
-            clearcoat: 1.0,
-            clearcoatRoughness: 0.0,
-            reflectivity: 1.0,
-            color: new three.Vector3(1.0, 1.0, 1.0),
-            map: new three.Texture(),
-            // TODO: Normals are wrong when using normalmap
-            normalMap: new three.Texture(),
-            envMap: envMapTexture,
-            roughnessMap: new three.Texture(),
-          })
+        cacher(engineContext, graph, node, sibling as SourceNode, () =>
+          onBeforeCompileMegaShader(
+            engineContext,
+            (() => {
+              const props = {
+                envMap: envMapTexture,
+                ...threeMaterialProperties(three, graph, node, sibling),
+              };
+              console.log({ props });
+              return new three.MeshPhysicalMaterial(props);
+            })()
+          )
         );
       },
       manipulateAst: megaShaderMainpulateAst,
     },
     [EngineNodeType.toon]: {
-      onBeforeCompile: (engineContext, node) => {
+      onBeforeCompile: (graph, engineContext, node, sibling) => {
         const { three, threeTone } = engineContext.runtime;
-        onBeforeCompileMegaShader(
-          engineContext,
-          node,
-          new three.MeshToonMaterial({
-            color: 0x00ff00,
-            map: new three.Texture(),
-            gradientMap: threeTone,
-          })
+
+        cacher(engineContext, graph, node, sibling as SourceNode, () =>
+          onBeforeCompileMegaShader(
+            engineContext,
+            new three.MeshToonMaterial({
+              gradientMap: threeTone,
+              ...threeMaterialProperties(three, graph, node, sibling),
+            })
+          )
         );
       },
       manipulateAst: megaShaderMainpulateAst,

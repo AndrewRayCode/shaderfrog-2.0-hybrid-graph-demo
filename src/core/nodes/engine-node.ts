@@ -2,6 +2,7 @@ import { EngineNodeType } from '../engine';
 import { NodeType, ShaderStage } from '../graph';
 import {
   assignemntToStrategy,
+  hardCodeStrategy,
   namedAttributeStrategy,
   texture2DStrategy,
   uniformStrategy,
@@ -145,12 +146,14 @@ export const expressionNode = (
 export const phongNode = (
   id: string,
   name: string,
+  groupId: string,
   stage: ShaderStage,
   nextStageNodeId?: string
 ): CodeNode => {
   return {
     id,
     name,
+    groupId,
     type: EngineNodeType.phong,
     config: {
       version: 3,
@@ -181,12 +184,14 @@ export const phongNode = (
 export const physicalNode = (
   id: string,
   name: string,
+  groupId: string,
   stage: ShaderStage,
   nextStageNodeId?: string
 ): CodeNode => {
   return {
     id,
     name,
+    groupId,
     type: EngineNodeType.physical,
     config: {
       version: 3,
@@ -201,6 +206,30 @@ export const physicalNode = (
         stage === 'fragment'
           ? texture2DStrategy()
           : namedAttributeStrategy('position'),
+        ...(stage === 'fragment'
+          ? [
+              hardCodeStrategy([
+                {
+                  name: 'map',
+                  id: 'map',
+                  category: 'code',
+                  bakeable: false,
+                },
+                {
+                  name: 'roughnessMap',
+                  id: 'roughnessMap',
+                  category: 'code',
+                  bakeable: false,
+                },
+                {
+                  name: 'normalMap',
+                  id: 'normalMap',
+                  category: 'code',
+                  bakeable: false,
+                },
+              ]),
+            ]
+          : []),
       ],
     },
     inputs: [],
@@ -220,12 +249,14 @@ export const physicalNode = (
 export const toonNode = (
   id: string,
   name: string,
+  groupId: string,
   stage: ShaderStage,
   nextStageNodeId?: string
 ): CodeNode => {
   return {
     id,
     name,
+    groupId,
     type: EngineNodeType.toon,
     config: {
       version: 3,

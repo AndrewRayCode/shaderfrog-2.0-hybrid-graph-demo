@@ -192,6 +192,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   const [ctx] = useState<EngineContext>({
     engine: 'three',
     compileCount: 0,
+    // TODO: Rename runtime to "engine" and make a new nodes and data top level
+    // key cache (if we keep the material cache) and type it in the graph
     runtime: {
       three,
       renderer,
@@ -201,7 +203,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       envMapTexture: null,
       index: 0,
       threeTone,
-      cache: { nodes: {} },
+      cache: { data: {}, nodes: {} },
     },
     nodes: {},
     debuggingNonsense: {},
@@ -312,34 +314,31 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
       gradientMap: { value: threeTone },
 
-      metalness: { value: 0.9 },
+      metalness: { value: 0 },
       roughness: { value: 0 },
-      clearcoat: { value: 1.0 },
-      clearcoatRoughness: { value: 1.0 },
-      reflectivity: { value: 1.0 },
+      clearcoat: { value: 0 },
+      clearcoatRoughness: { value: 0 },
+      reflectivity: { value: 0 },
       ior: { value: 1.0 },
-      normalScale: { value: new three.Vector2(2.0, 2.0) },
+      normalScale: { value: new three.Vector2(1.0, 1.0) },
       color: { value: new three.Color(1.0, 1.0, 1.0) },
 
-      map: { value: new three.TextureLoader().load('/contrast-noise.png') },
-      normalMap: {
-        value: new three.TextureLoader().load('/blank-normal-map.png'),
-      },
-      roughnessMap: {
-        value: new three.TextureLoader().load('/blank-normal-map.png'),
-      },
-      image: {
-        value: new three.TextureLoader().load('/contrast-noise.png'),
-      },
+      // map: { value: new three.TextureLoader().load('/contrast-noise.png') },
+      // normalMap: {
+      //   value: new three.TextureLoader().load('/blank-normal-map.png'),
+      // },
+      // roughnessMap: {
+      //   value: new three.TextureLoader().load('/blank-normal-map.png'),
+      // },
+      // image: {
+      //   value: new three.TextureLoader().load('/contrast-noise.png'),
+      // },
 
       flipEnvMap: { value: -1 },
       envMapIntensity: { value: 1.0 },
       transmission: { value: 0.5 },
       thickness: { value: 0 },
       cameraPosition: { value: new three.Vector3(0, 0, 0) },
-      blenvMap: {
-        value: envMapTexture,
-      },
       envMap: {
         value: envMapTexture,
       },

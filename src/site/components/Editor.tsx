@@ -121,7 +121,11 @@ import {
 import { useLocalStorage } from '../useLocalStorage';
 import { Strategy, StrategyType, uniformStrategy } from '../../core/strategy';
 import { ensure } from '../../util/ensure';
-import { GraphDataType, numberNode } from '../../core/nodes/data-nodes';
+import {
+  GraphDataType,
+  numberNode,
+  vectorNode,
+} from '../../core/nodes/data-nodes';
 import { makeEdge } from '../../core/nodes/edge';
 import { SourceNode } from '../../core/nodes/code-nodes';
 import { makeId } from '../../util/id';
@@ -170,6 +174,14 @@ const expandDataElements = (graph: Graph): Graph =>
   }, graph);
 
 /**
+ * Where was I?
+ *  - Just added dynamic material properties, aka plugging in "albdeo" causes
+ *    three material to get "map", and fixed bug with vertex/fragment shader
+ *    having different code, by adding caching mechanism based on group id
+ * - Maybe making vec3 data work next would be helpful
+ * - bug adding toon because its not in graph when it looks for sibling
+ * - Caching contexts would be helpful
+ *
  * ✅ TODO ✅
  *
  * Experimentation ideas
@@ -177,17 +189,32 @@ const expandDataElements = (graph: Graph): Graph =>
  * - Put other images in the graph like the toon step shader
  * - Have uniforms added per shader in the graph
  *
- * Polish / UX
- * - Add more syntax highlighting to the GLSL editor, look at vscode
- *   plugin? https://github.com/stef-levesque/vscode-shader/tree/master/syntaxes
- * - Auto rename the data inputs to uniforms to be that uniform name
- * - Recompiling re-parses / re-compiles the entire graph, nothing is memoized.
- *   Can we use immer or something else to preserve and update the original AST
- *   so it can be reused?
- * - Allow dragging uniform edge out backwards to create a data node for it
- * - Uniform strategy should be added as default ot all shaders
+ * Fundamental Issues
+ * - The three.js material has properties like "envMap" and "reflectivity" which
+ *   do different things based on shader settings. They are independent of the
+ *   uniforms and/or set the uniforms. Right now there's no way to plug into
+ *   a property like "map" or "envMap". Should there be a separate "properties"
+ *   section on each node?
+ *
+ * Polish / Improvements
+ * - UX
+ *   - Add more syntax highlighting to the GLSL editor, look at vscode
+ *     plugin? https://github.com/stef-levesque/vscode-shader/tree/master/syntaxes
+ *   - Allow dragging uniform edge out backwards to create a data node for it
+ *   - Auto rename the data inputs to uniforms to be that uniform name
+ *   - Uniform strategy should be added as default ot all shaders
+ *   - If the source code tab is focused in three.js, recompilation doesn't happen
+ *   - Add three.js ability to switch lighting megashader
+ * - Core
+ *   - Recompiling re-parses / re-compiles the entire graph, nothing is memoized.
+ *     Can we use immer or something else to preserve and update the original AST
+ *     so it can be reused?
+ *   - Break up graph.ts into more files, lke core parsers maybe
+ *   - onBeforeCompile in threngine mutates the node to add the source - can
+ *     we make this an immutable update in graph.ts?
  *
  * Features
+ * - Ability to export shaders + use in engine
  * - Enable backfilling of uv param
  * - Allow for shader being duplicated in a main fn to allow it to
  *   be both normal map and albdeo
@@ -200,8 +227,10 @@ const expandDataElements = (graph: Graph): Graph =>
  *
  * Bugs
  * - UI
- *   - Edge drop targets on nodes still flakey for connecting edges
+ *   - Hot reload of nextjs kicks context into babylon?
  * - Babylon
+ *   - Features not backported: material caching, updating material properties
+ *     when a new edge is plugged in.
  *   - Babylon.js light doesn't seem to animate
  *   - Babylon.js shader doesn't seem to get re-applied until I leave
  *     and come back to the scene
@@ -223,6 +252,8 @@ const expandDataElements = (graph: Graph): Graph =>
  *     replacements of the same name (looping over references), and
  *     maybe handle if that variable is declared in the program by
  *     removing the declaration line
+ *   - Nodes not plugged into the graph don't get their contex computed (like
+ *     new inputs)
  *
  * I don't remember what this is
  * - Here we hardcode "out" for the inputs which needs to line up with
@@ -239,17 +270,36 @@ const useFlef = () => {
     const expression = expressionNode(makeId(), 'Expression', 'a + b / c');
     const outputF = outputNode(makeId(), 'Output', 'fragment');
     const outputV = outputNode(makeId(), 'Output', 'vertex', outputF.id);
-    const phongF = phongNode(makeId(), 'Phong', 'fragment');
-    const phongV = phongNode(makeId(), 'Phong', 'vertex', phongF.id);
-    const physicalF = physicalNode(makeId(), 'Physical', 'fragment');
+
+    const phongGroupId = makeId();
+    const phongF = phongNode(makeId(), 'Phong', phongGroupId, 'fragment');
+    const phongV = phongNode(
+      makeId(),
+      'Phong',
+      phongGroupId,
+      'vertex',
+      phongF.id
+    );
+
+    const physicalGroupId = makeId();
+    const physicalF = physicalNode(
+      makeId(),
+      'Physical',
+      physicalGroupId,
+      'fragment'
+    );
     const physicalV = physicalNode(
       makeId(),
       'Physical',
+      physicalGroupId,
       'vertex',
       physicalF.id
     );
-    const toonF = toonNode(makeId(), 'Toon', 'fragment');
-    const toonV = toonNode(makeId(), 'Toon', 'vertex', toonF.id);
+
+    // const toonGroupId = makeId();
+    // const toonF = toonNode(makeId(), 'Toon', toonGroupId, 'fragment');
+    // const toonV = toonNode(makeId(), 'Toon', toonGroupId, 'vertex', toonF.id);
+
     const fluidF = fluidCirclesNode(makeId());
     const staticShader = staticShaderNode(makeId());
     const purpleNoise = purpleNoiseNode(makeId());
@@ -257,104 +307,41 @@ const useFlef = () => {
     const heatShaderV = heatShaderVertexNode(makeId(), heatShaderF.id);
     const fireF = fireFrag(makeId());
     const fireV = fireVert(makeId(), fireF.id);
-    const add = addNode(makeId());
-    const add2 = addNode(makeId());
-    const multiply = multiplyNode(makeId());
+    // const add = addNode(makeId());
+    // const add2 = addNode(makeId());
+    // const multiply = multiplyNode(makeId());
     const outlineF = outlineShaderF(makeId());
     const outlineV = outlineShaderV(makeId(), outlineF.id);
     const solidColorF = solidColorNode(makeId());
     const hellOnEarthF = hellOnEarthFrag(makeId());
     const hellOnEarthV = hellOnEarthVert(makeId(), hellOnEarthF.id);
     const perlinCloudsF = perlinCloudsFNode(makeId());
-    const num1 = numberNode(makeId(), 'number', '1');
-    return (
-      expandDataElements({
-        nodes: [
-          physicalF,
-          physicalV,
-          fireF,
-          fireV,
-          outputF,
-          outputV,
-          outlineF,
-          outlineV,
-          hellOnEarthF,
-          hellOnEarthV,
-          perlinCloudsF,
-          purpleNoise,
-          heatShaderF,
-          heatShaderV,
-          staticShader,
-        ],
-        edges: [
-          makeEdge(physicalF.id, outputF.id, 'out', 'frogFragOut', 'fragment'),
-          makeEdge(physicalV.id, outputV.id, 'out', 'gl_Position', 'vertex'),
-        ],
-      }) || {
-        nodes: [
-          expression,
-          outputF,
-          outputV,
-          phongF,
-          phongV,
-          num1,
-          physicalF,
-          physicalV,
-          // toonF,
-          // toonV,
-          fluidF,
-          staticShader,
-          hellOnEarthF,
-          hellOnEarthV,
-          perlinCloudsF,
-          purpleNoise,
-          heatShaderF,
-          heatShaderV,
-          fireF,
-          fireV,
-          add,
-          add2,
-          multiply,
-          outlineF,
-          outlineV,
-          solidColorF,
-        ],
-        edges: [
-          makeEdge(physicalV.id, outputV.id, 'out', 'position', 'vertex'),
-          makeEdge(physicalF.id, outputF.id, 'out', 'color', 'fragment'),
-          // {
-          //   from: hellOnEarthF.id,
-          //   to: physicalF.id,
-          //   output: 'out',
-          //   input: 'normal',
-          //   stage: 'fragment',
-          // },
-          makeEdge(num1.id, solidColorF.id, 'out', 'blorf', 'number'),
-          makeEdge(solidColorF.id, physicalF.id, 'out', 'albedo', 'fragment'),
-          // {
-          //   from: solidColorF.id,
-          //   to: add.id,
-          //   output: 'out',
-          //   input: 'b',
-          //   stage: 'fragment',
-          // ),
-          // {
-          //   from: heatShaderF.id,
-          //   to: add.id,
-          //   output: 'out',
-          //   input: 'b',
-          //   stage: 'fragment',
-          // },
-          // {
-          //   from: heatShaderV.id,
-          //   to: phongV.id,
-          //   output: 'out',
-          //   input: 'position',
-          //   stage: 'vertex',
-          // },
-        ],
-      }
-    );
+    // const num1 = numberNode(makeId(), 'number', '1');
+    return expandDataElements({
+      nodes: [
+        physicalF,
+        physicalV,
+        solidColorF,
+        fireF,
+        fireV,
+        fluidF,
+        outputF,
+        outputV,
+        outlineF,
+        outlineV,
+        hellOnEarthF,
+        hellOnEarthV,
+        perlinCloudsF,
+        purpleNoise,
+        heatShaderF,
+        heatShaderV,
+        staticShader,
+      ],
+      edges: [
+        makeEdge(physicalF.id, outputF.id, 'out', 'frogFragOut', 'fragment'),
+        makeEdge(physicalV.id, outputV.id, 'out', 'gl_Position', 'vertex'),
+      ],
+    });
   });
 
   return {
@@ -425,9 +412,9 @@ const nodeTypes: Record<NodeType | GraphDataType | EngineNodeType, any> = {
   output: SourceNodeComponent,
   binary: SourceNodeComponent,
   source: SourceNodeComponent,
-  vec2: DataNodeComponent,
-  vec3: DataNodeComponent,
-  vec4: DataNodeComponent,
+  vector2: DataNodeComponent,
+  vector3: DataNodeComponent,
+  vector4: DataNodeComponent,
   mat2: DataNodeComponent,
   mat3: DataNodeComponent,
   mat4: DataNodeComponent,
@@ -887,9 +874,8 @@ const Editor: React.FC = () => {
     [updateNodeInternals, graph, setFlowElements]
   );
 
-  const onNodeInputChange = useCallback(
-    (id: string, event: React.FormEvent<HTMLInputElement>) => {
-      const { value } = event.currentTarget;
+  const onNodeValueChange = useCallback(
+    (id: string, value: any) => {
       setFlowElements(({ nodes, edges }) => ({
         nodes: nodes.map((node) => {
           if (node.id === id) {
@@ -899,16 +885,17 @@ const Editor: React.FC = () => {
         }),
         edges,
       }));
+      const nodesWithUpdatedValue = graph.nodes.map((node) =>
+        node.id === id
+          ? {
+              ...node,
+              value,
+            }
+          : node
+      );
       setGraph((graph) => ({
         ...graph,
-        nodes: graph.nodes.map((node) =>
-          node.id === id
-            ? {
-                ...node,
-                value,
-              }
-            : node
-        ),
+        nodes: nodesWithUpdatedValue,
       }));
 
       // TODO: How to avoid a recompile here if a data node *only* changes?
@@ -1256,24 +1243,31 @@ const Editor: React.FC = () => {
 
   const onMenuAdd = (type: string) => {
     const id = makeId();
+    const groupId = makeId();
     // let newNode: FlowNode<FlowNodeData>;
     let newGns: GraphNode[];
 
     if (type === 'number') {
       newGns = [numberNode(id, 'number', '1')];
+    } else if (type === 'vec2') {
+      newGns = [vectorNode(id, 'vec2', ['1', '1'])];
+    } else if (type === 'vec3') {
+      newGns = [vectorNode(id, 'vec3', ['1', '1', '1'])];
+    } else if (type === 'vec4') {
+      newGns = [vectorNode(id, 'vec4', ['1', '1', '1', '1'])];
     } else if (type === 'multiply') {
       newGns = [multiplyNode(id)];
     } else if (type === 'add') {
       newGns = [addNode(id)];
     } else if (type === 'phong') {
       newGns = [
-        phongNode(id, 'Phong', 'fragment'),
-        phongNode(makeId(), 'Phong', 'vertex', id),
+        phongNode(id, 'Phong', groupId, 'fragment'),
+        phongNode(makeId(), 'Phong', groupId, 'vertex', id),
       ];
     } else if (type === 'toon') {
       newGns = [
-        toonNode(id, 'Toon', 'fragment'),
-        toonNode(makeId(), 'Toon', 'vertex', id),
+        toonNode(id, 'Toon', groupId, 'fragment'),
+        toonNode(makeId(), 'Toon', groupId, 'vertex', id),
       ];
     } else if (type === 'fragment' || type === 'vertex') {
       newGns = [
@@ -1295,10 +1289,14 @@ const Editor: React.FC = () => {
     } else {
       throw new Error('Unknown type "' + type + '"');
     }
+
+    // TODO: Fails because newGns aren't in graph so it can't find sibling
+    // to cache new node
+    computeContextForNodes(ctx as EngineContext, engine, graph, newGns);
+
     const newNodes = newGns.map((newGn, index) => {
       // TODO: When adding an add node, there's the error "flow node has no input"
       // "a" - inside fromFlowToGraph() below - why?
-      computeContextForNodes(ctx as EngineContext, engine, graph, [newGn]);
       const pos = menuPos as XYPosition;
       return graphNodeToFlowNode(
         newGn,
@@ -1426,7 +1424,7 @@ const Editor: React.FC = () => {
                 {menuPos ? (
                   <ContextMenu position={menuPos} onAdd={onMenuAdd} />
                 ) : null}
-                <FlowEventHack onChange={onNodeInputChange}>
+                <FlowEventHack onChange={onNodeValueChange}>
                   <ReactFlow
                     nodes={flowElements.nodes}
                     edges={flowElements.edges}
@@ -1711,7 +1709,11 @@ const ctxNodes: [string, string][] = [
   ['fragment', 'Fragment'],
   ['vertex', 'Vertex'],
   ['number', 'Number'],
+  ['vec2', 'Vector2'],
+  ['vec3', 'Vector3'],
+  ['vec4', 'Vector4'],
   ['add', 'Add'],
+  ['multiply', 'Multiply'],
   ['phong', 'Phong'],
   ['toon', 'Toon'],
 ];

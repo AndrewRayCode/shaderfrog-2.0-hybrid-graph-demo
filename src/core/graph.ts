@@ -86,8 +86,10 @@ export type FindInputs = (
 ) => ComputedInput[];
 
 export type OnBeforeCompile = (
+  graph: Graph,
   engineContext: EngineContext,
-  node: SourceNode
+  node: SourceNode,
+  sibling?: SourceNode
 ) => void;
 
 export type ProduceAst = (
@@ -123,6 +125,7 @@ export type ManipulateAst = (
 ) => AstNode | ParserProgram;
 
 export type NodeParser = {
+  // cacheKey?: (graph: Graph, node: GraphNode, sibling?: GraphNode) => string;
   onBeforeCompile?: OnBeforeCompile;
   manipulateAst?: ManipulateAst;
   findInputs?: FindInputs;
@@ -156,8 +159,6 @@ type CoreParser = { [key: string]: CoreNodeParser };
 
 export const nodeName = (node: GraphNode): string =>
   'main_' + node.name.replace(/[^a-zA-Z0-9]/g, ' ').replace(/ +/g, '_');
-
-type Runtime = {};
 
 export const mangleName = (name: string, node: GraphNode) => {
   // Mangle names by using the next stage id, if present
@@ -208,9 +209,16 @@ export const coreParsers: CoreParser = {
       return ast;
     },
     findInputs: (engineContext, node, ast) => {
-      return node.config.strategies.flatMap((strategy) =>
-        applyStrategy(strategy, node, ast)
-      );
+      let seen = new Set<string>();
+      return node.config.strategies
+        .flatMap((strategy) => applyStrategy(strategy, node, ast))
+        .filter(([input, _]) => {
+          if (!seen.has(input.id)) {
+            seen.add(input.id);
+            return true;
+          }
+          return false;
+        });
     },
     produceFiller: (node, ast) => {
       return node.expressionOnly
@@ -446,10 +454,45 @@ export const compileNode = (
 
   const { inputs } = node;
 
-  const { onBeforeCompile } = parser;
-  if (onBeforeCompile) {
-    onBeforeCompile(engineContext, node as SourceNode);
-  }
+  // TODO: Why did I call onBeforeCompile here, since I already do it in
+  // computeNodeContext? I commented this out while working on caching the
+  // three.js material. I'm curiosu what errors it may cause
+  // const { onBeforeCompile } = parser;
+  // if (onBeforeCompile) {
+  //   const { groupId } = node as SourceNode;
+  //   const sibling = graph.nodes.find(
+  //     (n) =>
+  //       n !== node && 'groupId' in n && (n as SourceNode).groupId === groupId
+  //   );
+  //   onBeforeCompile(
+  //     graph,
+  //     engineContext,
+  //     node as SourceNode,
+  //     sibling as SourceNode
+  //   );
+
+  // const key = cacheKey ? cacheKey(graph, node, sibling) : null;
+  // if (!key || key !== engineContext.runtime.cache.nodes[node.id]?.cacheKey) {
+  //   console.log(
+  //     'cache miss for',
+  //     { node, sibling },
+  //     key,
+  //     'vs',
+  //     engineContext.runtime.cache.nodes[node.id]?.cacheKey
+  //   );
+  //   engineContext.runtime.cache.nodes[node.id] = {
+  //     ...onBeforeCompile(
+  //       graph,
+  //       engineContext,
+  //       node as SourceNode,
+  //       sibling as SourceNode
+  //     ),
+  //     cacheKey: key,
+  //   };
+  // } else {
+  //   console.log('cache hit for', node);
+  // }
+  // }
 
   // Will I one day get good enough at typescript to be able to remove this
   // check? Or will I learn that I need it?
@@ -510,7 +553,7 @@ export const compileNode = (
         compiledIds = { ...compiledIds, ...childIds };
 
         if (nodeContext) {
-          nodeContext.ast =
+          const filler =
             inputFillers[
               ensure(
                 inputs.find(({ id }) => id == edge.input),
@@ -518,7 +561,8 @@ export const compileNode = (
                   edge.input
                 }!\nAvailable:${inputs.map(({ id }) => id).join(', ')}`
               ).id
-            ](fillerAst);
+            ];
+          nodeContext.ast = filler(fillerAst);
         }
         // console.log(generate(ast.program));
       });
@@ -591,12 +635,21 @@ const computeNodeContext = (
 
   const { onBeforeCompile, manipulateAst } = parser;
   if (onBeforeCompile) {
-    onBeforeCompile(engineContext, node);
+    const { groupId } = node as SourceNode;
+    const sibling = graph.nodes.find(
+      (n) =>
+        n !== node && 'groupId' in n && (n as SourceNode).groupId === groupId
+    );
+    onBeforeCompile(
+      graph,
+      engineContext,
+      node as SourceNode,
+      sibling as SourceNode
+    );
   }
 
   const inputEdges = graph.edges.filter((edge) => edge.to === node.id);
 
-  // const ast = (stage in parser ? parser[stage] : parser).produceAst(
   let ast;
   try {
     ast = parser.produceAst(engineContext, engine, graph, node, inputEdges);
@@ -716,13 +769,13 @@ export const computeGraphContext = (
   );
 
   computeContextForNodes(engineContext, engine, graph, [
-    outputFrag,
-    ...Object.values(fragmentIds),
-  ]);
-  computeContextForNodes(engineContext, engine, graph, [
     outputVert,
     ...Object.values(vertexIds),
     ...additionalIds,
+  ]);
+  computeContextForNodes(engineContext, engine, graph, [
+    outputFrag,
+    ...Object.values(fragmentIds),
   ]);
   // computeSideContext(engineContext, engine, graph, 'fragment');
   // computeSideContext(engineContext, engine, graph, 'vertex');

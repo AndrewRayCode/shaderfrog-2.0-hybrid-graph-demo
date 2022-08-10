@@ -10,9 +10,15 @@ import {
 import { ShaderStage } from '../../../core/graph';
 
 import { useUpdateNodeInternals } from 'react-flow-renderer';
-import { GraphDataType } from '../../../core/nodes/data-nodes';
+import {
+  GraphDataType,
+  Vector2,
+  Vector3,
+  Vector4,
+} from '../../../core/nodes/data-nodes';
 import { InputCategory } from '../../../core/nodes/core-node';
-import { useFlowEventHack } from '../../flowEventHack';
+import { ChangeHandler, useFlowEventHack } from '../../flowEventHack';
+import { replaceAt } from '../../../util/replaceAt';
 
 const handleTop = 45;
 const textHeight = 10;
@@ -95,6 +101,64 @@ const FlowWrap = ({
   </div>
 );
 
+const types = 'xyz';
+const VectorEditor = ({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: Vector2 | Vector3 | Vector4;
+  onChange: ChangeHandler;
+}) => {
+  const onComponentChange = (component: number, n: string) => {
+    onChange(id, replaceAt(value, component, n));
+  };
+  return (
+    <>
+      {value.map((_, index) => (
+        <div key={index}>
+          {types.charAt(index)}:{' '}
+          <input
+            className="nodrag"
+            type="text"
+            onChange={(e) => onComponentChange(index, e.currentTarget.value)}
+            value={value[index]}
+          />
+        </div>
+      ))}
+    </>
+  );
+};
+
+const NumberEditor = ({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  onChange: ChangeHandler;
+}) => (
+  <>
+    <input
+      className="nodrag"
+      type="text"
+      onChange={(e) => onChange(id, e.currentTarget.value)}
+      value={value}
+    />
+    <input
+      className="nodrag"
+      type="range"
+      min="0"
+      max="1"
+      step="0.001"
+      onChange={(e) => onChange(id, e.currentTarget.value)}
+      value={value}
+    ></input>
+  </>
+);
+
 const DataNodeComponent = memo(
   ({ id, data }: { id: string; data: FlowNodeDataData }) => {
     const onChange = useFlowEventHack();
@@ -128,21 +192,15 @@ const DataNodeComponent = memo(
           ))}
 
           <div className="body">
-            <input
-              className="nodrag"
-              type="text"
-              onChange={(e) => onChange(id, e)}
-              value={data.value}
-            />
-            <input
-              className="nodrag"
-              type="range"
-              min="0"
-              max="1"
-              step="0.001"
-              onChange={(e) => onChange(id, e)}
-              value={data.value}
-            ></input>
+            {data.type === 'number' ? (
+              <NumberEditor id={id} value={data.value} onChange={onChange} />
+            ) : data.type === 'vector2' ||
+              data.type === 'vector3' ||
+              data.type === 'vector4' ? (
+              <VectorEditor id={id} value={data.value} onChange={onChange} />
+            ) : (
+              <div>NOOOOOO</div>
+            )}
           </div>
 
           {data.outputs.map((output, index) => (

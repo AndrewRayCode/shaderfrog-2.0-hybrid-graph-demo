@@ -4,6 +4,7 @@ import { Scope, ScopeIndex } from '@shaderfrog/glsl-parser/dist/parser/parser';
 import { findAssignmentTo } from '../ast/manipulate';
 import { ComputedInput, GraphNode, mangleName } from './graph';
 import { SourceNode } from './nodes/code-nodes';
+import { NodeInput } from './nodes/core-node';
 
 export enum StrategyType {
   VARIABLE = 'Variable Names',
@@ -11,6 +12,7 @@ export enum StrategyType {
   TEXTURE_2D = 'Texture2D',
   NAMED_ATTRIBUTE = 'Named Attribute',
   UNIFORM = 'Uniform',
+  HARD_CODE = 'Hard Code Inputs',
 }
 
 export interface BaseStrategy {
@@ -47,6 +49,15 @@ export const uniformStrategy = (): UniformStrategy => ({
   config: {},
 });
 
+export interface HardCodeStrategy extends BaseStrategy {
+  type: StrategyType.HARD_CODE;
+  config: { inputs: NodeInput[] };
+}
+export const hardCodeStrategy = (inputs: NodeInput[]): HardCodeStrategy => ({
+  type: StrategyType.HARD_CODE,
+  config: { inputs },
+});
+
 export const namedAttributeStrategy = (
   attributeName: string
 ): NamedAttributeStrategy => ({
@@ -73,7 +84,8 @@ export type Strategy =
   | AssignemntToStrategy
   | Texture2DStrategy
   | NamedAttributeStrategy
-  | VariableStrategy;
+  | VariableStrategy
+  | HardCodeStrategy;
 
 type StrategyImpl = (
   node: SourceNode,
@@ -90,6 +102,12 @@ export const applyStrategy = (
 ) => strategyRunners[strategy.type](node, ast, strategy);
 
 export const strategyRunners: Strategies = {
+  [StrategyType.HARD_CODE]: (graphNode, ast, strategy) => {
+    return (strategy as HardCodeStrategy).config.inputs.map((input) => [
+      input,
+      (filler: AstNode) => filler,
+    ]);
+  },
   [StrategyType.UNIFORM]: (graphNode, ast, strategy) => {
     return (ast.program as AstNode[]).flatMap<ComputedInput>((node) => {
       // The uniform declration type, like vec4

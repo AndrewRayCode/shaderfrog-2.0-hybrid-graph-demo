@@ -8,7 +8,7 @@ import { babylengine, RuntimeContext } from './bablyengine';
 import styles from '../../pages/editor/editor.module.css';
 
 import { useBabylon } from './useBabylon';
-import { usePrevious } from '../../site/usePrevious';
+import { usePrevious } from '../../site/hooks/usePrevious';
 import { UICompileGraphResult } from '../../site/uICompileGraphResult';
 
 export type PreviewLight = 'point' | '3point' | 'spot';

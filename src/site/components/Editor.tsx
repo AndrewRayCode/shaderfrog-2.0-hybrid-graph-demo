@@ -2,7 +2,6 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import styles from '../../pages/editor/editor.module.css';
 import ctxStyles from './context.menu.module.css';
 import debounce from 'lodash.debounce';
-import create from 'zustand';
 
 import { SplitPane } from 'react-multi-split-pane';
 import cx from 'classnames';
@@ -69,7 +68,7 @@ import {
 } from '../../core/engine';
 import { shaderSectionsToAst } from '../../ast/shader-sections';
 
-import useThrottle from '../useThrottle';
+import useThrottle from '../hooks/useThrottle';
 
 import { hellOnEarthFrag, hellOnEarthVert } from '../../shaders/hellOnEarth';
 import perlinCloudsFNode from '../../shaders/perlinClouds';
@@ -85,7 +84,7 @@ import { fireFrag, fireVert } from '../../shaders/fireNode';
 import { outlineShaderF, outlineShaderV } from '../../shaders/outlineShader';
 
 // import contrastNoise from '..';
-import { useAsyncExtendedState } from '../useAsyncExtendedState';
+import { useAsyncExtendedState } from '../hooks/useAsyncExtendedState';
 // import { usePromise } from '../usePromise';
 
 import ConnectionLine from './flow/ConnectionLine';
@@ -118,7 +117,7 @@ import {
   IndexedDataInputs,
   UICompileGraphResult,
 } from '../uICompileGraphResult';
-import { useLocalStorage } from '../useLocalStorage';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 import {
   Strategy,
   StrategyType,
@@ -136,6 +135,7 @@ import { SourceNode } from '../../core/nodes/code-nodes';
 import { makeId } from '../../util/id';
 import { hasParent } from '../../util/hasParent';
 import { FlowEventHack } from '../flowEventHack';
+import { useWindowSize } from '../hooks/useWindowSize';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
@@ -181,6 +181,7 @@ const expandDataElements = (graph: Graph): Graph =>
 /**
  * Where was I?
  * - Just got vec3 working in the graph
+ * - Adding empty toon shader and plugging in breaks at least on production
  * - Adding examples would be helpful
  * - Caching contexts would be helpful
  * - Switching between threejs source code tab and runtime tab re-creates things
@@ -763,7 +764,7 @@ const Editor: React.FC = () => {
     resetGraph,
   } = useFlef();
 
-  const rightSplit = useRef<HTMLDivElement>(null);
+  const sceneSplit = useRef<HTMLDivElement>(null);
   const [pauseCompile, setPauseCompile] = useState(false);
 
   // tabIndex may still be needed to pause rendering
@@ -1029,23 +1030,28 @@ const Editor: React.FC = () => {
   /**
    * Split state mgmt
    */
+  const windowSize = useWindowSize();
+  const smallScreen = windowSize.width < 500;
 
   const [defaultMainSplitSize, setDefaultMainSplitSize] = useState<
     number[] | undefined
   >();
+
   useLayoutEffect(() => {
-    const DEFAULT_SPLIT_PERCENT = 30;
-    const width = window.innerWidth;
-    const sizes = [
-      0.1 * (100 - DEFAULT_SPLIT_PERCENT) * width,
-      0.1 * DEFAULT_SPLIT_PERCENT * width,
-    ];
-    setDefaultMainSplitSize(sizes);
+    if (smallScreen) {
+      const DEFAULT_SPLIT_PERCENT = 30;
+      const sizes = [
+        0.1 * (100 - DEFAULT_SPLIT_PERCENT) * windowSize.width,
+        0.1 * DEFAULT_SPLIT_PERCENT * windowSize.width,
+      ];
+      setDefaultMainSplitSize(sizes);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onSplitResize = useThrottle(() => {
-    if (rightSplit.current) {
-      const { width, height } = rightSplit.current.getBoundingClientRect();
+    if (sceneSplit.current) {
+      const { width, height } = sceneSplit.current.getBoundingClientRect();
       let heightMinusTab = height - 25;
       extendState({ width, height: heightMinusTab });
     }
@@ -1385,7 +1391,7 @@ const Editor: React.FC = () => {
   return (
     <div className={styles.container} onClick={onContainerClick}>
       <SplitPane
-        split="vertical"
+        split={windowSize.width < 500 ? 'horizontal' : 'vertical'}
         onChange={onSplitResize}
         defaultSizes={defaultMainSplitSize}
       >
@@ -1544,7 +1550,7 @@ const Editor: React.FC = () => {
           </Tabs>
         </div>
         {/* 3d display split */}
-        <div ref={rightSplit} className={styles.splitInner}>
+        <div ref={sceneSplit} className={styles.splitInner}>
           <Tabs selected={tabIndex} onSelect={setTabIndex}>
             <TabGroup>
               <Tab>Scene</Tab>

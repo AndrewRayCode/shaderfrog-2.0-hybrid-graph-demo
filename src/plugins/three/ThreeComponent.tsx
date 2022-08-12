@@ -9,7 +9,7 @@ import styles from '../../pages/editor/editor.module.css';
 import { threngine, ThreeRuntime } from './threngine';
 
 import { useThree } from './useThree';
-import { usePrevious } from '../../site/usePrevious';
+import { usePrevious } from '../../site/hooks/usePrevious';
 import { UICompileGraphResult } from '../../site/uICompileGraphResult';
 import { PreviewLight } from '../../site/components/Editor';
 import { ensure } from '../../util/ensure';

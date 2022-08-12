@@ -45,7 +45,7 @@ const cacher = (
   sibling: SourceNode,
   newValue: (...args: any[]) => any
 ) => {
-  const cacheKey = programCacheKey(graph, node, sibling);
+  const cacheKey = programCacheKey(engineContext, graph, node, sibling);
 
   if (engineContext.runtime.cache.data[cacheKey]) {
     console.log('cache hit', cacheKey);
@@ -128,14 +128,28 @@ const megaShaderMainpulateAst: NodeParser['manipulateAst'] = (
 };
 
 const programCacheKey = (
+  engineContext: EngineContext,
   graph: Graph,
   node: SourceNode,
   sibling: SourceNode
 ) => {
-  return [node, sibling]
-    .sort((a, b) => a.id.localeCompare(b.id))
-    .map((n) => nodeCacheKey(graph, n))
-    .join('-');
+  // The megashader source is dependent on scene information, like the number
+  // and type of lights in the scene. This kinda sucks - it's duplicating
+  // three's material cache key, and is coupled to how three builds shaders
+  const { three, scene } = engineContext.runtime;
+  const lights: string[] = [];
+  scene.traverse((obj: any) => {
+    if (obj instanceof three.Light) {
+      lights.push(obj.type as string);
+    }
+  });
+
+  return (
+    [node, sibling]
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map((n) => nodeCacheKey(graph, n))
+      .join('-') + lights.join(',')
+  );
 };
 
 const nodeCacheKey = (graph: Graph, node: SourceNode) => {

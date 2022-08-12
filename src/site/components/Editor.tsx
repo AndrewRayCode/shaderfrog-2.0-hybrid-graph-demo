@@ -180,9 +180,10 @@ const expandDataElements = (graph: Graph): Graph =>
 
 /**
  * Where was I?
- * - Just got vec3 working in the graph
+ * - Just Fixed bug with toon light
  * - Adding empty toon shader and plugging in breaks at least on production
- * - Adding examples would be helpful
+ *   - Can't reproduce
+ * - Launch: Feedback, URL sharing, examples
  * - Caching contexts would be helpful
  * - Switching between threejs source code tab and runtime tab re-creates things
  *   not stored on sceneData like the threetone and the mesh and I guess the
@@ -194,6 +195,9 @@ const expandDataElements = (graph: Graph): Graph =>
  * - Try SDF image shader https://www.youtube.com/watch?v=1b5hIMqz_wM
  * - Put other images in the graph like the toon step shader
  * - Have uniforms added per shader in the graph
+ * - Adding a rim glow to a toon lit mesh is cool - but it would be even cooler
+ *   to be able to multiply the rim lighting by the threejs lighting output
+ *   specifically.
  *
  * Fundamental Issues
  * - The three.js material has properties like "envMap" and "reflectivity" which

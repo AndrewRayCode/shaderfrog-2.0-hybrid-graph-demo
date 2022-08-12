@@ -1,5 +1,5 @@
 import React, { memo, useEffect } from 'react';
-import cx from 'classnames';
+import classnames from 'classnames/bind';
 import {
   Handle,
   Position,
@@ -7,6 +7,10 @@ import {
   Edge as FlowEdge,
   HandleProps,
 } from 'react-flow-renderer';
+
+import styles from './flownode.module.css';
+const cx = classnames.bind(styles);
+
 import { ShaderStage } from '../../../core/graph';
 
 import { useUpdateNodeInternals } from 'react-flow-renderer';
@@ -91,7 +95,7 @@ const FlowWrap = ({
   className: any;
 }) => (
   <div
-    className={cx('flownode', className)}
+    className={classnames('flownode', className)}
     style={{
       height: `${handleTop + Math.max(data.inputs.length, 1) * 20}px`,
       zIndex: 0,
@@ -101,7 +105,7 @@ const FlowWrap = ({
   </div>
 );
 
-const types = 'xyz';
+const types = 'xyzw';
 const VectorEditor = ({
   id,
   value,
@@ -112,22 +116,25 @@ const VectorEditor = ({
   onChange: ChangeHandler;
 }) => {
   const onComponentChange = (component: number, n: string) => {
+    console.log({ component, value, n }, replaceAt(value, component, n));
     onChange(id, replaceAt(value, component, n));
   };
   return (
-    <>
+    <div className={styles.grid}>
       {value.map((_, index) => (
         <div key={index}>
-          {types.charAt(index)}:{' '}
-          <input
-            className="nodrag"
-            type="text"
-            onChange={(e) => onComponentChange(index, e.currentTarget.value)}
-            value={value[index]}
-          />
+          <label className={styles.vectorLabel}>
+            {types.charAt(index)}
+            <input
+              className="nodrag"
+              type="text"
+              onChange={(e) => onComponentChange(index, e.currentTarget.value)}
+              value={value[index]}
+            />
+          </label>
         </div>
       ))}
-    </>
+    </div>
   );
 };
 

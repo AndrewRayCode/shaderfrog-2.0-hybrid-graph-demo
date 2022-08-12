@@ -72,6 +72,9 @@ const onBeforeCompileMegaShader = (
     engineContext.runtime;
   const { mesh } = sceneData;
 
+  // Temporarily swap the mesh material to the new one, since materials can
+  // be mesh specific, render, then get its source code
+  const originalMaterial = mesh.material;
   mesh.material = newMat;
   renderer.compile(scene, camera);
 
@@ -88,6 +91,11 @@ const onBeforeCompileMegaShader = (
   const gl = renderer.getContext();
   const fragment = gl.getShaderSource(fragmentRef);
   const vertex = gl.getShaderSource(vertexRef);
+
+  // Reset the material on the mesh, since the shader we're computing context
+  // for might not be the one actually want on the mesh - like if a toon node
+  // was added to the graph but not connected
+  mesh.material = originalMaterial;
 
   // Do we even need to do this? This is just for debugging right? Using the
   // source on the node is the important thing.
@@ -302,14 +310,10 @@ export const threngine: Engine = {
         cacher(engineContext, graph, node, sibling as SourceNode, () =>
           onBeforeCompileMegaShader(
             engineContext,
-            (() => {
-              const props = {
-                envMap: envMapTexture,
-                ...threeMaterialProperties(three, graph, node, sibling),
-              };
-              console.log({ props });
-              return new three.MeshPhysicalMaterial(props);
-            })()
+            new three.MeshPhysicalMaterial({
+              envMap: envMapTexture,
+              ...threeMaterialProperties(three, graph, node, sibling),
+            })
           )
         );
       },

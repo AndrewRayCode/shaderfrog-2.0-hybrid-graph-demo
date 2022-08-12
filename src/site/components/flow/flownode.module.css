@@ -1,0 +1,16 @@
+.grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: repeat(auto-fit, 1fr);
+  grid-column-gap: 2px;
+}
+
+.grid input[type='text'] {
+  width: 100%;
+}
+
+.vectorLabel {
+  color: #666;
+  display: inline-block;
+  margin-right: 4px;
+}

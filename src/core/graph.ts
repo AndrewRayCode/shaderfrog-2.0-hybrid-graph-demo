@@ -346,6 +346,7 @@ export const evaluateNode = (graph: Graph, node: GraphNode): any => {
     if (node.type === 'number') {
       return parseFloat(node.value);
     }
+    return node.value;
   }
 
   const { evaluate } = coreParsers[node.type];
@@ -445,7 +446,6 @@ export const compileNode = (
   node: GraphNode,
   activeIds: NodeIds = {}
 ): CompileNodeResult => {
-  console.log('compiling', node.name, (node as SourceNode).stage);
   // THIS DUPLICATES OTHER LINE
   const parser = {
     ...(coreParsers[node.type] || coreParsers[NodeType.SOURCE]),
@@ -455,10 +455,7 @@ export const compileNode = (
   const { inputs } = node;
 
   // Removing this seems to prevent normal map shader source code updating from
-  // affecting the three.js shader. why?
-  // TODO: Why did I call onBeforeCompile here, since I already do it in
-  // computeNodeContext? I commented this out while working on caching the
-  // three.js material. I'm curiosu what errors it may cause
+  // affecting the three.js shader. Why?
   const { onBeforeCompile } = parser;
   if (onBeforeCompile) {
     const { groupId } = node as SourceNode;
@@ -643,6 +640,7 @@ const computeNodeContext = (
   // Find the combination if inputs (data) and fillers (runtime context data)
   // and copy the input data onto the node, and the fillers onto the context
   const updatedInputs = parser.findInputs(engineContext, node, ast, inputEdges);
+
   node.inputs = mergeNodeInputs(
     node,
     updatedInputs.map(([i]) => i)

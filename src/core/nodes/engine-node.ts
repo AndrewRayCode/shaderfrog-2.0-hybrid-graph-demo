@@ -162,10 +162,30 @@ export const phongNode = (
         map: 'albedo',
         normalMap: 'normal',
       },
-      strategies:
+      strategies: [
+        uniformStrategy(),
         stage === 'fragment'
-          ? [texture2DStrategy()]
-          : [namedAttributeStrategy('position')],
+          ? texture2DStrategy()
+          : namedAttributeStrategy('position'),
+        ...(stage === 'fragment'
+          ? [
+              hardCodeStrategy([
+                {
+                  name: 'map',
+                  id: 'map',
+                  category: 'code',
+                  bakeable: false,
+                },
+                {
+                  name: 'normalMap',
+                  id: 'normalMap',
+                  category: 'code',
+                  bakeable: false,
+                },
+              ]),
+            ]
+          : []),
+      ],
     },
     inputs: [],
     outputs: [
@@ -265,7 +285,30 @@ export const toonNode = (
         map: 'albedo',
         normalMap: 'normal',
       },
-      strategies: [texture2DStrategy()],
+      strategies: [
+        uniformStrategy(),
+        stage === 'fragment'
+          ? texture2DStrategy()
+          : namedAttributeStrategy('position'),
+        ...(stage === 'fragment'
+          ? [
+              hardCodeStrategy([
+                {
+                  name: 'map',
+                  id: 'map',
+                  category: 'code',
+                  bakeable: false,
+                },
+                {
+                  name: 'normalMap',
+                  id: 'normalMap',
+                  category: 'code',
+                  bakeable: false,
+                },
+              ]),
+            ]
+          : []),
+      ],
     },
     inputs: [],
     outputs: [

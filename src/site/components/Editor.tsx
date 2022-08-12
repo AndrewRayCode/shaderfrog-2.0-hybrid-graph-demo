@@ -119,7 +119,12 @@ import {
   UICompileGraphResult,
 } from '../uICompileGraphResult';
 import { useLocalStorage } from '../useLocalStorage';
-import { Strategy, StrategyType, uniformStrategy } from '../../core/strategy';
+import {
+  Strategy,
+  StrategyType,
+  texture2DStrategy,
+  uniformStrategy,
+} from '../../core/strategy';
 import { ensure } from '../../util/ensure';
 import {
   GraphDataType,
@@ -175,11 +180,8 @@ const expandDataElements = (graph: Graph): Graph =>
 
 /**
  * Where was I?
- *  - Just added dynamic material properties, aka plugging in "albdeo" causes
- *    three material to get "map", and fixed bug with vertex/fragment shader
- *    having different code, by adding caching mechanism based on group id
- * - Maybe making vec3 data work next would be helpful
- * - bug adding toon because its not in graph when it looks for sibling
+ * - Just got vec3 working in the graph
+ * - Adding examples would be helpful
  * - Caching contexts would be helpful
  * - Switching between threejs source code tab and runtime tab re-creates things
  *   not stored on sceneData like the threetone and the mesh and I guess the
@@ -197,7 +199,7 @@ const expandDataElements = (graph: Graph): Graph =>
  *   do different things based on shader settings. They are independent of the
  *   uniforms and/or set the uniforms. Right now there's no way to plug into
  *   a property like "map" or "envMap". Should there be a separate "properties"
- *   section on each node?
+ *   section on each node? (https://github.com/mrdoob/three.js/blob/e22cb060cc91283d250e704f886528e1be593f45/src/materials/MeshPhysicalMaterial.js#L37)
  *
  * Polish / Improvements
  * - UX
@@ -232,7 +234,6 @@ const expandDataElements = (graph: Graph): Graph =>
  *
  * Bugs
  * - UI
- *   - Hot reload of nextjs kicks context into babylon?
  * - Babylon
  *   - Features not backported: material caching, updating material properties
  *     when a new edge is plugged in.
@@ -249,6 +250,9 @@ const expandDataElements = (graph: Graph): Graph =>
  * - Nodes / Graph
  *   - Deleting a node while it's plugged into the output (maybe any connected
  *     node, i repro'd with the Physical node) node causes crash
+ *   - Adding together a three.js phong and physical lighting model fails to
+ *     compiles becaues it introduces duplicated structs - structs aren't
+ *     suffixed/renamed? Interesting
  * - Core
  *   - In a source node, if two functions declare a variable, the
  *     current "Variable" strategy will only pick the second one as
@@ -912,7 +916,7 @@ const Editor: React.FC = () => {
         debouncedSetNeedsCompile(true);
       }
     },
-    [setFlowElements, compileResult, debouncedSetNeedsCompile, setGraph]
+    [setFlowElements, compileResult, debouncedSetNeedsCompile, setGraph, graph]
   );
 
   const onInputCategoryToggle = useCallback(
@@ -1286,7 +1290,11 @@ const Editor: React.FC = () => {
         sourceNode(
           makeId(),
           'Source Code ' + id,
-          { version: 2, preprocess: true, strategies: [uniformStrategy()] },
+          {
+            version: 2,
+            preprocess: true,
+            strategies: [uniformStrategy(), texture2DStrategy()],
+          },
           type === 'fragment'
             ? `void main() {
   gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
@@ -1302,13 +1310,19 @@ const Editor: React.FC = () => {
       throw new Error('Unknown type "' + type + '"');
     }
 
-    // TODO: Fails because newGns aren't in graph so it can't find sibling
-    // to cache new node
-    computeContextForNodes(ctx as EngineContext, engine, graph, newGns);
+    // Put the new nodes in the graph first, because computing context requires
+    // the siblings / nextStage nodes to be present
+    const updatedGraph = {
+      ...graph,
+      nodes: [...graph.nodes, ...newGns],
+    };
 
+    // Then compute the context before we convert to flow node, so that
+    // inputs are created on the node correctly
+    computeContextForNodes(ctx as EngineContext, engine, updatedGraph, newGns);
+
+    // Now we're safe to compute the flow nodes
     const newNodes = newGns.map((newGn, index) => {
-      // TODO: When adding an add node, there's the error "flow node has no input"
-      // "a" - inside fromFlowToGraph() below - why?
       const pos = menuPos as XYPosition;
       return graphNodeToFlowNode(
         newGn,
@@ -1320,13 +1334,10 @@ const Editor: React.FC = () => {
       );
     });
 
+    // Then we can update react state
     const updatedFlowElements = {
       ...flowElements,
       nodes: [...flowElements.nodes, ...newNodes],
-    };
-    const updatedGraph = {
-      ...graph,
-      nodes: [...graph.nodes, ...newGns],
     };
     setFlowElements(updatedFlowElements);
     setGraph(fromFlowToGraph(updatedGraph, updatedFlowElements));
@@ -1547,7 +1558,7 @@ const Editor: React.FC = () => {
             </TabGroup>
             <TabPanels>
               <TabPanel className={styles.scene}>
-                {engine === threngine ? (
+                {engine.name === 'three' ? (
                   <ThreeComponent
                     initialCtx={ctx}
                     setCtx={setCtx}

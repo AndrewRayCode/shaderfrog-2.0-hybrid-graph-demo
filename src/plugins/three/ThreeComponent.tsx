@@ -112,6 +112,9 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         light1.lookAt(new three.Vector3(0, 0, 0));
       }
 
+      // Note the uniforms are updated here every frame, but also instantiated
+      // in this component at RawShaderMaterial creation time. There might be
+      // some logic duplication to worry about.
       if (compileResult?.activeUniforms) {
         Object.entries(compileResult.activeUniforms).forEach(
           ([nodeId, inputs]) => {
@@ -293,6 +296,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     // scene.background = envMap;
     // console.log('created envmap', { envMap });
 
+    // Note this is setting the uniforms of the shader at creation time. The
+    // uniforms are also updated every frame in the useThree() loop
     const fromGraphUniforms = Object.entries(
       compileResult.activeUniforms || {}
     ).reduce<Record<string, any>>((acc, [nodeId, inputs]) => {
@@ -306,11 +311,11 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
           const fromNode = ensure(
             graph.nodes.find(({ id }) => id === edge.from)
           );
-          const result = evaluateNode(graph, fromNode);
+          const value = evaluateNode(graph, fromNode);
           // TODO: This doesn't work for engine variables because
           // those aren't suffixed
           const name = mangleVar(input.name, threngine, node);
-          found[name] = { value: null };
+          found[name] = { value };
         }
       });
       return {
@@ -415,7 +420,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       ...fromGraphUniforms,
     };
 
-    console.log('re-creating three.js material! with envmap', envMapTexture);
+    console.log('re-creating three.js material! with envmap', { uniforms });
+
     // the before code
     const newMat = new three.RawShaderMaterial({
       name: 'ShaderFrog Phong Material',

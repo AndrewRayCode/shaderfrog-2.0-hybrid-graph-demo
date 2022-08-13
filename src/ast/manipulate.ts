@@ -41,6 +41,28 @@ export const findAssignmentTo = (
   return assign;
 };
 
+export const findDeclarationOf = (
+  ast: AstNode,
+  declarationOf: string
+): AstNode | undefined => {
+  let declaration: AstNode | undefined;
+  const visitors: NodeVisitors = {
+    declaration_statement: {
+      enter: (path) => {
+        const foundDecl = path.node.declaration?.declarations?.find(
+          (decl: any) => decl?.identifier?.identifier === declarationOf
+        );
+        if (foundDecl) {
+          declaration = foundDecl;
+        }
+        path.skip();
+      },
+    },
+  };
+  visit(ast, visitors);
+  return declaration;
+};
+
 export const from2To3 = (ast: ParserProgram, stage: ShaderStage) => {
   const glOut = 'fragmentColor';
   // TODO: add this back in when there's only one after the merge

@@ -119,6 +119,8 @@ import {
 } from '../uICompileGraphResult';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import {
+  assignemntToStrategy,
+  declarationOfStrategy,
   Strategy,
   StrategyType,
   texture2DStrategy,
@@ -1303,7 +1305,11 @@ const Editor: React.FC = () => {
           {
             version: 2,
             preprocess: true,
-            strategies: [uniformStrategy(), texture2DStrategy()],
+            strategies: [
+              uniformStrategy(),
+              texture2DStrategy(),
+              declarationOfStrategy('replaceMe'),
+            ],
           },
           type === 'fragment'
             ? `void main() {

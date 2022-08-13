@@ -1,7 +1,7 @@
 import { generate } from '@shaderfrog/glsl-parser';
 import { visit, AstNode, NodeVisitors } from '@shaderfrog/glsl-parser/dist/ast';
 import { Scope, ScopeIndex } from '@shaderfrog/glsl-parser/dist/parser/parser';
-import { findAssignmentTo } from '../ast/manipulate';
+import { findAssignmentTo, findDeclarationOf } from '../ast/manipulate';
 import { ComputedInput, GraphNode, mangleName } from './graph';
 import { SourceNode } from './nodes/code-nodes';
 import { NodeInput } from './nodes/core-node';
@@ -9,6 +9,7 @@ import { NodeInput } from './nodes/core-node';
 export enum StrategyType {
   VARIABLE = 'Variable Names',
   ASSIGNMENT_TO = 'Assignment To',
+  DECLARATION_OF = 'Variable Declaration',
   TEXTURE_2D = 'Texture2D',
   NAMED_ATTRIBUTE = 'Named Attribute',
   UNIFORM = 'Uniform',
@@ -71,6 +72,19 @@ export interface NamedAttributeStrategy extends BaseStrategy {
   };
 }
 
+export const declarationOfStrategy = (
+  declarationOf: string
+): DeclarationOfStrategy => ({
+  type: StrategyType.DECLARATION_OF,
+  config: { declarationOf },
+});
+export interface DeclarationOfStrategy extends BaseStrategy {
+  type: StrategyType.DECLARATION_OF;
+  config: {
+    declarationOf: string;
+  };
+}
+
 export interface VariableStrategy extends BaseStrategy {
   type: StrategyType.VARIABLE;
 }
@@ -85,7 +99,8 @@ export type Strategy =
   | Texture2DStrategy
   | NamedAttributeStrategy
   | VariableStrategy
-  | HardCodeStrategy;
+  | HardCodeStrategy
+  | DeclarationOfStrategy;
 
 type StrategyImpl = (
   node: SourceNode,
@@ -183,6 +198,7 @@ export const strategyRunners: Strategies = {
   [StrategyType.ASSIGNMENT_TO]: (node, ast, strategy) => {
     const cast = strategy as AssignemntToStrategy;
     const assignNode = findAssignmentTo(ast, cast.config.assignTo);
+
     const name = cast.config.assignTo;
     return assignNode
       ? [
@@ -195,6 +211,27 @@ export const strategyRunners: Strategies = {
             },
             (fillerAst: AstNode) => {
               assignNode.expression.right = fillerAst;
+              return ast;
+            },
+          ],
+        ]
+      : [];
+  },
+  [StrategyType.DECLARATION_OF]: (node, ast, strategy) => {
+    const cast = strategy as DeclarationOfStrategy;
+    const declaration = findDeclarationOf(ast, cast.config.declarationOf);
+    const name = cast.config.declarationOf;
+    return declaration
+      ? [
+          [
+            {
+              name,
+              id: name,
+              category: 'code',
+              bakeable: false,
+            },
+            (fillerAst: AstNode) => {
+              declaration.initializer = fillerAst;
               return ast;
             },
           ],
@@ -297,8 +334,6 @@ export const strategyRunners: Strategies = {
     ];
   },
   [StrategyType.VARIABLE]: (node, ast, strategy) => {
-    // const cast = strategy as VariableStrategy;
-    console.log('running start', ast);
     return Object.values(
       (ast.scopes as Scope[]).reduce<ScopeIndex>(
         (acc, scope) => ({ ...acc, ...scope.bindings }),

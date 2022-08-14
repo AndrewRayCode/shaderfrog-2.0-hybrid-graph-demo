@@ -118,7 +118,14 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       if (compileResult?.activeUniforms) {
         Object.entries(compileResult.activeUniforms).forEach(
           ([nodeId, inputs]) => {
-            const node = ensure(graph.nodes.find(({ id }) => id === nodeId));
+            const node = graph.nodes.find(({ id }) => id === nodeId);
+            if (!node) {
+              console.warn(
+                'While populating uniforms, no node was found from activeUniforms',
+                { nodeId, activeUniforms: compileResult.activeUniforms, graph }
+              );
+              return;
+            }
             inputs.forEach((input) => {
               const edge = graph.edges.find(
                 ({ to, input: i }) => to === nodeId && i === input.id

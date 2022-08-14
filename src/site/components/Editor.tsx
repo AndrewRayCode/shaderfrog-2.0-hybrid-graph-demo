@@ -1,14 +1,13 @@
-import { useHotkeys } from 'react-hotkeys-hook';
 import styles from '../../pages/editor/editor.module.css';
-import ctxStyles from './context.menu.module.css';
 import debounce from 'lodash.debounce';
+
+import FlowEditor, { useEditorStore } from './FlowEditor';
 
 import { SplitPane } from 'react-multi-split-pane';
 import cx from 'classnames';
 import { generate } from '@shaderfrog/glsl-parser';
 import React, {
   useCallback,
-  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -17,15 +16,12 @@ import React, {
   MouseEvent,
 } from 'react';
 
-import ReactFlow, {
-  Background,
-  BackgroundVariant,
+import {
   Node as FlowNode,
   Edge as FlowEdge,
   Connection,
   applyNodeChanges,
   applyEdgeChanges,
-  EdgeChange,
   Edge,
   ReactFlowProvider,
   useUpdateNodeInternals,
@@ -87,11 +83,8 @@ import { outlineShaderF, outlineShaderV } from '../../shaders/outlineShader';
 import { useAsyncExtendedState } from '../hooks/useAsyncExtendedState';
 // import { usePromise } from '../usePromise';
 
-import ConnectionLine from './flow/ConnectionLine';
-import FlowEdgeComponent, { FlowEdgeData, LinkEdgeData } from './flow/FlowEdge';
+import { FlowEdgeData } from './flow/FlowEdge';
 import {
-  DataNodeComponent,
-  SourceNodeComponent,
   FlowNodeData,
   FlowNodeSourceData,
   FlowNodeDataData,
@@ -136,7 +129,6 @@ import { makeEdge } from '../../core/nodes/edge';
 import { SourceNode } from '../../core/nodes/code-nodes';
 import { makeId } from '../../util/id';
 import { hasParent } from '../../util/hasParent';
-import { FlowEventHack } from '../flowEventHack';
 import { useWindowSize } from '../hooks/useWindowSize';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
@@ -147,7 +139,7 @@ export type PreviewLight = 'point' | '3point' | 'spot';
 //   removeAllBears: () => set({ bears: 0 }),
 // }));
 
-const expandDataElements = (graph: Graph): Graph =>
+const autocreateUniformDataNodes = (graph: Graph): Graph =>
   graph.nodes.reduce<Graph>((updated, node) => {
     if ('config' in node && node.config.uniforms) {
       const newElements = node.config.uniforms.reduce<
@@ -275,7 +267,9 @@ const expandDataElements = (graph: Graph): Graph =>
  * - Here we hardcode "out" for the inputs which needs to line up with
  *   the custom handles.
  */
-const useFlef = () => {
+
+// Default node setup
+const useTestingNodeSetup = () => {
   const [flowElements, setFlowElements, resetFlowElements] =
     useLocalStorage<FlowElements>('flow', {
       nodes: [],
@@ -283,19 +277,19 @@ const useFlef = () => {
     });
 
   const [graph, setGraph, resetGraph] = useLocalStorage<Graph>('graph', () => {
-    const expression = expressionNode(makeId(), 'Expression', 'a + b / c');
+    // const expression = expressionNode(makeId(), 'Expression', 'a + b / c');
     const outputF = outputNode(makeId(), 'Output', 'fragment');
     const outputV = outputNode(makeId(), 'Output', 'vertex', outputF.id);
 
-    const phongGroupId = makeId();
-    const phongF = phongNode(makeId(), 'Phong', phongGroupId, 'fragment');
-    const phongV = phongNode(
-      makeId(),
-      'Phong',
-      phongGroupId,
-      'vertex',
-      phongF.id
-    );
+    // const phongGroupId = makeId();
+    // const phongF = phongNode(makeId(), 'Phong', phongGroupId, 'fragment');
+    // const phongV = phongNode(
+    //   makeId(),
+    //   'Phong',
+    //   phongGroupId,
+    //   'vertex',
+    //   phongF.id
+    // );
 
     const physicalGroupId = makeId();
     const physicalF = physicalNode(
@@ -333,7 +327,7 @@ const useFlef = () => {
     const hellOnEarthV = hellOnEarthVert(makeId(), hellOnEarthF.id);
     const perlinCloudsF = perlinCloudsFNode(makeId());
     // const num1 = numberNode(makeId(), 'number', '1');
-    return expandDataElements({
+    return autocreateUniformDataNodes({
       nodes: [
         physicalF,
         physicalV,
@@ -412,44 +406,11 @@ const collapseBinaryEdges = (flowGraph: FlowElements): FlowElements => {
   };
 };
 
-const flowStyles = { height: '100vh', background: '#111' };
 type FlowElement = FlowNode<FlowNodeData> | FlowEdge<FlowEdgeData>;
 type FlowEdgeOrLink = FlowEdge<FlowEdgeData>;
 type FlowElements = {
   nodes: FlowNode<FlowNodeData>[];
   edges: FlowEdgeOrLink[];
-};
-
-const nodeTypes: Record<NodeType | GraphDataType | EngineNodeType, any> = {
-  toon: SourceNodeComponent,
-  phong: SourceNodeComponent,
-  physical: SourceNodeComponent,
-  shader: SourceNodeComponent,
-  output: SourceNodeComponent,
-  binary: SourceNodeComponent,
-  source: SourceNodeComponent,
-  vector2: DataNodeComponent,
-  vector3: DataNodeComponent,
-  vector4: DataNodeComponent,
-  mat2: DataNodeComponent,
-  mat3: DataNodeComponent,
-  mat4: DataNodeComponent,
-  mat2x2: DataNodeComponent,
-  mat2x3: DataNodeComponent,
-  mat2x4: DataNodeComponent,
-  mat3x2: DataNodeComponent,
-  mat3x3: DataNodeComponent,
-  mat3x4: DataNodeComponent,
-  mat4x2: DataNodeComponent,
-  mat4x3: DataNodeComponent,
-  mat4x4: DataNodeComponent,
-  sampler2D: DataNodeComponent,
-  number: DataNodeComponent,
-  array: DataNodeComponent,
-};
-
-const edgeTypes = {
-  special: FlowEdgeComponent,
 };
 
 const compileGraphAsync = async (
@@ -768,7 +729,7 @@ const Editor: React.FC = () => {
     setFlowElements,
     resetFlowElements,
     resetGraph,
-  } = useFlef();
+  } = useTestingNodeSetup();
 
   const sceneSplit = useRef<HTMLDivElement>(null);
   const [pauseCompile, setPauseCompile] = useState(false);
@@ -1254,20 +1215,21 @@ const Editor: React.FC = () => {
   const onEdgeUpdateEnd = () => resetTargets();
   const onConnectStop = () => resetTargets();
 
-  const mouse = useRef<{ real: XYPosition; projected: XYPosition }>({
+  const mouseRef = useRef<{ real: XYPosition; projected: XYPosition }>({
     real: { x: 0, y: 0 },
     projected: { x: 0, y: 0 },
   });
   const { project } = useReactFlow();
   const onMouseMove = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
-      mouse.current.real = { x: event.clientX, y: event.clientY };
-      mouse.current.projected = project(mouse.current.real);
+      mouseRef.current.real = { x: event.clientX, y: event.clientY };
+      mouseRef.current.projected = project(mouseRef.current.real);
     },
     [project]
   );
 
-  const [menuPos, setMenuPos] = useState<XYPosition | null>();
+  const setMenuPos = useEditorStore((state) => state.setMenuPosition);
+  const menuPos = useEditorStore((state) => state.menuPosition);
 
   const onMenuAdd = (type: string) => {
     const id = makeId();
@@ -1357,11 +1319,8 @@ const Editor: React.FC = () => {
     };
     setFlowElements(updatedFlowElements);
     setGraph(fromFlowToGraph(updatedGraph, updatedFlowElements));
-    setMenuPos(null);
+    setMenuPos();
   };
-
-  useHotkeys('esc', () => setMenuPos(null));
-  useHotkeys('shift+a', () => setMenuPos(mouse.current.real));
 
   useEffect(() => {
     if (needsCompile) {
@@ -1371,7 +1330,7 @@ const Editor: React.FC = () => {
 
   const onContainerClick = (event: React.MouseEvent<HTMLElement>) => {
     if (!hasParent(event.target as HTMLElement, '#x-context-menu')) {
-      setMenuPos(null);
+      setMenuPos();
     }
   };
 
@@ -1393,10 +1352,33 @@ const Editor: React.FC = () => {
     [setFlowElements, setGraph]
   );
 
-  const onContextMenu = useCallback((event: MouseEvent<HTMLElement>) => {
-    event.preventDefault();
-    setMenuPos(mouse.current.real);
-  }, []);
+  const doTheThing = () => {
+    const outputF = outputNode(makeId(), 'Output', 'fragment');
+    const outputV = outputNode(makeId(), 'Output', 'vertex', outputF.id);
+    const physicalGroupId = makeId();
+    const physicalF = physicalNode(
+      makeId(),
+      'Physical',
+      physicalGroupId,
+      'fragment'
+    );
+    const physicalV = physicalNode(
+      makeId(),
+      'Physical',
+      physicalGroupId,
+      'vertex',
+      physicalF.id
+    );
+    setGraph(
+      autocreateUniformDataNodes({
+        nodes: [physicalF, physicalV],
+        edges: [
+          makeEdge(physicalF.id, outputF.id, 'out', 'frogFragOut', 'fragment'),
+          makeEdge(physicalV.id, outputV.id, 'out', 'gl_Position', 'vertex'),
+        ],
+      })
+    );
+  };
 
   return (
     <div className={styles.container} onClick={onContainerClick}>
@@ -1410,6 +1392,9 @@ const Editor: React.FC = () => {
             <div className={styles.activeEngine}>
               {engine === babylengine ? 'Babylon.js' : 'Three.js'}
             </div>
+            <button className={styles.formButton} onClick={doTheThing}>
+              Help
+            </button>
             {window.location.href.indexOf('localhost') > -1 ? (
               <>
                 <button
@@ -1459,38 +1444,25 @@ const Editor: React.FC = () => {
               </Tab>
             </TabGroup>
             <TabPanels>
-              <TabPanel onMouseMove={onMouseMove} onContextMenu={onContextMenu}>
-                {menuPos ? (
-                  <ContextMenu position={menuPos} onAdd={onMenuAdd} />
-                ) : null}
-                <FlowEventHack onChange={onNodeValueChange}>
-                  <ReactFlow
-                    nodes={flowElements.nodes}
-                    edges={flowElements.edges}
-                    style={flowStyles}
-                    onConnect={onConnect}
-                    onEdgeUpdate={onEdgeUpdate}
-                    onEdgesChange={onEdgesChange}
-                    onNodesChange={onNodesChange}
-                    onNodesDelete={onNodesDelete}
-                    onNodeDoubleClick={onNodeDoubleClick}
-                    onEdgesDelete={onEdgesDelete}
-                    connectionLineComponent={ConnectionLine}
-                    nodeTypes={nodeTypes}
-                    edgeTypes={edgeTypes}
-                    onConnectStart={onConnectStart}
-                    onEdgeUpdateStart={onEdgeUpdateStart}
-                    onEdgeUpdateEnd={onEdgeUpdateEnd}
-                    onConnectStop={onConnectStop}
-                  >
-                    <Background
-                      variant={BackgroundVariant.Lines}
-                      gap={25}
-                      size={0.5}
-                      color="#444444"
-                    />
-                  </ReactFlow>
-                </FlowEventHack>
+              <TabPanel onMouseMove={onMouseMove}>
+                <FlowEditor
+                  mouse={mouseRef.current}
+                  onMenuAdd={onMenuAdd}
+                  onNodeValueChange={onNodeValueChange}
+                  nodes={flowElements.nodes}
+                  edges={flowElements.edges}
+                  onConnect={onConnect}
+                  onEdgeUpdate={onEdgeUpdate}
+                  onEdgesChange={onEdgesChange}
+                  onNodesChange={onNodesChange}
+                  onNodesDelete={onNodesDelete}
+                  onNodeDoubleClick={onNodeDoubleClick}
+                  onEdgesDelete={onEdgesDelete}
+                  onConnectStart={onConnectStart}
+                  onEdgeUpdateStart={onEdgeUpdateStart}
+                  onEdgeUpdateEnd={onEdgeUpdateEnd}
+                  onConnectStop={onConnectStop}
+                />
               </TabPanel>
               <TabPanel>
                 <div className={styles.belowTabs}>
@@ -1745,45 +1717,8 @@ const StrategyEditor = ({
   );
 };
 
-const ctxNodes: [string, string][] = [
-  ['fragment', 'Fragment'],
-  ['vertex', 'Vertex'],
-  ['number', 'Number'],
-  ['vec2', 'Vector2'],
-  ['vec3', 'Vector3'],
-  ['vec4', 'Vector4'],
-  ['add', 'Add'],
-  ['multiply', 'Multiply'],
-  ['phong', 'Phong'],
-  ['toon', 'Toon'],
-];
-const ContextMenu = ({
-  position,
-  onAdd,
-}: {
-  onAdd: (name: string) => void;
-  position: XYPosition;
-}) => {
-  return (
-    <div
-      id="x-context-menu"
-      className={ctxStyles.contextMenu}
-      style={{ top: position.y, left: position.x }}
-    >
-      <div className={ctxStyles.contextHeader}>Add a Node</div>
-      {ctxNodes.map(([type, display]) => (
-        <div
-          key={type}
-          className={ctxStyles.contextRow}
-          onClick={() => onAdd(type)}
-        >
-          {display}
-        </div>
-      ))}
-    </div>
-  );
-};
-
+// Use React Flow Provider to get project(), to figure out the mouse position
+// in the graph
 const WithProvider = () => (
   <ReactFlowProvider>
     <Hoisty>

@@ -1,5 +1,7 @@
 import { createContext, useContext } from 'react';
 
+// Pass an onchange handler down to nodes in context
+
 export const Context = createContext<any>({});
 export type ChangeHandler = (id: string, value: any) => void;
 

@@ -9,6 +9,7 @@ type Callback = (time: number) => void;
 type SceneData = {
   lights: three.Object3D[];
   mesh?: three.Mesh;
+  bg?: three.Mesh;
 };
 type ScenePersistence = {
   sceneData: SceneData;

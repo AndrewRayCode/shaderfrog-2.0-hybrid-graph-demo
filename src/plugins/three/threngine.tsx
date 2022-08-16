@@ -183,6 +183,12 @@ const threeMaterialProperties = (
   if ('map' in inputEdges) {
     properties.map = new three.Texture();
   }
+  if ('transmission' in inputEdges) {
+    properties.transmission = 0.5;
+  }
+  if ('thickness' in inputEdges) {
+    properties.thickness = 0.5;
+  }
   if ('normalMap' in inputEdges) {
     properties.map = new three.Texture();
     properties.normalMap = new three.Texture();
@@ -268,6 +274,12 @@ export const threngine: Engine = {
     'specularIntensity',
     'clearcoat',
     'clearcoatRoughness',
+    'transmission',
+    'thickness',
+    'attenuationDistance',
+    'attenuationTint',
+    'transmissionSamplerMap',
+    'transmissionSamplerSize',
   ]),
   parsers: {
     [NodeType.SOURCE]: {
@@ -326,6 +338,8 @@ export const threngine: Engine = {
             engineContext,
             new three.MeshPhysicalMaterial({
               envMap: envMapTexture,
+              // transmissionSamplerMap: envMapTexture,
+              // transmission: 0,
               ...threeMaterialProperties(three, graph, node, sibling),
             })
           )

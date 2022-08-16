@@ -79,7 +79,7 @@ export type MouseData = { real: XYPosition; projected: XYPosition };
 
 type FlowEditorProps =
   | {
-      mouse: MouseData;
+      mouse: React.MutableRefObject<MouseData>;
       onNodeValueChange: (id: string, value: any) => void;
       onMenuAdd: (type: string) => void;
     } & Pick<
@@ -121,12 +121,12 @@ const FlowEditor = ({
   const setMenuPos = useEditorStore((state) => state.setMenuPosition);
 
   useHotkeys('esc', () => setMenuPos());
-  useHotkeys('shift+a', () => setMenuPos(mouse.real));
+  useHotkeys('shift+a', () => setMenuPos(mouse.current.real));
 
   const onContextMenu = useCallback(
     (event: MouseEvent<HTMLElement>) => {
       event.preventDefault();
-      setMenuPos(mouse.real);
+      setMenuPos(mouse.current.real);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [setMenuPos]

@@ -46,9 +46,9 @@ const fireVert = (id: string, nextStageNodeId?: string) =>
 
       uniforms: [
         // { name: 'tExplosion', type: 'sampler2D', value: 'image' },
-        numberUniformData('fireSpeed', '0.6'),
+        numberUniformData('fireSpeed', '0.6321'),
         numberUniformData('pulseHeight', '0.1'),
-        numberUniformData('displacementHeight', '0.6'),
+        numberUniformData('displacementHeight', '0.612'),
         numberUniformData('turbulenceDetail', '0.8'),
       ],
     },

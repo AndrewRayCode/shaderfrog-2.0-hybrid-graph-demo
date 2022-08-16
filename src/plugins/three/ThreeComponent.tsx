@@ -35,11 +35,13 @@ type ThreeSceneProps = {
   graph: Graph;
   lights: PreviewLight;
   previewObject: string;
+  bg: string | undefined;
   setCtx: (ctx: EngineContext) => void;
   initialCtx: any;
   setGlResult: AnyFn;
   setLights: AnyFn;
   setPreviewObject: AnyFn;
+  setBg: AnyFn;
   width: number;
   height: number;
 };
@@ -55,6 +57,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   setGlResult,
   setLights,
   setPreviewObject,
+  bg,
+  setBg,
   width,
   height,
 }) => {
@@ -195,6 +199,45 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     }
     sceneData.mesh = mesh;
     scene.add(mesh);
+  }, [previousPreviewObject, sceneData, previewObject, scene]);
+
+  const previousBg = usePrevious(bg);
+  useEffect(() => {
+    console.log('bg , previousBg', bg, previousBg);
+    if (bg === previousBg) {
+      return;
+    }
+    const pmremGenerator = new three.PMREMGenerator(renderer);
+    pmremGenerator.compileEquirectangularShader();
+
+    // yolo https://stackoverflow.com/a/65817213/743464
+    const envmap = new RGBELoader().load(
+      'envmaps/empty_warehouse_01_2k.hdr',
+      (texture) => {
+        const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+
+        scene.background = envMap;
+        scene.environment = envMap;
+
+        texture.dispose();
+        pmremGenerator.dispose();
+      }
+    );
+    scene.environment = envmap;
+
+    // if (sceneData.bg) {
+    //   scene.remove(sceneData.bg);
+    // }
+
+    // const geometry = new three.PlaneGeometry(2, 2);
+    // const material = new three.MeshBasicMaterial({
+    //   color: 0xffff00,
+    //   side: three.DoubleSide,
+    // });
+    // const mesh = new three.Mesh(geometry);
+    // mesh.material = material;
+    // sceneData.bg = mesh;
+    // scene.add(mesh);
   }, [previousPreviewObject, sceneData, previewObject, scene]);
 
   const threeTone = useMemo(() => {
@@ -556,6 +599,14 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
           `Complile took ${compileResult?.compileMs}ms`}
       </div>
       <div className={styles.sceneControls}>
+        <select
+          onChange={(event) => {
+            console.log('x', event.target.value);
+          }}
+        >
+          <option>hi</option>
+          <option>bye</option>
+        </select>
         <button
           className={styles.button}
           onClick={() => setLights('3point')}

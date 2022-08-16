@@ -1,7 +1,7 @@
 import styles from '../../pages/editor/editor.module.css';
 import debounce from 'lodash.debounce';
 
-import FlowEditor, { useEditorStore } from './FlowEditor';
+import FlowEditor, { MouseData, useEditorStore } from './FlowEditor';
 
 import { SplitPane } from 'react-multi-split-pane';
 import cx from 'classnames';
@@ -40,7 +40,6 @@ import {
   MAGIC_OUTPUT_STMTS,
   NodeType,
   alphabet,
-  isDataNode,
   isSourceNode,
   collectConnectedNodes,
 } from '../../core/graph';
@@ -53,14 +52,12 @@ import {
   phongNode,
   physicalNode,
   toonNode,
-  expressionNode,
 } from '../../core/nodes/engine-node';
 import {
   Engine,
   EngineContext,
   convertToEngine,
   EngineNodeType,
-  NodeContext,
 } from '../../core/engine';
 import { shaderSectionsToAst } from '../../ast/shader-sections';
 
@@ -107,12 +104,10 @@ import {
 import { Hoisty, useHoisty } from '../hoistedRefContext';
 import {
   collectUniformsFromActiveNodes,
-  IndexedDataInputs,
   UICompileGraphResult,
 } from '../uICompileGraphResult';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import {
-  assignemntToStrategy,
   declarationOfStrategy,
   Strategy,
   StrategyType,
@@ -121,9 +116,13 @@ import {
 } from '../../core/strategy';
 import { ensure } from '../../util/ensure';
 import {
-  GraphDataType,
   numberNode,
+  numberUniformData,
+  Vector2,
+  Vector3,
+  Vector4,
   vectorNode,
+  vectorUniformData,
 } from '../../core/nodes/data-nodes';
 import { makeEdge } from '../../core/nodes/edge';
 import { SourceNode } from '../../core/nodes/code-nodes';
@@ -133,40 +132,49 @@ import { useWindowSize } from '../hooks/useWindowSize';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
-// const useStore = create((set) => ({
-//   bears: 0,
-//   increasePopulation: () => set((state) => ({ bears: state.bears + 1 })),
-//   removeAllBears: () => set({ bears: 0 }),
-// }));
+const SMALL_SCREEN_WIDTH = 500;
 
 const autocreateUniformDataNodes = (graph: Graph): Graph =>
   graph.nodes.reduce<Graph>((updated, node) => {
     if ('config' in node && node.config.uniforms) {
-      const newElements = node.config.uniforms.reduce<
-        [GraphNode[], GraphEdge[]]
-      >(
-        (elems, uniform) => {
-          if (uniform.type === 'number') {
-            const n = numberNode(makeId(), 'number', uniform.value, {
-              range: uniform.range,
-              stepper: uniform.stepper,
-            });
-            return [
-              [...elems[0], n],
-              [
-                ...elems[1],
-                makeEdge(n.id, node.id, 'out', uniform.name, uniform.type),
-              ],
-            ];
+      const newNodes = node.config.uniforms.reduce<[GraphNode[], GraphEdge[]]>(
+        (acc, uniform) => {
+          let n;
+          switch (uniform.type) {
+            case 'number': {
+              n = numberNode(makeId(), 'number', uniform.value, {
+                range: uniform.range,
+                stepper: uniform.stepper,
+              });
+              break;
+            }
+            case 'vector2': {
+              n = vectorNode(makeId(), 'vector2', uniform.value as Vector2);
+              break;
+            }
+            case 'vector3': {
+              n = vectorNode(makeId(), 'vector3', uniform.value as Vector3);
+              break;
+            }
+            case 'vector4': {
+              n = vectorNode(makeId(), 'vector4', uniform.value as Vector4);
+              break;
+            }
           }
-          return elems;
+          return [
+            [...acc[0], n],
+            [
+              ...acc[1],
+              makeEdge(n.id, node.id, 'out', uniform.name, uniform.type),
+            ],
+          ];
         },
         [[], []]
       );
 
       return {
-        nodes: [...updated.nodes, ...newElements[0]],
-        edges: [...updated.edges, ...newElements[1]],
+        nodes: [...updated.nodes, ...newNodes[0]],
+        edges: [...updated.edges, ...newNodes[1]],
       };
     }
     return updated;
@@ -174,7 +182,16 @@ const autocreateUniformDataNodes = (graph: Graph): Graph =>
 
 /**
  * Where was I?
- * - Just Fixed bug with toon light
+ * - Trying to add examples, while at the same time
+ *    - abstracted out editor component, which broke new node addition location
+ *      on shift+a / right-click
+ *    - trying to get physical material transmission working but setting
+ *      transmission uniform sitll makes material see thru and setting
+ *      thickness / ior properties don't have the expected changes
+ *    - trying out dropdowns in the UI to support examples, hard coded hi/bye
+ *    - added ability to edit final shader source
+ *    - added scene background
+ *    - moved source to left pane
  * - Adding empty toon shader and plugging in breaks at least on production
  *   - Can't reproduce
  * - Launch: Feedback, URL sharing, examples
@@ -268,6 +285,13 @@ const autocreateUniformDataNodes = (graph: Graph): Graph =>
  *   the custom handles.
  */
 
+type FlowElement = FlowNode<FlowNodeData> | FlowEdge<FlowEdgeData>;
+type FlowEdgeOrLink = FlowEdge<FlowEdgeData>;
+type FlowElements = {
+  nodes: FlowNode<FlowNodeData>[];
+  edges: FlowEdgeOrLink[];
+};
+
 // Default node setup
 const useTestingNodeSetup = () => {
   const [flowElements, setFlowElements, resetFlowElements] =
@@ -296,12 +320,20 @@ const useTestingNodeSetup = () => {
       makeId(),
       'Physical',
       physicalGroupId,
+      [
+        // numberUniformData('thickness', '0.6'),
+        numberUniformData('metalness', '0.4'),
+        // numberUniformData('transmission', '0'),
+        numberUniformData('roughness', '0.2'),
+        vectorUniformData('diffuse', ['1', '0.5', '0.5']),
+      ],
       'fragment'
     );
     const physicalV = physicalNode(
       makeId(),
       'Physical',
       physicalGroupId,
+      [],
       'vertex',
       physicalF.id
     );
@@ -406,13 +438,6 @@ const collapseBinaryEdges = (flowGraph: FlowElements): FlowElements => {
   };
 };
 
-type FlowElement = FlowNode<FlowNodeData> | FlowEdge<FlowEdgeData>;
-type FlowEdgeOrLink = FlowEdge<FlowEdgeData>;
-type FlowElements = {
-  nodes: FlowNode<FlowNodeData>[];
-  edges: FlowEdgeOrLink[];
-};
-
 const compileGraphAsync = async (
   graph: Graph,
   engine: Engine,
@@ -475,50 +500,53 @@ total: ${(now - allStart).toFixed(3)}ms
     }, 0);
   });
 
+// Determine the stage of a node (vertex/fragment) by recursively looking at
+// the noddes that feed into this one, until we find one that has a stage set
 const findInputStage = (
   ids: Record<string, FlowNode<FlowNodeData>>,
-  targets: Record<string, FlowEdge<FlowEdgeData>[]>,
+  edgesByTarget: Record<string, FlowEdge<FlowEdgeData>[]>,
   node: FlowNode<FlowNodeData>
 ): ShaderStage | undefined => {
-  let cast = node.data as FlowNodeSourceData;
+  let nodeData = node.data as FlowNodeSourceData;
   return (
-    (!cast?.biStage && cast?.stage) ||
-    (targets[node.id] || []).reduce<ShaderStage | undefined>((found, edge) => {
-      const type = edge.data?.type;
-      return (
-        found ||
-        (type === 'fragment' || type === 'vertex' ? type : false) ||
-        findInputStage(ids, targets, ids[edge.source])
-      );
-    }, undefined)
+    (!nodeData?.biStage && nodeData?.stage) ||
+    (edgesByTarget[node.id] || []).reduce<ShaderStage | undefined>(
+      (found, edge) => {
+        const type = edge.data?.type;
+        return (
+          found ||
+          (type === 'fragment' || type === 'vertex' ? type : false) ||
+          findInputStage(ids, edgesByTarget, ids[edge.source])
+        );
+      },
+      undefined
+    )
   );
 };
 
-const setFlowGraphNodeCategories = (
+const setFlowNodeCategories = (
   flowElements: FlowElements,
   dataNodes: Record<string, GraphNode>
-): FlowElements => {
-  return {
-    ...flowElements,
-    nodes: flowElements.nodes.map((node) => {
-      if (node.id in dataNodes) {
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            category: 'code',
-          },
-        };
-      }
-      return node;
-    }),
-  };
-};
+): FlowElements => ({
+  ...flowElements,
+  nodes: flowElements.nodes.map((node) => {
+    if (node.id in dataNodes) {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          category: 'code',
+        },
+      };
+    }
+    return node;
+  }),
+});
 
 // Some nodes, like add, can be used for either fragment or vertex stage. When
 // we connect edges in the graph, update it to figure out which stage we should
 // set the add node to based on inputs to the node.
-const setFlowGraphNodeStages = (flowElements: FlowElements): FlowElements => {
+const setFlowNodeStages = (flowElements: FlowElements): FlowElements => {
   const targets = flowElements.edges.reduce<Record<string, FlowEdge[]>>(
     (acc, edge) => ({
       ...acc,
@@ -656,7 +684,7 @@ const initializeFlowElementsFromGraph = (
     })
   );
 
-  return setFlowGraphNodeStages({ nodes, edges });
+  return setFlowNodeStages({ nodes, edges });
 };
 
 // Convert flow elements to graph
@@ -732,7 +760,6 @@ const Editor: React.FC = () => {
   } = useTestingNodeSetup();
 
   const sceneSplit = useRef<HTMLDivElement>(null);
-  const [pauseCompile, setPauseCompile] = useState(false);
 
   // tabIndex may still be needed to pause rendering
   const [tabIndex, setTabIndex] = useState<number>(0);
@@ -741,13 +768,12 @@ const Editor: React.FC = () => {
   const [guiMsg, setGuiMsg] = useState<string>('');
   const [lights, setLights] = useState<PreviewLight>('point');
   const [previewObject, setPreviewObject] = useState('torusknot');
+  const [bg, setBg] = useState('on');
 
   const [activeShader, setActiveShader] = useState<SourceNode>(
     graph.nodes[0] as SourceNode
   );
 
-  const [vertex, setVertex] = useState<string | undefined>('');
-  const [finalFragment, setFinalFragment] = useState<string | undefined>('');
   const [compileResult, setCompileResult] = useState<UICompileGraphResult>();
 
   // React-flow apparently needs(?) the useState callback to ensure the latest
@@ -759,6 +785,33 @@ const Editor: React.FC = () => {
   const debouncedSetNeedsCompile = useMemo(
     () => debounce(setNeedsCompile, 500),
     []
+  );
+
+  const setVertexOverride = useCallback(
+    (vertexResult: string) => {
+      setCompileResult({
+        ...compileResult,
+        vertexResult,
+      } as UICompileGraphResult);
+    },
+    [compileResult]
+  );
+  const debouncedSetVertexOverride = useMemo(
+    () => debounce(setVertexOverride, 1000),
+    [setVertexOverride]
+  );
+  const setFragmentOverride = useCallback(
+    (fragmentResult: string) => {
+      setCompileResult({
+        ...compileResult,
+        fragmentResult,
+      } as UICompileGraphResult);
+    },
+    [compileResult]
+  );
+  const debouncedSetFragmentOverride = useMemo(
+    () => debounce(setFragmentOverride, 1000),
+    [setFragmentOverride]
   );
 
   const [state, setState, extendState] = useAsyncExtendedState<{
@@ -799,7 +852,7 @@ const Editor: React.FC = () => {
     (
       engine: Engine,
       ctx: EngineContext,
-      pauseCompile: boolean,
+      graph: Graph,
       flowElements: FlowElements
     ) => {
       const updatedGraph = fromFlowToGraph(graph, flowElements);
@@ -811,8 +864,6 @@ const Editor: React.FC = () => {
         console.log('comple async complete!', { compileResult });
         setGuiMsg('');
         setCompileResult(compileResult);
-        setFinalFragment(compileResult.fragmentResult);
-        setVertex(compileResult.vertexResult);
 
         const byId = updatedGraph.nodes.reduce<Record<string, GraphNode>>(
           (acc, node) => ({ ...acc, [node.id]: node }),
@@ -832,7 +883,7 @@ const Editor: React.FC = () => {
         });
 
         setFlowElements(
-          setFlowGraphNodeCategories(
+          setFlowNodeCategories(
             {
               ...flowElements,
               nodes: updatedFlowNodes,
@@ -848,7 +899,7 @@ const Editor: React.FC = () => {
         }, 500);
       });
     },
-    [updateNodeInternals, graph, setFlowElements]
+    [updateNodeInternals, setFlowElements]
   );
 
   const onNodeValueChange = useCallback(
@@ -922,9 +973,9 @@ const Editor: React.FC = () => {
   const childCompile = useCallback(
     (ctx: EngineContext) => {
       console.log('childCompile', ctx.nodes);
-      return compile(engine, ctx, pauseCompile, flowElements);
+      return compile(engine, ctx, graph, flowElements);
     },
-    [engine, compile, pauseCompile, flowElements]
+    [engine, compile, graph, flowElements]
   );
 
   const initializeGraph = useCallback(
@@ -941,11 +992,11 @@ const Editor: React.FC = () => {
           ? initialElements
           : initializeFlowElementsFromGraph(graph, onInputCategoryToggle);
 
-        compile(engine, newCtx, pauseCompile, initFlowElements);
+        compile(engine, newCtx, graph, initFlowElements);
         setGuiMsg('');
       }, 10);
     },
-    [compile, engine, pauseCompile, onInputCategoryToggle]
+    [compile, engine, onInputCategoryToggle]
   );
 
   // Once we receive a new engine context, re-initialize the graph. This method
@@ -998,29 +1049,28 @@ const Editor: React.FC = () => {
    * Split state mgmt
    */
   const windowSize = useWindowSize();
-  const smallScreen = windowSize.width < 500;
+  const smallScreen = windowSize.width < SMALL_SCREEN_WIDTH;
 
   const [defaultMainSplitSize, setDefaultMainSplitSize] = useState<
     number[] | undefined
   >();
 
   useLayoutEffect(() => {
-    if (smallScreen) {
+    const width = window.innerWidth;
+    if (width >= SMALL_SCREEN_WIDTH) {
       const DEFAULT_SPLIT_PERCENT = 30;
       const sizes = [
-        0.1 * (100 - DEFAULT_SPLIT_PERCENT) * windowSize.width,
-        0.1 * DEFAULT_SPLIT_PERCENT * windowSize.width,
+        0.1 * (100 - DEFAULT_SPLIT_PERCENT) * width,
+        0.1 * DEFAULT_SPLIT_PERCENT * width,
       ];
       setDefaultMainSplitSize(sizes);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onSplitResize = useThrottle(() => {
     if (sceneSplit.current) {
       const { width, height } = sceneSplit.current.getBoundingClientRect();
-      let heightMinusTab = height - 25;
-      extendState({ width, height: heightMinusTab });
+      extendState({ width, height });
     }
   }, 100);
 
@@ -1083,7 +1133,7 @@ const Editor: React.FC = () => {
     );
 
     setFlowElements((flowElements) => {
-      const updatedFlowElements = setFlowGraphNodeStages({
+      const updatedFlowElements = setFlowNodeStages({
         ...flowElements,
         edges: [...updatedEdges, addedEdge],
       });
@@ -1106,7 +1156,7 @@ const Editor: React.FC = () => {
   const onEdgesChange = useCallback(
     (changes) =>
       setFlowElements((flowElements) => {
-        const updatedFlowGraph = setFlowGraphNodeStages({
+        const updatedFlowGraph = setFlowNodeStages({
           nodes: flowElements.nodes,
           edges: applyEdgeChanges(changes, flowElements.edges),
         });
@@ -1215,26 +1265,22 @@ const Editor: React.FC = () => {
   const onEdgeUpdateEnd = () => resetTargets();
   const onConnectStop = () => resetTargets();
 
-  const mouseRef = useRef<{ real: XYPosition; projected: XYPosition }>({
+  const mouseRef = useRef<MouseData>({
     real: { x: 0, y: 0 },
     projected: { x: 0, y: 0 },
   });
+
   const { project } = useReactFlow();
-  const onMouseMove = useCallback(
-    (event: MouseEvent<HTMLDivElement>) => {
-      mouseRef.current.real = { x: event.clientX, y: event.clientY };
-      mouseRef.current.projected = project(mouseRef.current.real);
-    },
-    [project]
-  );
+  const onMouseMove = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    mouseRef.current.real = { x: event.clientX, y: event.clientY };
+  }, []);
 
   const setMenuPos = useEditorStore((state) => state.setMenuPosition);
-  const menuPos = useEditorStore((state) => state.menuPosition);
+  const menuPosition = useEditorStore((state) => state.menuPosition);
 
   const onMenuAdd = (type: string) => {
     const id = makeId();
     const groupId = makeId();
-    // let newNode: FlowNode<FlowNodeData>;
     let newGns: GraphNode[];
 
     if (type === 'number') {
@@ -1299,17 +1345,14 @@ const Editor: React.FC = () => {
     // inputs are created on the node correctly
     computeContextForNodes(ctx as EngineContext, engine, updatedGraph, newGns);
 
+    const pos = project(menuPosition as XYPosition);
+
     // Now we're safe to compute the flow nodes
     const newNodes = newGns.map((newGn, index) => {
-      const pos = menuPos as XYPosition;
-      return graphNodeToFlowNode(
-        newGn,
-        onInputCategoryToggle,
-        project({
-          x: pos.x + index * 20,
-          y: pos.y + index * 20,
-        })
-      );
+      return graphNodeToFlowNode(newGn, onInputCategoryToggle, {
+        x: pos.x + index * 20,
+        y: pos.y + index * 20,
+      });
     });
 
     // Then we can update react state
@@ -1324,9 +1367,9 @@ const Editor: React.FC = () => {
 
   useEffect(() => {
     if (needsCompile) {
-      compile(engine, ctx as EngineContext, pauseCompile, flowElements);
+      compile(engine, ctx as EngineContext, graph, flowElements);
     }
-  }, [needsCompile, flowElements, ctx, pauseCompile, compile, engine]);
+  }, [needsCompile, flowElements, ctx, graph, compile, engine]);
 
   const onContainerClick = (event: React.MouseEvent<HTMLElement>) => {
     if (!hasParent(event.target as HTMLElement, '#x-context-menu')) {
@@ -1353,6 +1396,9 @@ const Editor: React.FC = () => {
   );
 
   const doTheThing = () => {
+    if (!ctx) {
+      throw new Error('what');
+    }
     const outputF = outputNode(makeId(), 'Output', 'fragment');
     const outputV = outputNode(makeId(), 'Output', 'vertex', outputF.id);
     const physicalGroupId = makeId();
@@ -1360,30 +1406,45 @@ const Editor: React.FC = () => {
       makeId(),
       'Physical',
       physicalGroupId,
+      [
+        numberUniformData('metalness', '0.6'),
+        vectorUniformData('diffuse', ['1', '0.5', '0.5']),
+      ],
       'fragment'
     );
     const physicalV = physicalNode(
       makeId(),
       'Physical',
       physicalGroupId,
+      [],
       'vertex',
       physicalF.id
     );
-    setGraph(
-      autocreateUniformDataNodes({
-        nodes: [physicalF, physicalV],
-        edges: [
-          makeEdge(physicalF.id, outputF.id, 'out', 'frogFragOut', 'fragment'),
-          makeEdge(physicalV.id, outputV.id, 'out', 'gl_Position', 'vertex'),
-        ],
-      })
+    // setGraph(
+    const newGraph = autocreateUniformDataNodes({
+      nodes: [outputF, outputV, physicalF, physicalV],
+      edges: [
+        makeEdge(physicalF.id, outputF.id, 'out', 'frogFragOut', 'fragment'),
+        makeEdge(physicalV.id, outputV.id, 'out', 'gl_Position', 'vertex'),
+      ],
+    });
+    // );
+
+    setGraph(newGraph);
+    initializeGraph(
+      {
+        nodes: [],
+        edges: [],
+      },
+      ctx,
+      newGraph
     );
   };
 
   return (
     <div className={styles.container} onClick={onContainerClick}>
       <SplitPane
-        split={windowSize.width < 500 ? 'horizontal' : 'vertical'}
+        split={smallScreen ? 'horizontal' : 'vertical'}
         onChange={onSplitResize}
         defaultSizes={defaultMainSplitSize}
       >
@@ -1442,11 +1503,19 @@ const Editor: React.FC = () => {
                   : activeShader.type}
                 )
               </Tab>
+              <Tab
+                className={{
+                  [styles.errored]: state.fragError || state.vertError,
+                }}
+              >
+                Compiled Source
+              </Tab>
             </TabGroup>
             <TabPanels>
+              {/* Graph tab */}
               <TabPanel onMouseMove={onMouseMove}>
                 <FlowEditor
-                  mouse={mouseRef.current}
+                  mouse={mouseRef}
                   onMenuAdd={onMenuAdd}
                   onNodeValueChange={onNodeValueChange}
                   nodes={flowElements.nodes}
@@ -1464,6 +1533,7 @@ const Editor: React.FC = () => {
                   onConnectStop={onConnectStop}
                 />
               </TabPanel>
+              {/* Main code editor tab */}
               <TabPanel>
                 <div className={styles.belowTabs}>
                   <SplitPane split="horizontal">
@@ -1475,7 +1545,7 @@ const Editor: React.FC = () => {
                             compile(
                               engine,
                               ctx as EngineContext,
-                              pauseCompile,
+                              graph,
                               flowElements
                             )
                           }
@@ -1490,7 +1560,7 @@ const Editor: React.FC = () => {
                           compile(
                             engine,
                             ctx as EngineContext,
-                            pauseCompile,
+                            graph,
                             flowElements
                           );
                         }}
@@ -1519,7 +1589,7 @@ const Editor: React.FC = () => {
                           compile(
                             engine,
                             ctx as EngineContext,
-                            pauseCompile,
+                            graph,
                             flowElements
                           )
                         }
@@ -1528,76 +1598,19 @@ const Editor: React.FC = () => {
                   </SplitPane>
                 </div>
               </TabPanel>
-            </TabPanels>
-          </Tabs>
-        </div>
-        {/* 3d display split */}
-        <div ref={sceneSplit} className={styles.splitInner}>
-          <Tabs selected={tabIndex} onSelect={setTabIndex}>
-            <TabGroup>
-              <Tab>Scene</Tab>
-              <Tab
-                className={{
-                  [styles.errored]: state.fragError || state.vertError,
-                }}
-              >
-                Final Shader Source
-              </Tab>
-            </TabGroup>
-            <TabPanels>
-              <TabPanel className={styles.scene}>
-                {engine.name === 'three' ? (
-                  <ThreeComponent
-                    initialCtx={ctx}
-                    setCtx={setCtx}
-                    graph={graph}
-                    lights={lights}
-                    setLights={setLights}
-                    previewObject={previewObject}
-                    setPreviewObject={setPreviewObject}
-                    compile={childCompile}
-                    guiMsg={guiMsg}
-                    compileResult={compileResult}
-                    setGlResult={setGlResult}
-                    width={state.width}
-                    height={state.height}
-                  />
-                ) : (
-                  <BabylonComponent
-                    setCtx={setCtx}
-                    graph={graph}
-                    lights={lights}
-                    setLights={setLights}
-                    previewObject={previewObject}
-                    setPreviewObject={setPreviewObject}
-                    compile={childCompile}
-                    guiMsg={guiMsg}
-                    compileResult={compileResult}
-                    setGlResult={setGlResult}
-                    width={state.width}
-                    height={state.height}
-                  />
-                )}
-              </TabPanel>
+              {/* Final source code tab */}
               <TabPanel>
                 <Tabs onSelect={setSceneTabIndex} selected={sceneTabIndex}>
                   <TabGroup className={styles.secondary}>
-                    <Tab className={{ [styles.errored]: state.vertError }}>
-                      Vertex
-                    </Tab>
                     <Tab className={{ [styles.errored]: state.fragError }}>
                       Fragment
                     </Tab>
+                    <Tab className={{ [styles.errored]: state.vertError }}>
+                      Vertex
+                    </Tab>
                   </TabGroup>
                   <TabPanels>
-                    <TabPanel>
-                      {state.vertError && (
-                        <div className={styles.codeError}>
-                          {state.vertError}
-                        </div>
-                      )}
-                      <CodeEditor engine={engine} readOnly value={vertex} />
-                    </TabPanel>
+                    {/* final fragment shader subtab */}
                     <TabPanel>
                       {state.fragError && (
                         <div className={styles.codeError}>
@@ -1606,8 +1619,25 @@ const Editor: React.FC = () => {
                       )}
                       <CodeEditor
                         engine={engine}
-                        readOnly
-                        value={finalFragment}
+                        value={compileResult?.fragmentResult}
+                        onChange={(value, event) => {
+                          debouncedSetFragmentOverride(value);
+                        }}
+                      />
+                    </TabPanel>
+                    {/* final vertex shader subtab */}
+                    <TabPanel>
+                      {state.vertError && (
+                        <div className={styles.codeError}>
+                          {state.vertError}
+                        </div>
+                      )}
+                      <CodeEditor
+                        engine={engine}
+                        value={compileResult?.vertexResult}
+                        onChange={(value, event) => {
+                          debouncedSetVertexOverride(value);
+                        }}
                       />
                     </TabPanel>
                   </TabPanels>
@@ -1615,6 +1645,45 @@ const Editor: React.FC = () => {
               </TabPanel>
             </TabPanels>
           </Tabs>
+        </div>
+        {/* 3d display split */}
+        <div ref={sceneSplit} className={styles.splitInner}>
+          <div className={styles.scene}>
+            {engine.name === 'three' ? (
+              <ThreeComponent
+                initialCtx={ctx}
+                bg={bg}
+                setBg={setBg}
+                setCtx={setCtx}
+                graph={graph}
+                lights={lights}
+                setLights={setLights}
+                previewObject={previewObject}
+                setPreviewObject={setPreviewObject}
+                compile={childCompile}
+                guiMsg={guiMsg}
+                compileResult={compileResult}
+                setGlResult={setGlResult}
+                width={state.width}
+                height={state.height}
+              />
+            ) : (
+              <BabylonComponent
+                setCtx={setCtx}
+                graph={graph}
+                lights={lights}
+                setLights={setLights}
+                previewObject={previewObject}
+                setPreviewObject={setPreviewObject}
+                compile={childCompile}
+                guiMsg={guiMsg}
+                compileResult={compileResult}
+                setGlResult={setGlResult}
+                width={state.width}
+                height={state.height}
+              />
+            )}
+          </div>
         </div>
       </SplitPane>
     </div>

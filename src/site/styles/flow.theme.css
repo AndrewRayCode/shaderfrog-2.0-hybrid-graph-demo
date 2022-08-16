@@ -16,7 +16,7 @@
   border: 1px solid #666;
   box-shadow: 0 0 10px rgba(0, 0, 0, 1);
   position: relative;
-  min-width: 185px;
+  min-width: 220px;
 }
 
 .react-flow__node-output.selectable:hover,

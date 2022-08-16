@@ -9,6 +9,7 @@ import {
   variableStrategy,
 } from '../strategy';
 import { BinaryNode, CodeNode, NodeConfig } from './code-nodes';
+import { UniformDataType } from './data-nodes';
 
 // three last in chain: return gl_position right vec4
 // three not last in chain: return returnRight
@@ -205,6 +206,7 @@ export const physicalNode = (
   id: string,
   name: string,
   groupId: string,
+  uniforms: UniformDataType[],
   stage: ShaderStage,
   nextStageNodeId?: string
 ): CodeNode => {
@@ -214,6 +216,7 @@ export const physicalNode = (
     groupId,
     type: EngineNodeType.physical,
     config: {
+      uniforms,
       version: 3,
       preprocess: true,
       inputMapping: {
@@ -230,10 +233,22 @@ export const physicalNode = (
           ? [
               hardCodeStrategy([
                 {
+                  name: 'thickness',
+                  id: 'thickness',
+                  category: 'data',
+                  bakeable: true,
+                },
+                {
+                  name: 'transmission',
+                  id: 'transmission',
+                  category: 'data',
+                  bakeable: true,
+                },
+                {
                   name: 'map',
                   id: 'map',
                   category: 'code',
-                  bakeable: false,
+                  bakeable: true,
                 },
                 {
                   name: 'roughnessMap',

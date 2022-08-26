@@ -5,7 +5,21 @@ export interface NodeInput {
   id: string;
   category: InputCategory;
   bakeable: boolean;
+  property?: string;
 }
+export const nodeInput = (
+  name: string,
+  id: string,
+  category: InputCategory,
+  bakeable: boolean,
+  property?: string
+): NodeInput => ({
+  name,
+  id,
+  category,
+  bakeable,
+  property,
+});
 
 export interface NodeOutput {
   name: string;

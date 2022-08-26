@@ -192,6 +192,17 @@ const autocreateUniformDataNodes = (graph: Graph): Graph =>
  *    - added ability to edit final shader source
  *    - added scene background
  *    - moved source to left pane
+ *    - Got transmission working. The initial issue was that to tell threejs to
+ *      render the transmission rendertarget, the material property in
+ *      ThreeComponent needs material.transmission set on it. However to get the
+ *      rest of the uniforms on the material, three copies the material
+ *      properties onto the shader uniforms, overwriting external uniforms.
+ *      This is a deviation from Shaderfrog's GLSL uniforms strategy where
+ *      material properties need to be set from the graph. And some, like map,
+ *      require both the uniform and the material property to work together.
+ *    - Adding properties to materials, need to use in ThreeComponent, need to
+ *      distinguish between vertex and fragment properties, properties changes
+ *      shouldn't cause a recompile
  * - Adding empty toon shader and plugging in breaks at least on production
  *   - Can't reproduce
  * - Launch: Feedback, URL sharing, examples
@@ -216,6 +227,9 @@ const autocreateUniformDataNodes = (graph: Graph): Graph =>
  *   uniforms and/or set the uniforms. Right now there's no way to plug into
  *   a property like "map" or "envMap". Should there be a separate "properties"
  *   section on each node? (https://github.com/mrdoob/three.js/blob/e22cb060cc91283d250e704f886528e1be593f45/src/materials/MeshPhysicalMaterial.js#L37)
+ * - "displacementMap" on a three.js material is calculated in the vertex
+ *   shader, so fundamentally it can't have fragment shaders plugged into it as
+ *   images.
  *
  * Polish / Improvements
  * - UX
@@ -235,6 +249,10 @@ const autocreateUniformDataNodes = (graph: Graph): Graph =>
  *   - Break up graph.ts into more files, lke core parsers maybe
  *   - onBeforeCompile in threngine mutates the node to add the source - can
  *     we make this an immutable update in graph.ts?
+ *   - See TODO on collapseInputs in graph.ts
+ *   - Fragment and Vertex nodes should be combined together, because uniforms
+ *     are used between both of them (right?). I guess technically you could
+ *     set a different value in the fragment vs vertex uniform...
  *
  * Features
  * - Ability to export shaders + use in engine
@@ -1613,8 +1631,11 @@ const Editor: React.FC = () => {
                     {/* final fragment shader subtab */}
                     <TabPanel>
                       {state.fragError && (
-                        <div className={styles.codeError}>
-                          {state.fragError}
+                        <div
+                          className={styles.codeError}
+                          title={state.fragError}
+                        >
+                          {(state.fragError || '').substring(0, 500)}
                         </div>
                       )}
                       <CodeEditor
@@ -1628,8 +1649,11 @@ const Editor: React.FC = () => {
                     {/* final vertex shader subtab */}
                     <TabPanel>
                       {state.vertError && (
-                        <div className={styles.codeError}>
-                          {state.vertError}
+                        <div
+                          className={styles.codeError}
+                          title={state.vertError}
+                        >
+                          {(state.vertError || '').substring(0, 500)}
                         </div>
                       )}
                       <CodeEditor

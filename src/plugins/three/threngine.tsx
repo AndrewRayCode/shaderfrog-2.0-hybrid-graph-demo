@@ -10,8 +10,9 @@ import {
   returnGlPositionHardCoded,
   returnGlPositionVec3Right,
 } from '../../ast/manipulate';
-import { SourceNode } from '../../core/nodes/code-nodes';
+import { NodeProperty, SourceNode } from '../../core/nodes/code-nodes';
 import { Edge } from '../../core/nodes/edge';
+import { NodeInput } from '../../core/nodes/core-node';
 
 export type ThreeRuntime = {
   scene: any;
@@ -55,6 +56,7 @@ const cacher = (
   const materialData = engineContext.runtime.cache.data[cacheKey] || newValue();
 
   engineContext.runtime.cache.data[cacheKey] = materialData;
+  engineContext.runtime.hackHardCodedMaterial = materialData.material;
 
   // TODO: We mutate the nodes here, can we avoid that later?
   node.source =
@@ -100,6 +102,7 @@ const onBeforeCompileMegaShader = (
   // Do we even need to do this? This is just for debugging right? Using the
   // source on the node is the important thing.
   return {
+    material: newMat,
     fragmentRef,
     vertexRef,
     fragment,
@@ -173,36 +176,35 @@ const threeMaterialProperties = (
   node: SourceNode,
   sibling?: SourceNode
 ): Record<string, any> => {
-  const inputEdges = graph.edges
-    .filter((edge) => edge.to === node.id || edge.to === sibling?.id)
-    .reduce<Record<string, Edge>>(
-      (acc, edge) => ({ ...acc, [edge.input]: edge }),
+  // Find inputs to this node that are dependent on a property of the material
+  const propertyInputs = node.inputs
+    .filter((i) => i.property)
+    .reduce<Record<string, NodeInput>>(
+      (acc, input) => ({ ...acc, [input.id]: input }),
       {}
     );
-  const properties: any = {};
-  if ('map' in inputEdges) {
-    properties.map = new three.Texture();
-  }
-  if ('transmission' in inputEdges) {
-    properties.transmission = 0.5;
-  }
-  if ('thickness' in inputEdges) {
-    properties.thickness = 0.5;
-  }
-  if ('normalMap' in inputEdges) {
-    properties.map = new three.Texture();
-    properties.normalMap = new three.Texture();
-  }
-  if ('roughnessMap' in inputEdges) {
-    properties.roughnessMap = new three.Texture();
-  }
 
-  // color: new three.Vector3(1.0, 1.0, 1.0),
-  // map: new three.Texture(),
-  // // TODO: Normals are wrong when using normalmap
-  // normalMap: new three.Texture(),
+  // Then look for any edges into those inputs and set the material property
+  return graph.edges
+    .filter((edge) => edge.to === node.id || edge.to === sibling?.id)
+    .reduce<Record<string, any>>((acc, edge) => {
+      // Check if we've plugged into an input for a property
+      const propertyInput = propertyInputs[edge.input];
+      if (propertyInput) {
+        // Find the property itself
+        const property = (node.config.properties || []).find(
+          (p) => p.property === propertyInput.property
+        ) as NodeProperty;
 
-  return properties;
+        // Initialize the property on the material
+        if (property.type === 'texture') {
+          acc[property.property] = new three.Texture();
+        } else if (property.type === 'number') {
+          acc[property.property] = 0.5;
+        }
+      }
+      return acc;
+    }, {});
 };
 
 export const threngine: Engine = {
@@ -280,6 +282,9 @@ export const threngine: Engine = {
     'attenuationTint',
     'transmissionSamplerMap',
     'transmissionSamplerSize',
+    'displacementMap',
+    'displacementScale',
+    'displacementBias',
   ]),
   parsers: {
     [NodeType.SOURCE]: {
@@ -338,8 +343,11 @@ export const threngine: Engine = {
             engineContext,
             new three.MeshPhysicalMaterial({
               envMap: envMapTexture,
-              // transmissionSamplerMap: envMapTexture,
-              // transmission: 0,
+              // These properties are copied onto the runtime RawShaderMaterial.
+              // These exist on the MeshPhysicalMaterial but only in the
+              // prototype. We have to hard code them for Object.keys() to work
+              isMeshPhysicalMaterial: true,
+              isMeshStandardMaterial: true,
               ...threeMaterialProperties(three, graph, node, sibling),
             })
           )

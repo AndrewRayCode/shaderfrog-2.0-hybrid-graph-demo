@@ -8,7 +8,7 @@ import {
   uniformStrategy,
   variableStrategy,
 } from '../strategy';
-import { BinaryNode, CodeNode, NodeConfig } from './code-nodes';
+import { BinaryNode, CodeNode, NodeConfig, property } from './code-nodes';
 import { UniformDataType } from './data-nodes';
 
 // three last in chain: return gl_position right vec4
@@ -202,6 +202,8 @@ export const phongNode = (
   };
 };
 
+const ALBEDO_DISPLAY_NAME = 'albedo';
+
 export const physicalNode = (
   id: string,
   name: string,
@@ -220,51 +222,26 @@ export const physicalNode = (
       version: 3,
       preprocess: true,
       inputMapping: {
-        map: 'albedo',
+        map: ALBEDO_DISPLAY_NAME,
         normalMap: 'normal',
       },
+      properties: [
+        property('map', ALBEDO_DISPLAY_NAME, 'texture'),
+        property('normalMap', 'normalMap', 'texture'),
+        property('roughnessMap', 'roughnessMap', 'texture'),
+        property('displacementMap', 'displacementMap', 'texture'),
+        property('transmission', 'transmission', 'number'),
+        property('sheen', 'sheen', 'number'),
+        property('reflectivity', 'reflectivity', 'number'),
+        property('clearcoat', 'clearcoat', 'number'),
+        property('thickness', 'thickness', 'number'),
+      ],
       // TODO: The strategies for node need to be engine specific :O
       strategies: [
         uniformStrategy(),
         stage === 'fragment'
           ? texture2DStrategy()
           : namedAttributeStrategy('position'),
-        ...(stage === 'fragment'
-          ? [
-              hardCodeStrategy([
-                {
-                  name: 'thickness',
-                  id: 'thickness',
-                  category: 'data',
-                  bakeable: true,
-                },
-                {
-                  name: 'transmission',
-                  id: 'transmission',
-                  category: 'data',
-                  bakeable: true,
-                },
-                {
-                  name: 'map',
-                  id: 'map',
-                  category: 'code',
-                  bakeable: true,
-                },
-                {
-                  name: 'roughnessMap',
-                  id: 'roughnessMap',
-                  category: 'code',
-                  bakeable: false,
-                },
-                {
-                  name: 'normalMap',
-                  id: 'normalMap',
-                  category: 'code',
-                  bakeable: false,
-                },
-              ]),
-            ]
-          : []),
       ],
     },
     inputs: [],

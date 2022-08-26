@@ -13,7 +13,31 @@ export type NodeConfig = {
   inputMapping?: InputMapping;
   strategies: Strategy[];
   uniforms?: UniformDataType[];
+  properties?: NodeProperty[];
 };
+
+export interface NodeProperty {
+  // Display name, like "albedo"
+  name: string;
+  // Type in the engine, like "texture"
+  type: string;
+  // Property name to apply to the material, like "map"
+  property: string;
+  // The name of the filler this property introduces, aka the GLSL source code
+  // to be replaced, if this property is present.
+  fillerName: string;
+}
+export const property = (
+  property: string,
+  name: string,
+  type: string,
+  fillerName = property
+): NodeProperty => ({
+  name,
+  type,
+  property,
+  fillerName,
+});
 
 export interface CodeNode extends CoreNode {
   config: NodeConfig;

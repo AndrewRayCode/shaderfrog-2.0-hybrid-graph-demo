@@ -36,7 +36,8 @@ import {
   mapInputName,
   SourceNode,
 } from './nodes/code-nodes';
-import { NodeInput } from './nodes/core-node';
+import { nodeInput, NodeInput } from './nodes/core-node';
+import { Vector2, Vector3, Vector4 } from 'three';
 
 export type ShaderStage = 'fragment' | 'vertex';
 
@@ -238,12 +239,7 @@ export const coreParsers: CoreParser = {
           applyStrategy(strategy, node, ast)
         ),
         [
-          {
-            name: MAGIC_OUTPUT_STMTS,
-            id: MAGIC_OUTPUT_STMTS,
-            category: 'code',
-            bakeable: false,
-          },
+          nodeInput(MAGIC_OUTPUT_STMTS, MAGIC_OUTPUT_STMTS, 'code', false),
           (fillerAst: AstNode) => {
             ast.program
               .find((stmt: AstNode) => stmt.type === 'function')
@@ -283,12 +279,7 @@ export const coreParsers: CoreParser = {
         .map((_, index) => {
           const letter = alphabet.charAt(index);
           return [
-            {
-              name: letter,
-              category: 'code',
-              id: letter,
-              bakeable: false,
-            },
+            nodeInput(letter, letter, 'code', false),
             (fillerAst: AstNode) => {
               let foundPath: Path | undefined;
               const visitors: NodeVisitors = {
@@ -346,7 +337,24 @@ export const evaluateNode = (graph: Graph, node: GraphNode): any => {
     if (node.type === 'number') {
       return parseFloat(node.value);
     }
-    return node.value;
+
+    // HARD CODED THREE.JS HACK for testing meshpshysicalmaterial uniforms
+    if (node.type === 'vector2') {
+      return new Vector2(parseFloat(node.value[0]), parseFloat(node.value[1]));
+    } else if (node.type === 'vector3') {
+      return new Vector3(
+        parseFloat(node.value[0]),
+        parseFloat(node.value[1]),
+        parseFloat(node.value[2])
+      );
+    } else if (node.type === 'vector4') {
+      return new Vector4(
+        parseFloat(node.value[0]),
+        parseFloat(node.value[1]),
+        parseFloat(node.value[2]),
+        parseFloat(node.value[3])
+      );
+    }
   }
 
   const { evaluate } = coreParsers[node.type];
@@ -575,19 +583,32 @@ export const compileNode = (
   }
 };
 
-// Merge existing node inputs with new ones found from the source code. This
-// currently destroys removed inputs
-const mergeNodeInputs = (
+// Merge existing node inputs, and inputs based on properties, with new ones
+// found from the source code, using the *name* as the uniqueness key.
+//
+// TODO: The *filler* input "map" loses to the *property* input "map" because
+// they both have the same name. A more correct solution is to merge filler
+// inputs into property inputs *only* if there's a property input that has the
+// *fillerName* matching the filler input.
+const collapseNodeInputs = (
   node: CodeNode,
   updatedInputs: NodeInput[]
 ): NodeInput[] => {
-  const byName = node.inputs.reduce<Record<string, NodeInput>>(
-    (acc, i) => ({ ...acc, [i.name]: i }),
-    {}
+  // Convert the properties into inputs. Maybe it would be good to cache these
+  // rather than compute them every context generation?
+  const propertyInputs = (node.config.properties || []).map((property) =>
+    nodeInput(property.name, property.property, 'code', true, property.property)
   );
-  return updatedInputs.map((i) => {
+
+  // Combine all the inputs together, and filter out duplicates. The first ones
+  // in this array win. So a property input (like "map"/"albdeo") will win over
+  // the *filler* input "map"
+  const allInputs = [...propertyInputs, ...updatedInputs, ...node.inputs];
+
+  const seen: { [key: string]: boolean } = {};
+  return allInputs.filter((i) => {
     const name = mapInputName(node, i);
-    return { ...i, ...byName[i.name], name };
+    return name in seen ? false : (seen[name] = true);
   });
 };
 
@@ -641,7 +662,7 @@ const computeNodeContext = (
   // and copy the input data onto the node, and the fillers onto the context
   const updatedInputs = parser.findInputs(engineContext, node, ast, inputEdges);
 
-  node.inputs = mergeNodeInputs(
+  node.inputs = collapseNodeInputs(
     node,
     updatedInputs.map(([i]) => i)
   );

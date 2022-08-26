@@ -14,7 +14,7 @@ import { UICompileGraphResult } from '../../site/uICompileGraphResult';
 import { PreviewLight } from '../../site/components/Editor';
 import { ensure } from '../../util/ensure';
 import { Edge } from '../../core/nodes/edge';
-import { Material } from 'three';
+import { Color, Material, UniformsLib, Vector3 } from 'three';
 
 const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
 
@@ -138,12 +138,35 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
                 const fromNode = ensure(
                   graph.nodes.find(({ id }) => id === edge.from)
                 );
-                const result = evaluateNode(graph, fromNode);
+                let result = evaluateNode(graph, fromNode);
+                if (input.name === 'diffuse') {
+                  // THIS DUPLICATES OTHER LINE
+                  result = new Color(1.0, 1.0, 1.0);
+                }
                 // TODO: This doesn't work for engine variables because
                 // those aren't suffixed
                 const name = mangleVar(input.name, threngine, node);
 
-                if (
+                // Three copies properties from the material into uniform slots
+                // around specific materials, namely the meshphysicalmaterial
+                // starting here, so this is a hack:
+                // https://github.com/mrdoob/three.js/blob/e7042de7c1a2c70e38654a04b6fd97d9c978e781/src/renderers/webgl/WebGLMaterials.js#L610-L622
+                if (name === 'transmission') {
+                  // @ts-ignore
+                  mesh.material.transmission = result;
+                } else if (name === 'roughness') {
+                  // @ts-ignore
+                  mesh.material.roughness = result;
+                } else if (name === 'metalness') {
+                  // @ts-ignore
+                  mesh.material.metalness = result;
+                } else if (name === 'ior') {
+                  // @ts-ignore
+                  mesh.material.ior = result;
+                } else if (name === 'thickness') {
+                  // @ts-ignore
+                  mesh.material.thickness = result;
+                } else if (
                   mesh.material &&
                   // @ts-ignore
                   mesh.material.uniforms &&
@@ -362,10 +385,16 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
             graph.nodes.find(({ id }) => id === edge.from)
           );
           const value = evaluateNode(graph, fromNode);
+          let newValue = value;
+          if (input.name === 'diffuse') {
+            // THIS DUPLICATES OTHER LINE
+            newValue = new Color(1.0, 1.0, 1.0);
+          }
+          console.log('value, evalauted', { fromNode, input, value, newValue });
           // TODO: This doesn't work for engine variables because
           // those aren't suffixed
           const name = mangleVar(input.name, threngine, node);
-          found[name] = { value };
+          found[name] = { value: newValue };
         }
       });
       return {
@@ -373,6 +402,38 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         ...found,
       };
     }, {});
+
+    /**
+     * 1. The graph compiles all the nodes and sees there's a physical ndoe
+     * 2. It tells threngine to compile the megashader, which makes a new
+     *    MeshPhysicalMaterial()
+     * 3. The properties of this material are based on the nodes in the graph,
+     *    because to replace a "map" uniform, the material needs a "map"
+     *    property so that the guts of three will add that uniform to the GLSL
+     *    and then we can do the source code replcaement.
+     * 4. The material also gets specific properties set on the material, like
+     *    isMeshStandardMaterial, which is a required switch
+     *    (https://github.com/mrdoob/three.js/blob/e7042de7c1a2c70e38654a04b6fd97d9c978e781/src/renderers/webgl/WebGLMaterials.js#L42-L49)
+     *    to get some uniforms on the material for example the
+     *    transmissionRenderTarget which is a private variable of the
+     *    WebGLRenderer
+     *    (https://github.com/mrdoob/three.js/blob/e7042de7c1a2c70e38654a04b6fd97d9c978e781/src/renderers/WebGLRenderer.js#L1773)
+     * 5. Shaderfrog copies all the properties from the material onto the raw
+     *    shader material. Properties like "transmission" are set with getters
+     *    and need to be updated manually
+     * 6. The same needs to be done at runtime for uniforms, so "ior" needs to
+     *    be set as a property of the runtime material, which explains why my
+     *    material looked different when I set isMeshPhysicalMaterial = true,
+     *    it started overwriting that uniform every render.
+     *
+     * Where this leaves me:
+     * - vector3 and color are not compatible which you can see by searching
+     *   this file for === 'diffuse'
+     * - I hard coded three data into graph.ts to support creating actual
+     *   vectors for the engine - this needs engine specific refactoring
+     * - I'm now hard coding things like "ior" in this file - shoudl this all
+     *   be abstracted into threngine?
+     */
 
     const uniforms = {
       ...three.ShaderLib.phong.uniforms,
@@ -470,13 +531,16 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       ...fromGraphUniforms,
     };
 
-    console.log('re-creating three.js material! with envmap', { uniforms });
-
     // the before code
-    const newMat = new three.RawShaderMaterial({
+    const rawMatProperties = {
       name: 'ShaderFrog Phong Material',
       lights: true,
-      uniforms,
+      uniforms: {
+        ...uniforms,
+        // Temporary hack: required for three internals for meshphysicalmaterial
+        attenuationTint: { value: new three.Color(1.0, 1.0, 1.0) },
+        specularTint: { value: new three.Color(1.0, 1.0, 1.0) },
+      },
       transparent: true,
       opacity: 1.0,
       vertexShader: compileResult?.vertexResult,
@@ -484,7 +548,47 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       // onBeforeCompile: () => {
       //   console.log('raw shader precomp');
       // },
-    });
+    };
+    const newMat = new three.RawShaderMaterial(rawMatProperties);
+
+    Object.keys(ctx.runtime.hackHardCodedMaterial || {})
+      .sort()
+      .filter(
+        (property) =>
+          property.charAt(0) !== '_' &&
+          property !== 'uuid' &&
+          property !== 'type' &&
+          property !== 'precision' &&
+          !(property in rawMatProperties) &&
+          // Ignore STANDARD and PHYSICAL defines to the top of the shader in
+          // WebGLProgram
+          // https://github.com/mrdoob/three.js/blob/e7042de7c1a2c70e38654a04b6fd97d9c978e781/src/renderers/webgl/WebGLProgram.js#L392
+          // which occurs if we set isMeshPhysicalMaterial/isMeshStandardMaterial
+          property !== 'defines'
+        // property.charAt(0) < 'm'
+      )
+      .forEach((property) => {
+        console.log(
+          'setting',
+          property,
+          'to',
+          ctx.runtime.hackHardCodedMaterial[property]
+        );
+        // @ts-ignore
+        newMat[property] = ctx.runtime.hackHardCodedMaterial[property];
+      });
+
+    if (ctx.runtime.hackHardCodedMaterial.transmission) {
+      // @ts-ignore
+      newMat.transmission = ctx.runtime.hackHardCodedMaterial.transmission;
+    }
+    //
+    // newMat.ior = 0.5;
+    // newMat.transmission = 0.5;
+    // newMat.isMeshStandardMaterial = true;
+    // newMat.isMeshPhysicalMaterial = true;
+    // newMat.attenuationTint = new three.Vector3(1.0, 1.0, 1.0);
+    // newMat.specularTint = new three.Vector3(1.0, 1.0, 1.0);
     // @ts-ignore
     // newMat.envMap = envMap;
     // @ts-ignore
@@ -497,6 +601,13 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
     // newMat.shading = three.SmoothShading;
     // newMat.flatShading = false;
+
+    console.log('🏞 Re-creating three.js material!', {
+      newMat,
+      uniforms,
+      fromGraphUniforms,
+      hackHardCodedMaterial: ctx.runtime.hackHardCodedMaterial,
+    });
 
     mesh.material = newMat;
     // mesh.material = mmm;

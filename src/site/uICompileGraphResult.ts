@@ -14,11 +14,11 @@ export type UICompileGraphResult = {
   vertexResult: string;
   result: CompileGraphResult;
   dataNodes: Record<string, GraphNode>;
-  activeUniforms: IndexedDataInputs;
+  dataInputs: IndexedDataInputs;
   graph: Graph;
 };
 
-export const collectUniformsFromActiveNodes = (
+export const collectDataInputsFromNodes = (
   graph: Graph,
   nodes: GraphNode[]
 ) => {

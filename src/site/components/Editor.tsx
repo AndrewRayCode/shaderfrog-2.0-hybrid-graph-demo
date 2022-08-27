@@ -103,7 +103,7 @@ import {
 } from '../../plugins/babylon';
 import { Hoisty, useHoisty } from '../hoistedRefContext';
 import {
-  collectUniformsFromActiveNodes,
+  collectDataInputsFromNodes,
   UICompileGraphResult,
 } from '../uICompileGraphResult';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -203,6 +203,11 @@ const autocreateUniformDataNodes = (graph: Graph): Graph =>
  *    - Adding properties to materials, need to use in ThreeComponent, need to
  *      distinguish between vertex and fragment properties, properties changes
  *      shouldn't cause a recompile
+ *    - wow like 3 years ago I was trying to make a dropdown to change the
+ *      scene background and add additional geometry types, and trying to add
+ *      EXAMPLES
+ *    - Plugging in albedo now fails because it's treated and data and tried to
+ *      be evaluated. Need to auto-set inputs similar to colorization
  * - Adding empty toon shader and plugging in breaks at least on production
  *   - Can't reproduce
  * - Launch: Feedback, URL sharing, examples
@@ -242,6 +247,8 @@ const autocreateUniformDataNodes = (graph: Graph): Graph =>
  *   - Add three.js ability to switch lighting megashader
  *   - Sort node inputs into engine, uniforms, properties
  *   - Show input type by the input
+ *   - "Compiling" doesn't show up when (at least) changing number input nodes,
+ *     and the compiling indicator could be more obvious
  * - Core
  *   - Recompiling re-parses / re-compiles the entire graph, nothing is memoized.
  *     Can we use immer or something else to preserve and update the original AST
@@ -281,6 +288,8 @@ const autocreateUniformDataNodes = (graph: Graph): Graph =>
  * - Uniforms
  *   - Plugging in a number node to a vec2 uniform (like perlin clouds speed)
  *     causes a crash
+ *   - Data nodes hard coded as '1' fail because that's not a valid float, like
+ *     hard coding "transmission" uniform.
  * - Nodes / Graph
  *   - Deleting a node while it's plugged into the output (maybe any connected
  *     node, i repro'd with the Physical node) node causes crash
@@ -297,6 +306,7 @@ const autocreateUniformDataNodes = (graph: Graph): Graph =>
  *     removing the declaration line
  *   - Nodes not plugged into the graph don't get their contex computed (like
  *     new inputs)
+ *   - Move engine nodes into engine specific constructors
  *
  * I don't remember what this is
  * - Here we hardcode "out" for the inputs which needs to line up with
@@ -475,14 +485,14 @@ const compileGraphAsync = async (
         shaderSectionsToAst(result.vertex, engine.mergeOptions).program
       );
 
-      const activeUniforms = collectUniformsFromActiveNodes(graph, [
+      const dataInputs = collectDataInputsFromNodes(graph, [
         result.outputFrag,
         result.outputVert,
       ]);
 
       // Find which nodes flow up into uniform inputs, for colorizing and for
       // not recompiling when their data changes
-      const dataNodes = Object.entries(activeUniforms).reduce<
+      const dataNodes = Object.entries(dataInputs).reduce<
         Record<string, GraphNode>
       >((acc, [nodeId, inputs]) => {
         return inputs.reduce((iAcc, input) => {
@@ -512,7 +522,7 @@ total: ${(now - allStart).toFixed(3)}ms
         fragmentResult,
         vertexResult,
         dataNodes,
-        activeUniforms,
+        dataInputs,
         graph,
       });
     }, 0);

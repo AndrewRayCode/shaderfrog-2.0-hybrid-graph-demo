@@ -159,7 +159,7 @@ const FlowEditor = ({
             variant={BackgroundVariant.Lines}
             gap={25}
             size={0.5}
-            color="#444444"
+            color="#333333"
           />
         </ReactFlow>
       </FlowEventHack>

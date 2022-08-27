@@ -14,6 +14,7 @@ export type NodeConfig = {
   strategies: Strategy[];
   uniforms?: UniformDataType[];
   properties?: NodeProperty[];
+  hardCodedProperties?: Record<string, any>;
 };
 
 export interface NodeProperty {

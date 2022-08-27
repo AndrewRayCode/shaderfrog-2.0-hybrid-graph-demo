@@ -119,67 +119,65 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       // Note the uniforms are updated here every frame, but also instantiated
       // in this component at RawShaderMaterial creation time. There might be
       // some logic duplication to worry about.
-      if (compileResult?.activeUniforms) {
-        Object.entries(compileResult.activeUniforms).forEach(
-          ([nodeId, inputs]) => {
-            const node = graph.nodes.find(({ id }) => id === nodeId);
-            if (!node) {
-              console.warn(
-                'While populating uniforms, no node was found from activeUniforms',
-                { nodeId, activeUniforms: compileResult.activeUniforms, graph }
-              );
-              return;
-            }
-            inputs.forEach((input) => {
-              const edge = graph.edges.find(
-                ({ to, input: i }) => to === nodeId && i === input.id
-              );
-              if (edge) {
-                const fromNode = ensure(
-                  graph.nodes.find(({ id }) => id === edge.from)
-                );
-                let result = evaluateNode(graph, fromNode);
-                if (input.name === 'diffuse') {
-                  // THIS DUPLICATES OTHER LINE
-                  result = new Color(1.0, 1.0, 1.0);
-                }
-                // TODO: This doesn't work for engine variables because
-                // those aren't suffixed
-                const name = mangleVar(input.name, threngine, node);
-
-                // Three copies properties from the material into uniform slots
-                // around specific materials, namely the meshphysicalmaterial
-                // starting here, so this is a hack:
-                // https://github.com/mrdoob/three.js/blob/e7042de7c1a2c70e38654a04b6fd97d9c978e781/src/renderers/webgl/WebGLMaterials.js#L610-L622
-                if (name === 'transmission') {
-                  // @ts-ignore
-                  mesh.material.transmission = result;
-                } else if (name === 'roughness') {
-                  // @ts-ignore
-                  mesh.material.roughness = result;
-                } else if (name === 'metalness') {
-                  // @ts-ignore
-                  mesh.material.metalness = result;
-                } else if (name === 'ior') {
-                  // @ts-ignore
-                  mesh.material.ior = result;
-                } else if (name === 'thickness') {
-                  // @ts-ignore
-                  mesh.material.thickness = result;
-                } else if (
-                  mesh.material &&
-                  // @ts-ignore
-                  mesh.material.uniforms &&
-                  // @ts-ignore
-                  name in mesh.material.uniforms
-                ) {
-                  // @ts-ignore
-                  mesh.material.uniforms[name].value = result;
-                }
-              }
-            });
+      if (compileResult?.dataInputs) {
+        Object.entries(compileResult.dataInputs).forEach(([nodeId, inputs]) => {
+          const node = graph.nodes.find(({ id }) => id === nodeId);
+          if (!node) {
+            console.warn(
+              'While populating uniforms, no node was found from dataInputs',
+              { nodeId, dataInputs: compileResult.dataInputs, graph }
+            );
+            return;
           }
-        );
+          inputs.forEach((input) => {
+            const edge = graph.edges.find(
+              ({ to, input: i }) => to === nodeId && i === input.id
+            );
+            if (edge) {
+              const fromNode = ensure(
+                graph.nodes.find(({ id }) => id === edge.from)
+              );
+              let result = evaluateNode(graph, fromNode);
+              if (input.name === 'diffuse') {
+                // THIS DUPLICATES OTHER LINE
+                result = new Color(1.0, 1.0, 1.0);
+              }
+              // TODO: This doesn't work for engine variables because
+              // those aren't suffixed
+              const name = mangleVar(input.name, threngine, node);
+
+              // Three copies properties from the material into uniform slots
+              // around specific materials, namely the meshphysicalmaterial
+              // starting here, so this is a hack:
+              // https://github.com/mrdoob/three.js/blob/e7042de7c1a2c70e38654a04b6fd97d9c978e781/src/renderers/webgl/WebGLMaterials.js#L610-L622
+              if (name === 'transmission') {
+                // @ts-ignore
+                mesh.material.transmission = result;
+              } else if (name === 'roughness') {
+                // @ts-ignore
+                mesh.material.roughness = result;
+              } else if (name === 'metalness') {
+                // @ts-ignore
+                mesh.material.metalness = result;
+              } else if (name === 'ior') {
+                // @ts-ignore
+                mesh.material.ior = result;
+              } else if (name === 'thickness') {
+                // @ts-ignore
+                mesh.material.thickness = result;
+              } else if (
+                mesh.material &&
+                // @ts-ignore
+                mesh.material.uniforms &&
+                // @ts-ignore
+                name in mesh.material.uniforms
+              ) {
+                // @ts-ignore
+                mesh.material.uniforms[name].value = result;
+              }
+            }
+          });
+        });
       }
 
       // @ts-ignore
@@ -296,7 +294,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     }
   );
 
-  // Inform parent our context is created
   useEffect(() => {
     if (!ctx.runtime.envMapTexture) {
       console.log('loading envmap texture');
@@ -308,6 +305,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
           const { texture } = renderTarget;
 
           ctx.runtime.envMapTexture = texture;
+
+          // Inform parent our context is created
           setCtx(ctx);
         }
       );
@@ -321,8 +320,9 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     const { graph } = compileResult;
     const {
       threeTone,
-      envMapTexture,
       sceneData: { mesh },
+      envMapTexture,
+      engineMaterial,
     } = ctx.runtime as ThreeRuntime;
     console.log('oh hai birfday boi boi boiiiii');
 
@@ -371,37 +371,59 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
     // Note this is setting the uniforms of the shader at creation time. The
     // uniforms are also updated every frame in the useThree() loop
-    const fromGraphUniforms = Object.entries(
-      compileResult.activeUniforms || {}
-    ).reduce<Record<string, any>>((acc, [nodeId, inputs]) => {
-      const node = ensure(graph.nodes.find(({ id }) => id === nodeId));
-      const found = {} as Record<string, any>;
-      inputs.forEach((input) => {
-        const edge = graph.edges.find(
-          ({ to, input: i }) => to === nodeId && i === input.id
-        );
-        if (edge) {
-          const fromNode = ensure(
-            graph.nodes.find(({ id }) => id === edge.from)
+
+    const { uniforms, properties } = Object.entries(
+      compileResult.dataInputs || {}
+    ).reduce<{
+      uniforms: Record<string, { value: any }>;
+      properties: Record<string, any>;
+    }>(
+      ({ uniforms, properties }, [nodeId, inputs]) => {
+        const node = ensure(graph.nodes.find(({ id }) => id === nodeId));
+        const updatedUniforms: typeof uniforms = {};
+        const updatedProperties: typeof properties = {};
+
+        inputs.forEach((input) => {
+          const edge = graph.edges.find(
+            ({ to, input: i }) => to === nodeId && i === input.id
           );
-          const value = evaluateNode(graph, fromNode);
-          let newValue = value;
-          if (input.name === 'diffuse') {
-            // THIS DUPLICATES OTHER LINE
-            newValue = new Color(1.0, 1.0, 1.0);
+          if (edge) {
+            const fromNode = ensure(
+              graph.nodes.find(({ id }) => id === edge.from)
+            );
+            const value = evaluateNode(graph, fromNode);
+            let newValue = value;
+            if (input.name === 'diffuse') {
+              // THIS DUPLICATES OTHER LINE
+              newValue = new Color(1.0, 1.0, 1.0);
+            }
+            console.log('value, evalauted', {
+              fromNode,
+              input,
+              value,
+              newValue,
+            });
+            // TODO: This doesn't work for engine variables because
+            // those aren't suffixed
+            const name = mangleVar(input.name, threngine, node);
+
+            if (input.property) {
+              updatedProperties[name] = newValue;
+            } else {
+              updatedUniforms[name] = { value: newValue };
+            }
           }
-          console.log('value, evalauted', { fromNode, input, value, newValue });
-          // TODO: This doesn't work for engine variables because
-          // those aren't suffixed
-          const name = mangleVar(input.name, threngine, node);
-          found[name] = { value: newValue };
-        }
-      });
-      return {
-        ...acc,
-        ...found,
-      };
-    }, {});
+        });
+        return {
+          uniforms: { ...uniforms, ...updatedUniforms },
+          properties: { ...properties, ...updatedProperties },
+        };
+      },
+      {
+        uniforms: {},
+        properties: {},
+      }
+    );
 
     /**
      * 1. The graph compiles all the nodes and sees there's a physical ndoe
@@ -435,21 +457,22 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
      *   be abstracted into threngine?
      */
 
-    const uniforms = {
+    const finalUniforms = {
+      // TODO: Get these from threngine
       ...three.ShaderLib.phong.uniforms,
       ...three.ShaderLib.toon.uniforms,
       ...three.ShaderLib.physical.uniforms,
 
-      gradientMap: { value: threeTone },
+      // gradientMap: { value: threeTone },
 
-      metalness: { value: 0 },
-      roughness: { value: 0 },
-      clearcoat: { value: 0 },
-      clearcoatRoughness: { value: 0 },
-      reflectivity: { value: 0 },
-      ior: { value: 1.0 },
-      normalScale: { value: new three.Vector2(1.0, 1.0) },
-      color: { value: new three.Color(1.0, 1.0, 1.0) },
+      // metalness: { value: 0 },
+      // roughness: { value: 0 },
+      // clearcoat: { value: 0 },
+      // clearcoatRoughness: { value: 0 },
+      // reflectivity: { value: 0 },
+      // ior: { value: 1.0 },
+      // normalScale: { value: new three.Vector2(1.0, 1.0) },
+      // color: { value: new three.Color(1.0, 1.0, 1.0) },
 
       // map: { value: new three.TextureLoader().load('/contrast-noise.png') },
       // normalMap: {
@@ -462,18 +485,15 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       //   value: new three.TextureLoader().load('/contrast-noise.png'),
       // },
 
-      flipEnvMap: { value: -1 },
-      envMapIntensity: { value: 1.0 },
-      transmission: { value: 0.5 },
-      thickness: { value: 0 },
-      cameraPosition: { value: new three.Vector3(0, 0, 0) },
-      envMap: {
-        value: envMapTexture,
-      },
+      // flipEnvMap: { value: -1 },
+      // envMapIntensity: { value: 1.0 },
+      // transmission: { value: 0.5 },
+      // thickness: { value: 0 },
+      // cameraPosition: { value: new three.Vector3(0, 0, 0) },
       time: { value: 0 },
-      resolution: { value: 0.5 },
-      opacity: { value: 1 },
-      lightPosition: { value: new three.Vector3(10, 10, 10) },
+      // resolution: { value: 0.5 },
+      // opacity: { value: 1 },
+      // lightPosition: { value: new three.Vector3(10, 10, 10) },
 
       [`scale_${pc}`]: { value: 0.05 },
       [`noiseImage_${pc}`]: {
@@ -528,7 +548,10 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       [`end_${os1}`]: { value: 1 },
       [`alpha_${os1}`]: { value: 1 },
 
-      ...fromGraphUniforms,
+      ...uniforms,
+      envMap: {
+        value: envMapTexture,
+      },
     };
 
     // the before code
@@ -536,7 +559,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       name: 'ShaderFrog Phong Material',
       lights: true,
       uniforms: {
-        ...uniforms,
+        ...finalUniforms,
         // Temporary hack: required for three internals for meshphysicalmaterial
         attenuationTint: { value: new three.Color(1.0, 1.0, 1.0) },
         specularTint: { value: new three.Color(1.0, 1.0, 1.0) },
@@ -551,37 +574,38 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     };
     const newMat = new three.RawShaderMaterial(rawMatProperties);
 
-    Object.keys(ctx.runtime.hackHardCodedMaterial || {})
-      .sort()
+    Object.entries({
+      ...engineMaterial,
+      ...properties,
+    })
       .filter(
-        (property) =>
+        ([property]) =>
+          // Ignore three material "hidden" properties
           property.charAt(0) !== '_' &&
+          // Ignore uuid since it should probably be unique?
           property !== 'uuid' &&
+          // I'm not sure what three does with type under the hood, ignore it
           property !== 'type' &&
+          // "precision" adds a precision preprocessor line
           property !== 'precision' &&
+          // Ignore existing properties
           !(property in rawMatProperties) &&
           // Ignore STANDARD and PHYSICAL defines to the top of the shader in
           // WebGLProgram
           // https://github.com/mrdoob/three.js/blob/e7042de7c1a2c70e38654a04b6fd97d9c978e781/src/renderers/webgl/WebGLProgram.js#L392
           // which occurs if we set isMeshPhysicalMaterial/isMeshStandardMaterial
           property !== 'defines'
-        // property.charAt(0) < 'm'
       )
-      .forEach((property) => {
-        console.log(
-          'setting',
-          property,
-          'to',
-          ctx.runtime.hackHardCodedMaterial[property]
-        );
+      .forEach(([key, value]) => {
+        console.log('setting', key, 'to', value);
         // @ts-ignore
-        newMat[property] = ctx.runtime.hackHardCodedMaterial[property];
+        newMat[key] = value;
       });
 
-    if (ctx.runtime.hackHardCodedMaterial.transmission) {
-      // @ts-ignore
-      newMat.transmission = ctx.runtime.hackHardCodedMaterial.transmission;
-    }
+    // if (ctx.runtime.engineMaterial.transmission) {
+    //   // @ts-ignore
+    //   newMat.transmission = ctx.runtime.engineMaterial.transmission;
+    // }
     //
     // newMat.ior = 0.5;
     // newMat.transmission = 0.5;
@@ -605,12 +629,12 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     console.log('🏞 Re-creating three.js material!', {
       newMat,
       uniforms,
-      fromGraphUniforms,
-      hackHardCodedMaterial: ctx.runtime.hackHardCodedMaterial,
+      properties,
+      finalUniforms,
+      engineMaterial: ctx.runtime.engineMaterial,
     });
 
     mesh.material = newMat;
-    // mesh.material = mmm;
     shadersUpdated.current = true;
   }, [compileResult, ctx.runtime]);
 

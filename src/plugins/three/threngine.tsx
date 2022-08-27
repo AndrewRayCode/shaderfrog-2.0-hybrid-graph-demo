@@ -21,7 +21,7 @@ export type ThreeRuntime = {
   three: any;
   sceneData: any;
   envMapTexture: any;
-  // material: any;
+  engineMaterial: any;
   index: number;
   threeTone: any;
   cache: {
@@ -56,7 +56,7 @@ const cacher = (
   const materialData = engineContext.runtime.cache.data[cacheKey] || newValue();
 
   engineContext.runtime.cache.data[cacheKey] = materialData;
-  engineContext.runtime.hackHardCodedMaterial = materialData.material;
+  engineContext.runtime.engineMaterial = materialData.material;
 
   // TODO: We mutate the nodes here, can we avoid that later?
   node.source =
@@ -319,7 +319,8 @@ export const threngine: Engine = {
     },
     [EngineNodeType.physical]: {
       onBeforeCompile: (graph, engineContext, node, sibling) => {
-        const { three, envMapTexture } = engineContext.runtime;
+        // const { three, envMapTexture } = engineContext.runtime;
+        const { three } = engineContext.runtime;
 
         // const envMap = new three.CubeTextureLoader().load([
         //   '/envmaps/pond/posx.jpg',
@@ -342,7 +343,7 @@ export const threngine: Engine = {
           onBeforeCompileMegaShader(
             engineContext,
             new three.MeshPhysicalMaterial({
-              envMap: envMapTexture,
+              // envMap: envMapTexture,
               // These properties are copied onto the runtime RawShaderMaterial.
               // These exist on the MeshPhysicalMaterial but only in the
               // prototype. We have to hard code them for Object.keys() to work

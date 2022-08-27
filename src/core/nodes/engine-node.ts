@@ -230,12 +230,17 @@ export const physicalNode = (
         property('normalMap', 'normalMap', 'texture'),
         property('roughnessMap', 'roughnessMap', 'texture'),
         property('displacementMap', 'displacementMap', 'texture'),
+        property('envMap', 'envMap', 'texture'),
         property('transmission', 'transmission', 'number'),
         property('sheen', 'sheen', 'number'),
         property('reflectivity', 'reflectivity', 'number'),
         property('clearcoat', 'clearcoat', 'number'),
         property('thickness', 'thickness', 'number'),
       ],
+      hardCodedProperties: {
+        isMeshPhysicalMaterial: true,
+        isMeshStandardMaterial: true,
+      },
       // TODO: The strategies for node need to be engine specific :O
       strategies: [
         uniformStrategy(),

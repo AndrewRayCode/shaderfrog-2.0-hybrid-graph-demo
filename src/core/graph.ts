@@ -1,5 +1,6 @@
 import { parser, generate } from '@shaderfrog/glsl-parser';
 import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
+import groupBy from 'lodash.groupby';
 
 import {
   renameBindings,
@@ -388,6 +389,12 @@ export type SearchResult = {
   inputs: Record<string, NodeInput[]>;
 };
 
+/**
+ * Recursively filter the graph, starting from a specific node, looking for
+ * nodes and edges that match predicates. This function returns the inputs for
+ * matched edges, not the edges themselves, as a convenience for the only
+ * consumer of this function, which is finding input names to use as uniforms
+ */
 export const filterGraphFromNode = (
   graph: Graph,
   node: GraphNode,
@@ -597,19 +604,17 @@ const collapseNodeInputs = (
   // Convert the properties into inputs. Maybe it would be good to cache these
   // rather than compute them every context generation?
   const propertyInputs = (node.config.properties || []).map((property) =>
-    nodeInput(property.name, property.property, 'code', true, property.property)
+    nodeInput(property.name, property.property, 'data', true, property.property)
   );
 
-  // Combine all the inputs together, and filter out duplicates. The first ones
-  // in this array win. So a property input (like "map"/"albdeo") will win over
-  // the *filler* input "map"
-  const allInputs = [...propertyInputs, ...updatedInputs, ...node.inputs];
-
-  const seen: { [key: string]: boolean } = {};
-  return allInputs.filter((i) => {
-    const name = mapInputName(node, i);
-    return name in seen ? false : (seen[name] = true);
-  });
+  // Merge any duplicate nodes into each other by name. Any filler input gets
+  // merged into property inputs with the same name. This preserves the
+  // "category" property on node inputs which is toggle-able in the graph
+  return Object.values(
+    groupBy([...propertyInputs, ...updatedInputs, ...node.inputs], (i) =>
+      mapInputName(node, i)
+    )
+  ).map((dupes) => dupes.reduce((node, dupe) => ({ ...node, ...dupe })));
 };
 
 type NodeErrors = { type: 'errors'; errors: any[] };

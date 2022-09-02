@@ -173,6 +173,7 @@ const ctxNodes: [string, string][] = [
   ['fragment', 'Fragment'],
   ['vertex', 'Vertex'],
   ['number', 'Number'],
+  ['sampler2D', 'Texture'],
   ['vec2', 'Vector2'],
   ['vec3', 'Vector3'],
   ['vec4', 'Vector4'],

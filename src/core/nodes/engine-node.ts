@@ -80,7 +80,7 @@ export const outputNode = (
     inputMapping:
       stage === 'fragment'
         ? {
-            frogFragOut: 'color',
+            filler_frogFragOut: 'color',
           }
         : {
             gl_Position: 'position',
@@ -168,24 +168,6 @@ export const phongNode = (
         stage === 'fragment'
           ? texture2DStrategy()
           : namedAttributeStrategy('position'),
-        ...(stage === 'fragment'
-          ? [
-              hardCodeStrategy([
-                {
-                  name: 'map',
-                  id: 'map',
-                  category: 'code',
-                  bakeable: false,
-                },
-                {
-                  name: 'normalMap',
-                  id: 'normalMap',
-                  category: 'code',
-                  bakeable: false,
-                },
-              ]),
-            ]
-          : []),
       ],
     },
     inputs: [],
@@ -226,7 +208,7 @@ export const physicalNode = (
         normalMap: 'normal',
       },
       properties: [
-        property('map', ALBEDO_DISPLAY_NAME, 'texture'),
+        property('map', ALBEDO_DISPLAY_NAME, 'texture', 'filler_map'),
         property('normalMap', 'normalMap', 'texture'),
         property('roughnessMap', 'roughnessMap', 'texture'),
         property('displacementMap', 'displacementMap', 'texture'),
@@ -287,24 +269,6 @@ export const toonNode = (
         stage === 'fragment'
           ? texture2DStrategy()
           : namedAttributeStrategy('position'),
-        ...(stage === 'fragment'
-          ? [
-              hardCodeStrategy([
-                {
-                  name: 'map',
-                  id: 'map',
-                  category: 'code',
-                  bakeable: false,
-                },
-                {
-                  name: 'normalMap',
-                  id: 'normalMap',
-                  category: 'code',
-                  bakeable: false,
-                },
-              ]),
-            ]
-          : []),
       ],
     },
     inputs: [],

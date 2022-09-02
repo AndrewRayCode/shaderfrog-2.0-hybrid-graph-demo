@@ -1,22 +1,27 @@
 export type InputCategory = 'data' | 'code';
+export type InputType = 'uniform' | 'property' | 'filler';
 
 export interface NodeInput {
-  name: string;
+  displayName: string;
   id: string;
-  category: InputCategory;
+  type: InputType;
+  accepts: Set<InputCategory>;
+  baked?: boolean;
   bakeable: boolean;
   property?: string;
 }
 export const nodeInput = (
-  name: string,
+  displayName: string,
   id: string,
-  category: InputCategory,
+  type: InputType,
+  accepts: Set<InputCategory>,
   bakeable: boolean,
   property?: string
 ): NodeInput => ({
-  name,
+  displayName,
   id,
-  category,
+  type,
+  accepts,
   bakeable,
   property,
 });

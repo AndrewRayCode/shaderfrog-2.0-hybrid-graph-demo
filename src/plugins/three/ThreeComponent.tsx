@@ -15,6 +15,7 @@ import { PreviewLight } from '../../site/components/Editor';
 import { ensure } from '../../util/ensure';
 import { Edge } from '../../core/nodes/edge';
 import { Color, Material, UniformsLib, Vector3 } from 'three';
+import { TextureNode } from '../../core/nodes/data-nodes';
 
 const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
 
@@ -63,6 +64,14 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   height,
 }) => {
   const shadersUpdated = useRef<boolean>(false);
+
+  const images = useMemo<Record<string, any>>(
+    () => ({
+      explosion: new three.TextureLoader().load('/explosion.png'),
+      'grayscale-noise': new three.TextureLoader().load('/grayscale-noise.png'),
+    }),
+    []
+  );
 
   const { sceneData, scene, camera, threeDomRef, renderer } = useThree(
     (time) => {
@@ -137,43 +146,26 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
               const fromNode = ensure(
                 graph.nodes.find(({ id }) => id === edge.from)
               );
-              let result = evaluateNode(graph, fromNode);
-              if (input.name === 'diffuse') {
-                // THIS DUPLICATES OTHER LINE
-                result = new Color(1.0, 1.0, 1.0);
-              }
-              // TODO: This doesn't work for engine variables because
-              // those aren't suffixed
-              const name = mangleVar(input.name, threngine, node);
 
-              // Three copies properties from the material into uniform slots
-              // around specific materials, namely the meshphysicalmaterial
-              // starting here, so this is a hack:
-              // https://github.com/mrdoob/three.js/blob/e7042de7c1a2c70e38654a04b6fd97d9c978e781/src/renderers/webgl/WebGLMaterials.js#L610-L622
-              if (name === 'transmission') {
+              const value = evaluateNode(graph, fromNode);
+              let newValue = value;
+              if (input.displayName === 'diffuse') {
+                // THIS DUPLICATES OTHER LINE
+                newValue = new Color(value.x, value.y, value.z);
+              } else if (fromNode.type === 'sampler2D') {
+                newValue = images[(fromNode as TextureNode).value];
+              }
+
+              if (input.type === 'property') {
                 // @ts-ignore
-                mesh.material.transmission = result;
-              } else if (name === 'roughness') {
+                mesh.material[input.property] = newValue;
+              } else {
+                // TODO: This doesn't work for engine variables because
+                // those aren't suffixed
+                const name = mangleVar(input.displayName, threngine, node);
+
                 // @ts-ignore
-                mesh.material.roughness = result;
-              } else if (name === 'metalness') {
-                // @ts-ignore
-                mesh.material.metalness = result;
-              } else if (name === 'ior') {
-                // @ts-ignore
-                mesh.material.ior = result;
-              } else if (name === 'thickness') {
-                // @ts-ignore
-                mesh.material.thickness = result;
-              } else if (
-                mesh.material &&
-                // @ts-ignore
-                mesh.material.uniforms &&
-                // @ts-ignore
-                name in mesh.material.uniforms
-              ) {
-                // @ts-ignore
-                mesh.material.uniforms[name].value = result;
+                mesh.material.uniforms[name].value = newValue;
               }
             }
           });
@@ -393,7 +385,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
             );
             const value = evaluateNode(graph, fromNode);
             let newValue = value;
-            if (input.name === 'diffuse') {
+            if (input.displayName === 'diffuse') {
               // THIS DUPLICATES OTHER LINE
               newValue = new Color(1.0, 1.0, 1.0);
             }
@@ -405,7 +397,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
             });
             // TODO: This doesn't work for engine variables because
             // those aren't suffixed
-            const name = mangleVar(input.name, threngine, node);
+            const name = mangleVar(input.displayName, threngine, node);
 
             if (input.property) {
               updatedProperties[name] = newValue;
@@ -495,24 +487,15 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       // opacity: { value: 1 },
       // lightPosition: { value: new three.Vector3(10, 10, 10) },
 
-      [`scale_${pc}`]: { value: 0.05 },
-      [`noiseImage_${pc}`]: {
-        value: new three.TextureLoader().load('/grayscale-noise.png'),
-      },
-      [`speed_${pc}`]: { value: new three.Vector2(-0.002, -0.002) },
-      [`cloudBrightness_${pc}`]: { value: 0.2 },
-      [`cloudMorphSpeed_${pc}`]: { value: 0.2 },
-      [`cloudMorphDirection_${pc}`]: { value: 1 },
-      [`cloudCover_${pc}`]: { value: 0.6 },
-
-      [`speed_${pu}`]: { value: 3.0 },
-      [`brightnessX_${pu}`]: { value: 1.0 },
-      [`permutations_${pu}`]: { value: 10 },
-      [`iterations_${pu}`]: { value: 1 },
-      [`uvScale_${pu}`]: { value: new three.Vector2(1, 1) },
-      [`color1_${pu}`]: { value: new three.Vector3(0.7, 0.3, 0.8) },
-      [`color2_${pu}`]: { value: new three.Vector3(0.1, 0.2, 0.9) },
-      [`color3_${pu}`]: { value: new three.Vector3(0.8, 0.3, 0.8) },
+      // [`scale_${pc}`]: { value: 0.05 },
+      // [`noiseImage_${pc}`]: {
+      //   value: new three.TextureLoader().load('/grayscale-noise.png'),
+      // },
+      // [`speed_${pc}`]: { value: new three.Vector2(-0.002, -0.002) },
+      // [`cloudBrightness_${pc}`]: { value: 0.2 },
+      // [`cloudMorphSpeed_${pc}`]: { value: 0.2 },
+      // [`cloudMorphDirection_${pc}`]: { value: 1 },
+      // [`cloudCover_${pc}`]: { value: 0.6 },
 
       [`scale_${hs1}`]: { value: 1.2 },
       [`power_${hs1}`]: { value: 1 },
@@ -596,6 +579,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
           // which occurs if we set isMeshPhysicalMaterial/isMeshStandardMaterial
           property !== 'defines'
       )
+      // Simply for debug purposes of logging
+      .sort(([a], [b]) => a.localeCompare(b))
       .forEach(([key, value]) => {
         console.log('setting', key, 'to', value);
         // @ts-ignore

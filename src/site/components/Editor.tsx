@@ -118,6 +118,7 @@ import { ensure } from '../../util/ensure';
 import {
   numberNode,
   numberUniformData,
+  textureNode,
   Vector2,
   Vector3,
   Vector4,
@@ -134,13 +135,17 @@ export type PreviewLight = 'point' | '3point' | 'spot';
 
 const SMALL_SCREEN_WIDTH = 500;
 
-const autocreateUniformDataNodes = (graph: Graph): Graph =>
+const expandUniformDataNodes = (graph: Graph): Graph =>
   graph.nodes.reduce<Graph>((updated, node) => {
     if ('config' in node && node.config.uniforms) {
       const newNodes = node.config.uniforms.reduce<[GraphNode[], GraphEdge[]]>(
         (acc, uniform) => {
           let n;
           switch (uniform.type) {
+            case 'sampler2D': {
+              n = textureNode(makeId(), 'sampler2D', uniform.value);
+              break;
+            }
             case 'number': {
               n = numberNode(makeId(), 'number', uniform.value, {
                 range: uniform.range,
@@ -165,7 +170,13 @@ const autocreateUniformDataNodes = (graph: Graph): Graph =>
             [...acc[0], n],
             [
               ...acc[1],
-              makeEdge(n.id, node.id, 'out', uniform.name, uniform.type),
+              makeEdge(
+                n.id,
+                node.id,
+                'out',
+                `uniform_${uniform.name}`,
+                uniform.type
+              ),
             ],
           ];
         },
@@ -387,29 +398,41 @@ const useTestingNodeSetup = () => {
     const hellOnEarthV = hellOnEarthVert(makeId(), hellOnEarthF.id);
     const perlinCloudsF = perlinCloudsFNode(makeId());
     // const num1 = numberNode(makeId(), 'number', '1');
-    return autocreateUniformDataNodes({
+    return expandUniformDataNodes({
       nodes: [
         physicalF,
         physicalV,
-        solidColorF,
-        fireF,
-        fireV,
-        fluidF,
+        // solidColorF,
+        // fireF,
+        // fireV,
+        // fluidF,
         outputF,
         outputV,
-        outlineF,
-        outlineV,
-        hellOnEarthF,
-        hellOnEarthV,
+        // outlineF,
+        // outlineV,
+        // hellOnEarthF,
+        // hellOnEarthV,
         perlinCloudsF,
         purpleNoise,
-        heatShaderF,
-        heatShaderV,
-        staticShader,
+        // heatShaderF,
+        // heatShaderV,
+        // staticShader,
       ],
       edges: [
-        makeEdge(physicalF.id, outputF.id, 'out', 'frogFragOut', 'fragment'),
-        makeEdge(physicalV.id, outputV.id, 'out', 'gl_Position', 'vertex'),
+        makeEdge(
+          physicalF.id,
+          outputF.id,
+          'out',
+          'filler_frogFragOut',
+          'fragment'
+        ),
+        makeEdge(
+          physicalV.id,
+          outputV.id,
+          'out',
+          'filler_gl_Position',
+          'vertex'
+        ),
       ],
     });
   });
@@ -628,18 +651,19 @@ const setFlowNodeStages = (flowElements: FlowElements): FlowElements => {
 
 const toFlowInputs = (node: GraphNode): InputNodeHandle[] =>
   (node.inputs || [])
-    .filter(({ name }) => name !== MAGIC_OUTPUT_STMTS)
+    .filter(({ displayName }) => displayName !== MAGIC_OUTPUT_STMTS)
     .map((input) => ({
       id: input.id,
-      name: input.name,
+      name: input.displayName,
+      baked: input.baked,
       bakeable: input.bakeable,
       validTarget: false,
-      category: input.category,
+      accepts: input.accepts,
     }));
 
 const graphNodeToFlowNode = (
   node: GraphNode,
-  onInputCategoryToggle: any,
+  onInputBakedToggle: any,
   position: XYPosition
 ): FlowNode<FlowNodeData> => {
   const data: FlowNodeData = isSourceNode(node)
@@ -650,7 +674,7 @@ const graphNodeToFlowNode = (
         biStage: node.biStage || false,
         inputs: toFlowInputs(node),
         outputs: node.outputs.map((o) => flowOutput(o.name)),
-        onInputCategoryToggle,
+        onInputBakedToggle,
       }
     : {
         label: node.name,
@@ -670,7 +694,7 @@ const graphNodeToFlowNode = (
 
 const initializeFlowElementsFromGraph = (
   graph: Graph,
-  onInputCategoryToggle: any
+  onInputBakedToggle: any
 ): FlowElements => {
   let engines = 0;
   let maths = 0;
@@ -683,7 +707,7 @@ const initializeFlowElementsFromGraph = (
   const nodes = graph.nodes.map((node) =>
     graphNodeToFlowNode(
       node,
-      onInputCategoryToggle,
+      onInputBakedToggle,
       node.type === EngineNodeType.output
         ? { x: spacing * 2, y: outputs++ * 100 }
         : node.type === EngineNodeType.phong ||
@@ -740,8 +764,11 @@ const fromFlowToGraph = (graph: Graph, flowElements: FlowElements): Graph => {
     return {
       ...node,
       inputs: node.inputs.map((i) => {
+        if (node.name === 'Output') {
+          console.log({ node, i });
+        }
         // mainStmts is hidden from the graph
-        if (i.name === MAGIC_OUTPUT_STMTS) {
+        if (i.displayName === MAGIC_OUTPUT_STMTS) {
           return i;
         }
 
@@ -751,9 +778,7 @@ const fromFlowToGraph = (graph: Graph, flowElements: FlowElements): Graph => {
         );
         return {
           ...i,
-          ...(inputFromFlow.category
-            ? { category: inputFromFlow.category }
-            : null),
+          ...(inputFromFlow.baked ? { baked: inputFromFlow.baked } : null),
         };
       }),
       ...('value' in node
@@ -966,8 +991,8 @@ const Editor: React.FC = () => {
     [setFlowElements, compileResult, debouncedSetNeedsCompile, setGraph, graph]
   );
 
-  const onInputCategoryToggle = useCallback(
-    (id: string, inputName: string) => {
+  const onInputBakedToggle = useCallback(
+    (id: string, inputId: string) => {
       setFlowElements(({ nodes, edges }) => ({
         nodes: nodes.map((node) =>
           node.id === id
@@ -976,10 +1001,10 @@ const Editor: React.FC = () => {
                 data: {
                   ...node.data,
                   inputs: node.data.inputs.map((i) =>
-                    i.name === inputName
+                    i.id === inputId
                       ? {
                           ...i,
-                          category: i.category === 'data' ? 'code' : 'data',
+                          baked: !i.baked,
                         }
                       : i
                   ),
@@ -1018,13 +1043,13 @@ const Editor: React.FC = () => {
 
         const initFlowElements = initialElements.nodes.length
           ? initialElements
-          : initializeFlowElementsFromGraph(graph, onInputCategoryToggle);
+          : initializeFlowElementsFromGraph(graph, onInputBakedToggle);
 
         compile(engine, newCtx, graph, initFlowElements);
         setGuiMsg('');
       }, 10);
     },
-    [compile, engine, onInputCategoryToggle]
+    [compile, engine, onInputBakedToggle]
   );
 
   // Once we receive a new engine context, re-initialize the graph. This method
@@ -1313,6 +1338,8 @@ const Editor: React.FC = () => {
 
     if (type === 'number') {
       newGns = [numberNode(id, 'number', '1')];
+    } else if (type === 'sampler2D') {
+      newGns = [textureNode(id, 'sampler2D', 'grayscale-noise')];
     } else if (type === 'vec2') {
       newGns = [vectorNode(id, 'vec2', ['1', '1'])];
     } else if (type === 'vec3') {
@@ -1377,7 +1404,7 @@ const Editor: React.FC = () => {
 
     // Now we're safe to compute the flow nodes
     const newNodes = newGns.map((newGn, index) => {
-      return graphNodeToFlowNode(newGn, onInputCategoryToggle, {
+      return graphNodeToFlowNode(newGn, onInputBakedToggle, {
         x: pos.x + index * 20,
         y: pos.y + index * 20,
       });
@@ -1449,11 +1476,23 @@ const Editor: React.FC = () => {
       physicalF.id
     );
     // setGraph(
-    const newGraph = autocreateUniformDataNodes({
+    const newGraph = expandUniformDataNodes({
       nodes: [outputF, outputV, physicalF, physicalV],
       edges: [
-        makeEdge(physicalF.id, outputF.id, 'out', 'frogFragOut', 'fragment'),
-        makeEdge(physicalV.id, outputV.id, 'out', 'gl_Position', 'vertex'),
+        makeEdge(
+          physicalF.id,
+          outputF.id,
+          'out',
+          'filler_frogFragOut',
+          'fragment'
+        ),
+        makeEdge(
+          physicalV.id,
+          outputV.id,
+          'out',
+          'filler_gl_Position',
+          'vertex'
+        ),
       ],
     });
     // );
@@ -1813,7 +1852,7 @@ const StrategyEditor = ({
       <div className={styles.uiGroup}>
         <h2 className={styles.uiHeader}>Node Inputs</h2>
         {inputs.length
-          ? inputs.map((i) => i.name).join(', ')
+          ? inputs.map((i) => i.displayName).join(', ')
           : 'No inputs found'}
       </div>
     </div>

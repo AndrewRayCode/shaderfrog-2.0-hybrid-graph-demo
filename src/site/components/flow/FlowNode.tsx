@@ -26,19 +26,23 @@ import { replaceAt } from '../../../util/replaceAt';
 
 const handleTop = 45;
 const textHeight = 10;
+
 export type InputNodeHandle = {
   validTarget: boolean;
-  category?: InputCategory;
+  accepts?: Set<InputCategory>;
   name: string;
   id: string;
+  baked?: boolean;
   bakeable: boolean;
 };
+
 type OutputNodeHandle = {
   validTarget: boolean;
   category?: InputCategory;
   id: string;
   name: string;
 };
+
 export const flowOutput = (name: string, id?: string): OutputNodeHandle => ({
   validTarget: false,
   id: id || name,
@@ -62,7 +66,7 @@ export interface FlowNodeSourceData extends CoreFlowNode {
    * Whether or not this node can be used for both shader fragment and vertex
    */
   biStage: boolean;
-  onInputCategoryToggle: (id: string, name: string) => void;
+  onInputBakedToggle: (id: string, name: string) => void;
 }
 export type FlowNodeData = FlowNodeSourceData | FlowNodeDataData;
 
@@ -166,6 +170,27 @@ const NumberEditor = ({
   </>
 );
 
+const TextureEditor = ({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  onChange: ChangeHandler;
+}) => (
+  <>
+    <select
+      className="nodrag"
+      onChange={(e) => onChange(id, e.currentTarget.value)}
+      value={value}
+    >
+      <option value="grayscale-noise">grayscale-noise</option>
+      <option value="explosion">explosion</option>
+    </select>
+  </>
+);
+
 const DataNodeComponent = memo(
   ({ id, data }: { id: string; data: FlowNodeDataData }) => {
     const onChange = useFlowEventHack();
@@ -175,7 +200,7 @@ const DataNodeComponent = memo(
         <div className="flowlabel">{data.label}</div>
         <div className="flowInputs">
           {data.inputs.map((input, index) => (
-            <React.Fragment key={input.name}>
+            <React.Fragment key={input.id}>
               <Handle
                 isConnectable
                 id={input.id}
@@ -205,8 +230,10 @@ const DataNodeComponent = memo(
               data.type === 'vector3' ||
               data.type === 'vector4' ? (
               <VectorEditor id={id} value={data.value} onChange={onChange} />
+            ) : data.type === 'sampler2D' ? (
+              <TextureEditor id={id} value={data.value} onChange={onChange} />
             ) : (
-              <div>NOOOOOO</div>
+              <div>NOOOOOO FlowNode for {data.type}</div>
             )}
           </div>
 
@@ -266,7 +293,7 @@ const SourceNodeComponent = memo(
         </div>
         <div className="flowInputs">
           {data.inputs.map((input, index) => (
-            <React.Fragment key={input.name}>
+            <React.Fragment key={input.id}>
               <Handle
                 isConnectable
                 id={input.id}
@@ -287,15 +314,10 @@ const SourceNodeComponent = memo(
                 <div
                   className="switch"
                   onClick={(e) => (
-                    e.preventDefault(),
-                    data.onInputCategoryToggle(id, input.name)
+                    e.preventDefault(), data.onInputBakedToggle(id, input.id)
                   )}
                 >
-                  {input.bakeable
-                    ? input.category === 'data'
-                      ? '➡️'
-                      : '🔒'
-                    : null}
+                  {input.bakeable ? (input.baked ? '🔒' : '➡️') : null}
                 </div>
                 {input.name}
               </div>

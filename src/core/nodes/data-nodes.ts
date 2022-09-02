@@ -59,6 +59,36 @@ export const numberUniformData = (
   stepper?: number
 ): NumberDataUniform => ({ type: 'number', name, value, range, stepper });
 
+export interface TextureNode extends CoreNode {
+  type: 'sampler2D';
+  value: string;
+}
+export const textureNode = (
+  id: string,
+  name: string,
+  value: string
+): TextureNode => ({
+  type: 'sampler2D',
+  id,
+  name,
+  value,
+  inputs: [],
+  outputs: [
+    {
+      name: 'out',
+      id: '1',
+      category: 'data',
+    },
+  ],
+});
+
+export type TextureDataUniform = Omit<TextureNode, 'id' | 'inputs' | 'outputs'>;
+
+export const textureUniformData = (
+  name: string,
+  value: string
+): TextureDataUniform => ({ type: 'sampler2D', name, value });
+
 export type Vector2 = [string, string];
 export type Vector3 = [string, string, string];
 export type Vector4 = [string, string, string, string];
@@ -121,9 +151,15 @@ export const vectorUniformData = (
 
 // When defining nodes, these are the types allowed in uniforms
 export type UniformDataType =
+  | TextureDataUniform
   | NumberDataUniform
   | Vector2DataUniform
   | Vector3DataUniform
   | Vector4DataUniform;
 
-export type DataNode = NumberNode | Vector2Node | Vector3Node | Vector4Node;
+export type DataNode =
+  | TextureNode
+  | NumberNode
+  | Vector2Node
+  | Vector3Node
+  | Vector4Node;

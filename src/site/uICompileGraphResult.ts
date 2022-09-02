@@ -3,6 +3,7 @@ import {
   filterGraphFromNode,
   Graph,
   GraphNode,
+  isDataInput,
 } from '../core/graph';
 import { NodeInput } from '../core/nodes/core-node';
 
@@ -24,7 +25,7 @@ export const collectDataInputsFromNodes = (
 ) => {
   return nodes.reduce<IndexedDataInputs>((acc, node) => {
     const found = filterGraphFromNode(graph, node, {
-      input: (input) => input.category === 'data',
+      input: isDataInput,
     });
     return { ...acc, ...found.inputs };
   }, {});

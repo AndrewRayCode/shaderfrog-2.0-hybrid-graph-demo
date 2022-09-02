@@ -152,16 +152,22 @@ void main() {
     );
 
     // It should find uniforms with simple types, excluding sampler2D
-    expect(fillers.map(([{ name }]) => name)).toEqual([
+    expect(fillers.map(([{ displayName: name }]) => name)).toEqual([
       'input',
       'output',
       'other',
       'zenput',
     ]);
 
-    fillers.find(([{ name }]) => name === 'input')?.[1](makeExpression('a'));
-    fillers.find(([{ name }]) => name === 'output')?.[1](makeExpression('b'));
-    fillers.find(([{ name }]) => name === 'zenput')?.[1](makeExpression('c'));
+    fillers.find(([{ displayName: name }]) => name === 'input')?.[1](
+      makeExpression('a')
+    );
+    fillers.find(([{ displayName: name }]) => name === 'output')?.[1](
+      makeExpression('b')
+    );
+    fillers.find(([{ displayName: name }]) => name === 'zenput')?.[1](
+      makeExpression('c')
+    );
     const result = generate(ast);
 
     // Expect the filling of references happened
@@ -190,7 +196,7 @@ void main() {
         { type: StrategyType.TEXTURE_2D, config: {} },
         {} as SourceNode,
         ast
-      ).map(([{ name }]) => name)
+      ).map(([{ displayName: name }]) => name)
     ).toEqual(['noiseImage']);
   });
 
@@ -205,7 +211,7 @@ void main() {
         { type: StrategyType.TEXTURE_2D, config: {} },
         {} as SourceNode,
         ast
-      ).map(([{ name }]) => name)
+      ).map(([{ displayName: name }]) => name)
     ).toEqual(['noiseImage_0', 'noiseImage_1']);
   });
 });

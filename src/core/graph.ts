@@ -35,9 +35,10 @@ import {
   BinaryNode,
   CodeNode,
   mapInputName,
+  NodeProperty,
   SourceNode,
 } from './nodes/code-nodes';
-import { nodeInput, NodeInput } from './nodes/core-node';
+import { InputCategory, nodeInput, NodeInput } from './nodes/core-node';
 import { Vector2, Vector3, Vector4 } from 'three';
 
 export type ShaderStage = 'fragment' | 'vertex';
@@ -145,7 +146,7 @@ export const doesLinkThruShader = (graph: Graph, node: GraphNode): boolean => {
     );
     return (
       foundShader ||
-      // TODO: LARD this probably will intorduce some insidius hard to track
+      // TODO: LARD this probably will introduce some insidius hard to track
       // down bug, as I try to pull toon and phong up out of core, I need to
       // know if a graph links through a "shader" which now means somehting
       // different... does a config object need isShader? Can we compute it from
@@ -240,7 +241,13 @@ export const coreParsers: CoreParser = {
           applyStrategy(strategy, node, ast)
         ),
         [
-          nodeInput(MAGIC_OUTPUT_STMTS, MAGIC_OUTPUT_STMTS, 'code', false),
+          nodeInput(
+            MAGIC_OUTPUT_STMTS,
+            `filler_${MAGIC_OUTPUT_STMTS}`,
+            'filler',
+            new Set<InputCategory>(['code']),
+            false
+          ),
           (fillerAst: AstNode) => {
             ast.program
               .find((stmt: AstNode) => stmt.type === 'function')
@@ -280,7 +287,13 @@ export const coreParsers: CoreParser = {
         .map((_, index) => {
           const letter = alphabet.charAt(index);
           return [
-            nodeInput(letter, letter, 'code', false),
+            nodeInput(
+              letter,
+              letter,
+              'filler',
+              new Set<InputCategory>(['data', 'code']),
+              false
+            ),
             (fillerAst: AstNode) => {
               let foundPath: Path | undefined;
               const visitors: NodeVisitors = {
@@ -355,6 +368,8 @@ export const evaluateNode = (graph: Graph, node: GraphNode): any => {
         parseFloat(node.value[2]),
         parseFloat(node.value[3])
       );
+    } else {
+      return node.value;
     }
   }
 
@@ -451,7 +466,11 @@ export const collectConnectedNodes = (graph: Graph, node: GraphNode): NodeIds =>
 type NodeIds = Record<string, GraphNode>;
 export type CompileNodeResult = [ShaderSections, AstNode | void, NodeIds];
 
-const skipDataInputs = (input: NodeInput) => input.category !== 'data';
+// before data inputs were known by the input.category being node or data. I
+// tried updating inputs to have acepts: [code|data] and "baked" now is there a
+// way to know if we're plugging in code or data?
+export const isDataInput = (input: NodeInput) =>
+  (input.type === 'uniform' || input.type === 'property') && !input.baked;
 
 export const compileNode = (
   engine: Engine,
@@ -525,7 +544,7 @@ export const compileNode = (
           }!\nAvailable:${inputs.map(({ id }) => id).join(', ')}`
         ),
       }))
-      .filter(({ input }) => skipDataInputs(input))
+      .filter(({ input }) => !isDataInput(input))
       .forEach(({ fromNode, edge, input }) => {
         const [inputSections, fillerAst, childIds] = compileNode(
           engine,
@@ -544,16 +563,30 @@ export const compileNode = (
         continuation = mergeShaderSections(continuation, inputSections);
         compiledIds = { ...compiledIds, ...childIds };
 
+        let filler, property;
         if (nodeContext) {
-          const filler =
-            inputFillers[
-              ensure(
-                inputs.find(({ id }) => id == edge.input),
-                `GraphNode "${node.name}" has no input ${
-                  edge.input
-                }!\nAvailable:${inputs.map(({ id }) => id).join(', ')}`
-              ).id
-            ];
+          if (input.property) {
+            property = ensure<NodeProperty>(
+              ((node as CodeNode).config.properties || []).find(
+                (p) => p.property === input.property
+              ),
+              `Node ${node.name} has no property named "${input.property}" to find the filler for`
+            );
+            filler = inputFillers[property?.fillerName];
+          } else {
+            filler = inputFillers[input.id];
+          }
+          if (!filler) {
+            console.error('No filler for property', {
+              input,
+              node,
+              inputFillers,
+              property,
+            });
+            throw new Error(
+              `Node ${node.name} has no filler for input ${input.displayName} with property ${property?.displayName}`
+            );
+          }
           nodeContext.ast = filler(fillerAst);
         }
         // console.log(generate(ast.program));
@@ -604,16 +637,21 @@ const collapseNodeInputs = (
   // Convert the properties into inputs. Maybe it would be good to cache these
   // rather than compute them every context generation?
   const propertyInputs = (node.config.properties || []).map((property) =>
-    nodeInput(property.name, property.property, 'data', true, property.property)
+    nodeInput(
+      property.displayName,
+      `property_${property.property}`,
+      'property',
+      new Set<InputCategory>(['data']),
+      true,
+      property.property
+    )
   );
 
-  // Merge any duplicate nodes into each other by name. Any filler input gets
-  // merged into property inputs with the same name. This preserves the
-  // "category" property on node inputs which is toggle-able in the graph
+  // Merge any duplicate nodes into each other by id. Any filler input gets
+  // merged into property inputs with the same id. This preserves the
+  // "baked" property on node inputs which is toggle-able in the graph
   return Object.values(
-    groupBy([...propertyInputs, ...updatedInputs, ...node.inputs], (i) =>
-      mapInputName(node, i)
-    )
+    groupBy([...propertyInputs, ...updatedInputs, ...node.inputs], (i) => i.id)
   ).map((dupes) => dupes.reduce((node, dupe) => ({ ...node, ...dupe })));
 };
 
@@ -833,7 +871,7 @@ export const compileGraph = (
     from: node.id,
     to: outputVert.id,
     output: 'main',
-    input: MAGIC_OUTPUT_STMTS,
+    input: `filler_${MAGIC_OUTPUT_STMTS}`,
     stage: 'vertex',
     category: 'code',
   }));

@@ -1,3 +1,4 @@
+import { numberUniformData, vectorUniformData } from '../core/nodes/data-nodes';
 import { sourceNode } from '../core/nodes/engine-node';
 import { uniformStrategy } from '../core/strategy';
 
@@ -5,7 +6,21 @@ const purpleNoiseNode = (id: string) =>
   sourceNode(
     id,
     'Purple Metal',
-    { version: 2, preprocess: true, strategies: [uniformStrategy()] },
+    {
+      version: 2,
+      preprocess: true,
+      strategies: [uniformStrategy()],
+      uniforms: [
+        numberUniformData('speed', '3.0'),
+        numberUniformData('brightnessX', '1.0'),
+        numberUniformData('permutations', '10'),
+        numberUniformData('iterations', '1'),
+        vectorUniformData('uvScale', ['1', '1']),
+        vectorUniformData('color1', ['0.7', '0.3', '0.8']),
+        vectorUniformData('color2', ['0.1', '0.2', '0.9']),
+        vectorUniformData('color3', ['0.8', '0.3', '0.8']),
+      ],
+    },
     `
 precision highp float;
 precision highp int;

@@ -1,3 +1,8 @@
+import {
+  numberUniformData,
+  textureUniformData,
+  vectorUniformData,
+} from '../core/nodes/data-nodes';
 import { sourceNode } from '../core/nodes/engine-node';
 import { texture2DStrategy, uniformStrategy } from '../core/strategy';
 
@@ -9,6 +14,15 @@ const perlinCloudsF = (id: string) =>
       version: 2,
       preprocess: true,
       strategies: [texture2DStrategy(), uniformStrategy()],
+      uniforms: [
+        numberUniformData('scale', '0.05'),
+        textureUniformData('noiseImage', 'grayscale-noise'),
+        vectorUniformData('speed', ['-0.002', '-0.002']),
+        numberUniformData('cloudBrightness', '0.2'),
+        numberUniformData('cloudMorphSpeed', '0.2'),
+        numberUniformData('cloudMorphDirection', '1'),
+        numberUniformData('cloudCover', '0.6'),
+      ],
     },
     `precision highp float;
 precision highp int;

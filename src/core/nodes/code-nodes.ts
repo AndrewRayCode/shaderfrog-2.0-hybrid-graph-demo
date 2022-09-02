@@ -3,8 +3,10 @@ import { Strategy } from '../strategy';
 import { UniformDataType } from './data-nodes';
 import { CoreNode, NodeInput } from './core-node';
 
-export const mapInputName = (node: CodeNode, { name }: NodeInput): string =>
-  node.config?.inputMapping?.[name] || name;
+export const mapInputName = (
+  node: CodeNode,
+  { displayName }: NodeInput
+): string => node.config?.inputMapping?.[displayName] || displayName;
 
 export type InputMapping = { [original: string]: string };
 export type NodeConfig = {
@@ -19,7 +21,7 @@ export type NodeConfig = {
 
 export interface NodeProperty {
   // Display name, like "albedo"
-  name: string;
+  displayName: string;
   // Type in the engine, like "texture"
   type: string;
   // Property name to apply to the material, like "map"
@@ -28,13 +30,14 @@ export interface NodeProperty {
   // to be replaced, if this property is present.
   fillerName: string;
 }
+
 export const property = (
   property: string,
-  name: string,
+  displayName: string,
   type: string,
   fillerName = property
 ): NodeProperty => ({
-  name,
+  displayName,
   type,
   property,
   fillerName,

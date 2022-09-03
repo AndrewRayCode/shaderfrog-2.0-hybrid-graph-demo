@@ -187,6 +187,8 @@ export const strategyRunners: Strategies = {
          * behind the group? "special: ["filler_map" | "property_map"]"? I don't
          * like that a property has a fillerName, it would be nice if something
          * else knew about that relationship.
+         *
+         * wtf why isn't transmission working now
          */
         // && uniformType !== 'sampler2D'
       ) {

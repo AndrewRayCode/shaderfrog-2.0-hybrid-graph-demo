@@ -208,16 +208,24 @@ export const physicalNode = (
         normalMap: 'normal',
       },
       properties: [
+        property('color', 'color', 'color'),
         property('map', ALBEDO_DISPLAY_NAME, 'texture', 'filler_map'),
         property('normalMap', 'normalMap', 'texture'),
+        property('roughness', 'roughness', 'texture'),
         property('roughnessMap', 'roughnessMap', 'texture'),
         property('displacementMap', 'displacementMap', 'texture'),
         property('envMap', 'envMap', 'texture'),
         property('transmission', 'transmission', 'number'),
+        property(
+          'transmissionMap',
+          'transmissionMap',
+          'filler_transmissionMap'
+        ),
+        property('thickness', 'thickness', 'number'),
+        property('ior', 'ior', 'number'),
         property('sheen', 'sheen', 'number'),
         property('reflectivity', 'reflectivity', 'number'),
         property('clearcoat', 'clearcoat', 'number'),
-        property('thickness', 'thickness', 'number'),
       ],
       hardCodedProperties: {
         isMeshPhysicalMaterial: true,

@@ -149,10 +149,10 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
               const value = evaluateNode(graph, fromNode);
               let newValue = value;
-              if (input.displayName === 'diffuse') {
+              if (input.displayName === 'color') {
                 // THIS DUPLICATES OTHER LINE
                 newValue = new Color(value.x, value.y, value.z);
-              } else if (fromNode.type === 'sampler2D') {
+              } else if (fromNode.type === 'texture') {
                 newValue = images[(fromNode as TextureNode).value];
               }
 
@@ -385,9 +385,9 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
             );
             const value = evaluateNode(graph, fromNode);
             let newValue = value;
-            if (input.displayName === 'diffuse') {
+            if (input.displayName === 'color') {
               // THIS DUPLICATES OTHER LINE
-              newValue = new Color(1.0, 1.0, 1.0);
+              newValue = new Color(value.x, value.y, value.z);
             }
             console.log('value, evalauted', {
               fromNode,
@@ -417,85 +417,13 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       }
     );
 
-    /**
-     * 1. The graph compiles all the nodes and sees there's a physical ndoe
-     * 2. It tells threngine to compile the megashader, which makes a new
-     *    MeshPhysicalMaterial()
-     * 3. The properties of this material are based on the nodes in the graph,
-     *    because to replace a "map" uniform, the material needs a "map"
-     *    property so that the guts of three will add that uniform to the GLSL
-     *    and then we can do the source code replcaement.
-     * 4. The material also gets specific properties set on the material, like
-     *    isMeshStandardMaterial, which is a required switch
-     *    (https://github.com/mrdoob/three.js/blob/e7042de7c1a2c70e38654a04b6fd97d9c978e781/src/renderers/webgl/WebGLMaterials.js#L42-L49)
-     *    to get some uniforms on the material for example the
-     *    transmissionRenderTarget which is a private variable of the
-     *    WebGLRenderer
-     *    (https://github.com/mrdoob/three.js/blob/e7042de7c1a2c70e38654a04b6fd97d9c978e781/src/renderers/WebGLRenderer.js#L1773)
-     * 5. Shaderfrog copies all the properties from the material onto the raw
-     *    shader material. Properties like "transmission" are set with getters
-     *    and need to be updated manually
-     * 6. The same needs to be done at runtime for uniforms, so "ior" needs to
-     *    be set as a property of the runtime material, which explains why my
-     *    material looked different when I set isMeshPhysicalMaterial = true,
-     *    it started overwriting that uniform every render.
-     *
-     * Where this leaves me:
-     * - vector3 and color are not compatible which you can see by searching
-     *   this file for === 'diffuse'
-     * - I hard coded three data into graph.ts to support creating actual
-     *   vectors for the engine - this needs engine specific refactoring
-     * - I'm now hard coding things like "ior" in this file - shoudl this all
-     *   be abstracted into threngine?
-     */
-
     const finalUniforms = {
       // TODO: Get these from threngine
       ...three.ShaderLib.phong.uniforms,
       ...three.ShaderLib.toon.uniforms,
       ...three.ShaderLib.physical.uniforms,
 
-      // gradientMap: { value: threeTone },
-
-      // metalness: { value: 0 },
-      // roughness: { value: 0 },
-      // clearcoat: { value: 0 },
-      // clearcoatRoughness: { value: 0 },
-      // reflectivity: { value: 0 },
-      // ior: { value: 1.0 },
-      // normalScale: { value: new three.Vector2(1.0, 1.0) },
-      // color: { value: new three.Color(1.0, 1.0, 1.0) },
-
-      // map: { value: new three.TextureLoader().load('/contrast-noise.png') },
-      // normalMap: {
-      //   value: new three.TextureLoader().load('/blank-normal-map.png'),
-      // },
-      // roughnessMap: {
-      //   value: new three.TextureLoader().load('/blank-normal-map.png'),
-      // },
-      // image: {
-      //   value: new three.TextureLoader().load('/contrast-noise.png'),
-      // },
-
-      // flipEnvMap: { value: -1 },
-      // envMapIntensity: { value: 1.0 },
-      // transmission: { value: 0.5 },
-      // thickness: { value: 0 },
-      // cameraPosition: { value: new three.Vector3(0, 0, 0) },
       time: { value: 0 },
-      // resolution: { value: 0.5 },
-      // opacity: { value: 1 },
-      // lightPosition: { value: new three.Vector3(10, 10, 10) },
-
-      // [`scale_${pc}`]: { value: 0.05 },
-      // [`noiseImage_${pc}`]: {
-      //   value: new three.TextureLoader().load('/grayscale-noise.png'),
-      // },
-      // [`speed_${pc}`]: { value: new three.Vector2(-0.002, -0.002) },
-      // [`cloudBrightness_${pc}`]: { value: 0.2 },
-      // [`cloudMorphSpeed_${pc}`]: { value: 0.2 },
-      // [`cloudMorphDirection_${pc}`]: { value: 1 },
-      // [`cloudCover_${pc}`]: { value: 0.6 },
 
       [`scale_${hs1}`]: { value: 1.2 },
       [`power_${hs1}`]: { value: 1 },
@@ -587,30 +515,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         newMat[key] = value;
       });
 
-    // if (ctx.runtime.engineMaterial.transmission) {
-    //   // @ts-ignore
-    //   newMat.transmission = ctx.runtime.engineMaterial.transmission;
-    // }
-    //
-    // newMat.ior = 0.5;
-    // newMat.transmission = 0.5;
-    // newMat.isMeshStandardMaterial = true;
-    // newMat.isMeshPhysicalMaterial = true;
-    // newMat.attenuationTint = new three.Vector3(1.0, 1.0, 1.0);
-    // newMat.specularTint = new three.Vector3(1.0, 1.0, 1.0);
-    // @ts-ignore
-    // newMat.envMap = envMap;
-    // @ts-ignore
-    // newMat.isMeshStandardMaterial = true;
-
-    // const mmm = new three.MeshPhongMaterial({
-    //   color: 0x1111111,
-    //   normalMap: new three.TextureLoader().load('/bricknormal.png'),
-    // });
-
-    // newMat.shading = three.SmoothShading;
-    // newMat.flatShading = false;
-
     console.log('🏞 Re-creating three.js material!', {
       newMat,
       uniforms,
@@ -623,7 +527,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     shadersUpdated.current = true;
   }, [compileResult, ctx.runtime]);
 
-  // const lightsRef = useRef<three.Object3D[]>([]);
   const prevLights = usePrevious(lights);
   useEffect(() => {
     if (

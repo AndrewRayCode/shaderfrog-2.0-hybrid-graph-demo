@@ -201,6 +201,8 @@ const threeMaterialProperties = (
           acc[property.property] = new three.Texture();
         } else if (property.type === 'number') {
           acc[property.property] = 0.5;
+        } else if (property.type === 'color') {
+          acc[property.property] = new three.Color(1, 1, 1);
         }
       }
       return acc;

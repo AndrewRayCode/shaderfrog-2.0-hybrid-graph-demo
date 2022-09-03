@@ -24,7 +24,6 @@ export default function FlowEdge({
   sourcePosition,
   targetPosition,
   style = {},
-  data,
   markerEnd,
 }: EdgeProps<any>) {
   const edgePath = getBezierPath({

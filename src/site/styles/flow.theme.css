@@ -69,7 +69,7 @@
 
 .flowInputs {
   position: absolute;
-  top: 0;
+  top: 25px; /* height of node header label */
   width: 100%;
 }
 
@@ -99,6 +99,10 @@
 }
 
 .react-flow_handle_label {
+  width: 200px;
+  left: 20px;
+  top: -3px;
+  pointer-events: none;
   color: rgb(176, 228, 156);
   position: absolute;
 }
@@ -143,8 +147,10 @@
 }
 
 .flownode .switch {
+  pointer-events: all;
   display: inline-block;
   cursor: pointer;
+  margin: 0 6px 0 0;
 }
 .flownode .switch:hover {
   opacity: 0.5;
@@ -156,13 +162,13 @@
 /* -------------- */
 /* Data theme     */
 /* -------------- */
-.flownode.vector2,
-.flownode.vector3,
-.flownode.vector4,
-.flownode.number,
-.flownode.code {
+.flownode.flow-node_data {
   background: rgb(6, 16, 68);
   min-height: 80px;
+}
+
+.flownode.texture {
+  min-height: 40px;
 }
 
 .flownode.vector2,
@@ -175,23 +181,16 @@
   width: 50%;
 }
 
-.selected .number.flownode,
-.selected .vector2.flownode,
-.selected .vector3.flownode,
-.selected .vector4.flownode,
-.selected .code.flownode {
+.selected .flow-node_data.flownode {
   border: 1px solid #00d5ff;
 }
 
-.selected .number .flowlabel,
-.selected .vector2 .flowlabel,
-.selected .vector3 .flowlabel,
-.selected .vector4 .flowlabel,
-.selected .code .flowlabel {
+.selected .flow-node_data .flowlabel {
   background: linear-gradient(to right, rgb(9, 22, 84), rgb(13, 29, 108));
   border-bottom: 1px solid #00d5ff;
 }
 
+.react-flow__edge.texture .react-flow__edge-path,
 .react-flow__edge.number .react-flow__edge-path,
 .react-flow__edge.vector2 .react-flow__edge-path,
 .react-flow__edge.vector3 .react-flow__edge-path,
@@ -202,6 +201,7 @@
 .react-flow__edge.vector2.updating .react-flow__edge-path,
 .react-flow__edge.vector3.updating .react-flow__edge-path,
 .react-flow__edge.vector4.updating .react-flow__edge-path,
+.react-flow__edge.texture.updating .react-flow__edge-path,
 .react-flow__edge.number.updating .react-flow__edge-path {
   stroke: #00aeff;
 }
@@ -210,23 +210,22 @@
 .react-flow__edge.vector2.selected .react-flow__edge-path,
 .react-flow__edge.vector3.selected .react-flow__edge-path,
 .react-flow__edge.vector4.selected .react-flow__edge-path,
+.react-flow__edge.texture.selected .react-flow__edge-path,
 .react-flow__edge.number.selected .react-flow__edge-path {
   stroke: #00d5ff;
 }
 
 /* selectable edge path */
-.vector2 .react-flow__edge-path-selector,
-.vector3 .react-flow__edge-path-selector,
-.vector4 .react-flow__edge-path-selector,
-.number .react-flow__edge-path-selector {
+.react-flow__edge.vector2 .react-flow__edge-path-selector,
+.react-flow__edge.vector3 .react-flow__edge-path-selector,
+.react-flow__edge.vector4 .react-flow__edge-path-selector,
+.react-flow__edge.texture .react-flow__edge-path-selector,
+.react-flow__edge.number .react-flow__edge-path-selector {
   stroke: rgba(0, 68, 255, 0.3);
 }
 
 /* updateable drag handle */
-.vector2 .react-flow__edgeupdater,
-.vector3 .react-flow__edgeupdater,
-.vector4 .react-flow__edgeupdater,
-.number .react-flow__edgeupdater {
+.flow-node_data .react-flow__edgeupdater {
   fill: #333d00;
   stroke: #00d5ff;
 }

@@ -15,7 +15,7 @@ type Mat =
   | 'mat4x3'
   | 'mat4x4';
 
-export type GraphDataType = Vector | Mat | 'sampler2D' | 'number' | 'array';
+export type GraphDataType = Vector | Mat | 'texture' | 'number' | 'array';
 
 export interface NumberNode extends CoreNode {
   type: 'number';
@@ -60,7 +60,7 @@ export const numberUniformData = (
 ): NumberDataUniform => ({ type: 'number', name, value, range, stepper });
 
 export interface TextureNode extends CoreNode {
-  type: 'sampler2D';
+  type: 'texture';
   value: string;
 }
 export const textureNode = (
@@ -68,7 +68,7 @@ export const textureNode = (
   name: string,
   value: string
 ): TextureNode => ({
-  type: 'sampler2D',
+  type: 'texture',
   id,
   name,
   value,
@@ -87,7 +87,7 @@ export type TextureDataUniform = Omit<TextureNode, 'id' | 'inputs' | 'outputs'>;
 export const textureUniformData = (
   name: string,
   value: string
-): TextureDataUniform => ({ type: 'sampler2D', name, value });
+): TextureDataUniform => ({ type: 'texture', name, value });
 
 export type Vector2 = [string, string];
 export type Vector3 = [string, string, string];

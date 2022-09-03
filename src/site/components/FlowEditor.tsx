@@ -66,7 +66,7 @@ const nodeTypes: Record<NodeType | GraphDataType | EngineNodeType, any> = {
   mat4x2: DataNodeComponent,
   mat4x3: DataNodeComponent,
   mat4x4: DataNodeComponent,
-  sampler2D: DataNodeComponent,
+  texture: DataNodeComponent,
   number: DataNodeComponent,
   array: DataNodeComponent,
 };
@@ -173,7 +173,7 @@ const ctxNodes: [string, string][] = [
   ['fragment', 'Fragment'],
   ['vertex', 'Vertex'],
   ['number', 'Number'],
-  ['sampler2D', 'Texture'],
+  ['texture', 'Texture'],
   ['vec2', 'Vector2'],
   ['vec3', 'Vector3'],
   ['vec4', 'Vector4'],

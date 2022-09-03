@@ -1,4 +1,4 @@
-import React, { memo, useEffect } from 'react';
+import React, { memo, useEffect, useMemo } from 'react';
 import classnames from 'classnames/bind';
 import {
   Handle,
@@ -20,18 +20,23 @@ import {
   Vector3,
   Vector4,
 } from '../../../core/nodes/data-nodes';
-import { InputCategory } from '../../../core/nodes/core-node';
+import { InputCategory, NodeInput } from '../../../core/nodes/core-node';
 import { ChangeHandler, useFlowEventHack } from '../../flowEventHack';
 import { replaceAt } from '../../../util/replaceAt';
+import groupBy from 'lodash.groupby';
 
+const headerHeight = 30;
+const labelHeight = 38;
+const inputHeight = 20;
 const handleTop = 45;
 const textHeight = 10;
 
 export type InputNodeHandle = {
-  validTarget: boolean;
-  accepts?: Set<InputCategory>;
   name: string;
   id: string;
+  type: string;
+  validTarget: boolean;
+  accepts?: Set<InputCategory>;
   baked?: boolean;
   bakeable: boolean;
 };
@@ -92,16 +97,18 @@ export type FlowNodeData = FlowNodeSourceData | FlowNodeDataData;
 const FlowWrap = ({
   children,
   data,
+  height,
   className,
 }: {
   children: React.ReactNode;
+  height?: number;
   data: FlowNodeData;
   className: any;
 }) => (
   <div
     className={classnames('flownode', className)}
     style={{
-      height: `${handleTop + Math.max(data.inputs.length, 1) * 20}px`,
+      height: height || `${handleTop + Math.max(data.inputs.length, 1) * 20}px`,
       zIndex: 0,
     }}
   >
@@ -196,7 +203,7 @@ const DataNodeComponent = memo(
     const onChange = useFlowEventHack();
 
     return (
-      <FlowWrap data={data} className={data.type}>
+      <FlowWrap data={data} className={cx('flow-node_data', data.type)}>
         <div className="flowlabel">{data.label}</div>
         <div className="flowInputs">
           {data.inputs.map((input, index) => (
@@ -222,32 +229,25 @@ const DataNodeComponent = memo(
               </div>
             </React.Fragment>
           ))}
+        </div>
 
-          <div className="body">
-            {data.type === 'number' ? (
-              <NumberEditor id={id} value={data.value} onChange={onChange} />
-            ) : data.type === 'vector2' ||
-              data.type === 'vector3' ||
-              data.type === 'vector4' ? (
-              <VectorEditor id={id} value={data.value} onChange={onChange} />
-            ) : data.type === 'sampler2D' ? (
-              <TextureEditor id={id} value={data.value} onChange={onChange} />
-            ) : (
-              <div>NOOOOOO FlowNode for {data.type}</div>
-            )}
-          </div>
+        <div className="body">
+          {data.type === 'number' ? (
+            <NumberEditor id={id} value={data.value} onChange={onChange} />
+          ) : data.type === 'vector2' ||
+            data.type === 'vector3' ||
+            data.type === 'vector4' ? (
+            <VectorEditor id={id} value={data.value} onChange={onChange} />
+          ) : data.type === 'texture' ? (
+            <TextureEditor id={id} value={data.value} onChange={onChange} />
+          ) : (
+            <div>NOOOOOO FlowNode for {data.type}</div>
+          )}
+        </div>
 
+        <div className={styles.outputs}>
           {data.outputs.map((output, index) => (
             <React.Fragment key={output.name}>
-              <div
-                className="react-flow_handle_label"
-                style={{
-                  top: `${handleTop - textHeight + index * 20}px`,
-                  right: 15,
-                }}
-              >
-                {output.name}
-              </div>
               <Handle
                 isConnectable
                 id={output.id}
@@ -255,7 +255,13 @@ const DataNodeComponent = memo(
                 type="source"
                 position={Position.Right}
                 style={{ top: `${handleTop + index * 20}px` }}
-              />
+              >
+                <div
+                  className={cx('react-flow_handle_label', styles.outputLabel)}
+                >
+                  {output.name}
+                </div>
+              </Handle>
             </React.Fragment>
           ))}
         </div>
@@ -278,9 +284,34 @@ const SourceNodeComponent = memo(
     //   };
     // }, [id, updateNodeInternals, key]);
 
+    const [groups, height] = useMemo<
+      [{ name: string; inputs: InputNodeHandle[]; offset: number }[], number]
+    >(() => {
+      const labels: Record<string, string> = {
+        uniform: 'Uniforms',
+        property: 'Properties',
+        filler: 'Code',
+      };
+      const group = groupBy<InputNodeHandle>(data.inputs, 'type');
+      let offset = 0;
+      return [
+        Object.entries(group).map(([key, inputs]) => {
+          const result = {
+            name: labels[key] || `UNKNOWN ${key}`,
+            inputs,
+            offset,
+          };
+          offset += labelHeight + inputs.length * inputHeight;
+          return result;
+        }),
+        offset,
+      ];
+    }, [data.inputs]);
+
     return (
       <FlowWrap
         data={data}
+        height={height + headerHeight}
         className={cx(data.stage, data.category, { inactive: !data.active })}
       >
         <div className="flowlabel">
@@ -292,59 +323,71 @@ const SourceNodeComponent = memo(
           ) : null}
         </div>
         <div className="flowInputs">
-          {data.inputs.map((input, index) => (
-            <React.Fragment key={input.id}>
-              <Handle
-                isConnectable
-                id={input.id}
-                className={cx({ validTarget: input.validTarget })}
-                type="target"
-                position={Position.Left}
-                style={{ top: `${handleTop + index * 20}px` }}
-              />
+          {groups.map((group) => (
+            <React.Fragment key={group.name}>
               <div
-                className={cx('react-flow_handle_label', {
-                  validTarget: input.validTarget,
-                })}
+                className={styles.inputSection}
                 style={{
-                  top: `${handleTop - textHeight + index * 20}px`,
-                  left: 15,
+                  top: `${group.offset}px`,
                 }}
               >
-                <div
-                  className="switch"
-                  onClick={(e) => (
-                    e.preventDefault(), data.onInputBakedToggle(id, input.id)
-                  )}
-                >
-                  {input.bakeable ? (input.baked ? '🔒' : '➡️') : null}
-                </div>
-                {input.name}
+                {group.name}
               </div>
+              {group.inputs.map((input, index) => (
+                // <React.Fragment key={input.id}>
+                <Handle
+                  key={input.id}
+                  isConnectable
+                  id={input.id}
+                  className={cx({ validTarget: input.validTarget })}
+                  type="target"
+                  position={Position.Left}
+                  style={{
+                    top: `${group.offset + labelHeight + index * 20}px`,
+                  }}
+                >
+                  <div
+                    className={cx('react-flow_handle_label', {
+                      validTarget: input.validTarget,
+                    })}
+                  >
+                    <div
+                      className="switch"
+                      onClick={(e) => (
+                        e.preventDefault(),
+                        data.onInputBakedToggle(id, input.id)
+                      )}
+                    >
+                      {input.bakeable ? (input.baked ? '🔒 ' : '➡️') : null}
+                    </div>
+                    {input.name}
+                  </div>
+                </Handle>
+                // </React.Fragment>
+              ))}
             </React.Fragment>
           ))}
 
-          {data.outputs.map((output, index) => (
-            <React.Fragment key={output.name}>
-              <div
-                className="react-flow_handle_label"
-                style={{
-                  top: `${handleTop - textHeight + index * 20}px`,
-                  right: 15,
-                }}
-              >
-                {output.name}
-              </div>
+          <div className={cx(styles.outputs, styles.outputWithLabel)}>
+            {data.outputs.map((output, index) => (
               <Handle
+                key={output.id}
                 isConnectable
                 id={output.id}
-                className={cx({ validTarget: output.validTarget })}
+                className={cx({
+                  validTarget: output.validTarget,
+                })}
                 type="source"
                 position={Position.Right}
-                style={{ top: `${handleTop + index * 20}px` }}
-              />
-            </React.Fragment>
-          ))}
+              >
+                <div
+                  className={cx('react-flow_handle_label', styles.outputLabel)}
+                >
+                  {output.name}
+                </div>
+              </Handle>
+            ))}
+          </div>
         </div>
 
         {/* These are not currently shown - replace with floating edges? */}

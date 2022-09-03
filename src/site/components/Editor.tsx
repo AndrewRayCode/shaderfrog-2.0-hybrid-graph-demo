@@ -142,8 +142,8 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
         (acc, uniform) => {
           let n;
           switch (uniform.type) {
-            case 'sampler2D': {
-              n = textureNode(makeId(), 'sampler2D', uniform.value);
+            case 'texture': {
+              n = textureNode(makeId(), 'texture', uniform.value);
               break;
             }
             case 'number': {
@@ -219,6 +219,8 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
  *      EXAMPLES
  *    - Plugging in albedo now fails because it's treated and data and tried to
  *      be evaluated. Need to auto-set inputs similar to colorization
+ *    - add auto-bake plugging code into data/uniform
+ *    - make background toggle-able
  * - Adding empty toon shader and plugging in breaks at least on production
  *   - Can't reproduce
  * - Launch: Feedback, URL sharing, examples
@@ -359,13 +361,7 @@ const useTestingNodeSetup = () => {
       makeId(),
       'Physical',
       physicalGroupId,
-      [
-        // numberUniformData('thickness', '0.6'),
-        numberUniformData('metalness', '0.4'),
-        // numberUniformData('transmission', '0'),
-        numberUniformData('roughness', '0.2'),
-        vectorUniformData('diffuse', ['1', '0.5', '0.5']),
-      ],
+      [],
       'fragment'
     );
     const physicalV = physicalNode(
@@ -397,11 +393,14 @@ const useTestingNodeSetup = () => {
     const hellOnEarthF = hellOnEarthFrag(makeId());
     const hellOnEarthV = hellOnEarthVert(makeId(), hellOnEarthF.id);
     const perlinCloudsF = perlinCloudsFNode(makeId());
+
+    const transmissionNumber = numberNode(makeId(), 'transmission', '0.9');
     // const num1 = numberNode(makeId(), 'number', '1');
     return expandUniformDataNodes({
       nodes: [
         physicalF,
         physicalV,
+        transmissionNumber,
         // solidColorF,
         // fireF,
         // fireV,
@@ -412,7 +411,7 @@ const useTestingNodeSetup = () => {
         // outlineV,
         // hellOnEarthF,
         // hellOnEarthV,
-        perlinCloudsF,
+        // perlinCloudsF,
         purpleNoise,
         // heatShaderF,
         // heatShaderV,
@@ -433,6 +432,13 @@ const useTestingNodeSetup = () => {
           'filler_gl_Position',
           'vertex'
         ),
+        // makeEdge(
+        //   transmissionNumber.id,
+        //   physicalF.id,
+        //   'out',
+        //   'property_transmission',
+        //   'fragment'
+        // ),
       ],
     });
   });
@@ -655,6 +661,7 @@ const toFlowInputs = (node: GraphNode): InputNodeHandle[] =>
     .map((input) => ({
       id: input.id,
       name: input.displayName,
+      type: input.type,
       baked: input.baked,
       bakeable: input.bakeable,
       validTarget: false,
@@ -1339,7 +1346,7 @@ const Editor: React.FC = () => {
     if (type === 'number') {
       newGns = [numberNode(id, 'number', '1')];
     } else if (type === 'sampler2D') {
-      newGns = [textureNode(id, 'sampler2D', 'grayscale-noise')];
+      newGns = [textureNode(id, 'Texture', 'grayscale-noise')];
     } else if (type === 'vec2') {
       newGns = [vectorNode(id, 'vec2', ['1', '1'])];
     } else if (type === 'vec3') {

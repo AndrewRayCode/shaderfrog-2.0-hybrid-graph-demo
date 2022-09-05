@@ -212,13 +212,13 @@ export const updateGraphInput = (
     node.id === nodeId
       ? {
           ...node,
-          inputs: node.inputs.map((i) =>
-            i.id === inputId
+          inputs: node.inputs.map((input) =>
+            input.id === inputId
               ? {
-                  ...i,
-                  data,
+                  ...input,
+                  ...data,
                 }
-              : i
+              : input
           ),
         }
       : node
@@ -274,30 +274,19 @@ export const updateFlowInput = (
           ...node,
           data: {
             ...node.data,
-            inputs: node.data.inputs.map((i) =>
-              i.id === inputId
+            inputs: node.data.inputs.map((input) =>
+              input.id === inputId
                 ? {
-                    ...i,
-                    data,
+                    ...input,
+                    ...data,
                   }
-                : i
+                : input
             ),
           },
         }
       : node
   ),
 });
-
-export const applyFlowEdgeChanges = (
-  flowElements: FlowElements,
-  changes: EdgeChange[]
-): FlowElements => {
-  const updatedFlowGraph = setFlowNodeStages({
-    nodes: flowElements.nodes,
-    edges: applyEdgeChanges(changes, flowElements.edges),
-  });
-  return collapseBinaryEdges(updatedFlowGraph);
-};
 
 export const addFlowEdge = (
   flowElements: FlowElements,
@@ -371,55 +360,6 @@ export const collapseBinaryEdges = (flowGraph: FlowElements): FlowElements => {
     edges: updatedEdges,
   };
 };
-
-/*
-// Convert flow elements to graph
-export const fromFlowToGraph = (
-  graph: Graph,
-  flowElements: FlowElements
-): Graph => {
-  const edges = flowElements.edges.map(flowEdgeToGraphEdge);
-
-  const flowNodesById = flowElements.nodes.reduce<
-    Record<string, FlowNode<FlowNodeData>>
-  >((acc, node) => ({ ...acc, [node.id]: node }), {});
-
-  const nodes = graph.nodes.map((node) => {
-    const fromFlow = flowNodesById[node.id];
-    const {
-      data: { inputs: flowInputs },
-    } = flowNodesById[node.id];
-
-    return {
-      ...node,
-      inputs: node.inputs.map((i) => {
-        // mainStmts is hidden from the graph
-        if (i.displayName === MAGIC_OUTPUT_STMTS) {
-          return i;
-        }
-
-        const inputFromFlow = ensure(
-          flowInputs.find((f) => f.id === i.id),
-          `While converting flow nodes to graph nodes, flow node ${node.name} has no input ${i.id}, which is present on the graph node.`
-        );
-        return {
-          ...i,
-          ...(inputFromFlow.baked ? { baked: inputFromFlow.baked } : null),
-        };
-      }),
-      ...('value' in node
-        ? { value: (fromFlow.data as FlowNodeDataData).value }
-        : null),
-    };
-  });
-
-  return {
-    ...graph,
-    nodes,
-    edges,
-  };
-};
-*/
 
 export const initializeFlowElementsFromGraph = (
   graph: Graph,

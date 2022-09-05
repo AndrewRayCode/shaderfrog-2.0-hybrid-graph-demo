@@ -27,6 +27,7 @@ import {
   useUpdateNodeInternals,
   useReactFlow,
   XYPosition,
+  OnConnectStartParams,
   // FlowElement,
 } from 'react-flow-renderer';
 
@@ -132,6 +133,7 @@ import {
   updateGraphNode,
   addFlowEdge,
   applyFlowEdgeChanges,
+  flowEdgeToGraphEdge,
 } from './flow/helpers';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
@@ -834,26 +836,34 @@ const Editor: React.FC = () => {
         type: 'special',
       };
 
+      setGraph((graph) => ({
+        ...graph,
+        edges: [...graph.edges, flowEdgeToGraphEdge(addedEdge)],
+      }));
       setFlowElements((fe) => addFlowEdge(fe, addedEdge));
       setNeedsCompile(true);
     },
-    [flowElements, setFlowElements]
+    [flowElements, setFlowElements, setGraph]
   );
 
-  const onConnect = (edge: FlowEdge | Connection) => addConnection(edge);
+  const onConnect = useCallback(
+    (edge: FlowEdge | Connection) => addConnection(edge),
+    [addConnection]
+  );
 
-  const onEdgeUpdate = (oldEdge: FlowEdge, newConnection: Connection) =>
-    addConnection(newConnection);
+  const onEdgeUpdate = useCallback(
+    (oldEdge: FlowEdge, newConnection: Connection) =>
+      addConnection(newConnection),
+    [addConnection]
+  );
 
-  const onEdgesDelete = (edges: Edge[]) => {
+  const onEdgesDelete = useCallback((edges: Edge[]) => {
     setNeedsCompile(true);
-  };
+  }, []);
 
   // Used for selecting edges, also called when an edge is removed, along with
   // onEdgesDelete above
   const onEdgesChange = useCallback(
-    // todo: does this need to be "applyFlowEdgeChanges(fe, changes))," ? If not
-    // I think I can remove that method
     (changes) =>
       setFlowElements((fe) => ({
         ...fe,
@@ -958,8 +968,11 @@ const Editor: React.FC = () => {
 
   const connecting = useRef<{ node: GraphNode; input: NodeInput } | null>();
   const onConnectStart = useCallback(
-    (params: any, event: any) => {
-      const { nodeId, handleType, handleId } = event;
+    (_: MouseEvent, params: OnConnectStartParams) => {
+      const { nodeId, handleType, handleId } = params;
+      if (handleType === 'source' || !nodeId || !handleType) {
+        return;
+      }
       const node = ensure(graph.nodes.find((n) => n.id === nodeId));
 
       connecting.current = {
@@ -1032,119 +1045,39 @@ const Editor: React.FC = () => {
         throw new Error('Unknown type "' + type + '"');
       }
 
-      /**
-       * On load, we call initializeGraph -> initializeFlowElementsFromGraph, so
-       * data flow is: graph is source of truth -> flow elements, and in there
-       * we set the positions of elements haphazardly. This sets the source of
-       * truth as the frog graph, which makes sense. Except for the positions.
-       * so the flow graph contains some data that needs to be saved that's not
-       * in the nodes themselves.
-       *
-       * Adding edge to graph: addConnection() creates a flow edge, then sets
-       * needcompile to true, which calls compile(), which updates the graph
-       * using fromFlowToGraph(), which copies flow edges into the graph, and
-       * copies "baked" and "value" onto the graph node. So in this sense, any
-       * unsynced changes from the flow graph are "committed" to the main graph.
-       *
-       * Adding element to graph: Creates a *graph* element, computes its
-       * context, *then* creates the flow elements. Where this is getting me
-       * into trouble is creating a data node connected to a megashader isn't
-       * causing a recompile, so the ThreeComponent material isn't getting
-       * re-created.
-       *
-       * From the core graph -> flow graph:
-       * - New inputs from strategies
-       * - Which nodes are "active" based on sibling IDs
-       * - Which nodes are "data" but calculated in Editor not graph.ts (the
-       *   core graph skips these to avoid filling data into
-       *   properties/uniforms, and then Editor * recalculates *all* dataInputs
-       *   from the core graph for colorizing and not recompiling on dragging
-       *   sliders around.)
-       *
-       * From the flow graph -> core graph:
-       * - On baked toggle, sets the *flow* baked, then calls
-       *   setDebouncedNeedsCompile()
-       * - On data value change, which sets the flow elements with the new data
-       *   to make controlled inputs, *and* updates the graph (why? probably
-       *   doesn't need to) then calls setDebouncedNeedsCompile()
-       * - onEdgesDelete updates flow elements, *and* removes the element from
-       *   the core graph (and *doesn't* trigger a recompile, maybe should)
-       * - Adding an edge calls addConnection(), which removes duplicate edges,
-       *   then updates the *flow* graph, then calls setNeedsCompile()
-       *
-       * When a node or edge is added, we need to compute new context for that
-       * node, which can involve a recompilation since there can be new /
-       * different fillers, which then updates the flow graph visuals
-       *
-       * Thinking about
-       *   - Adding a node+edge to that node (what I'm working on now)
-       */
+      let newGEs: GraphEdge[] = newEdge
+        ? [
+            makeEdge(
+              id,
+              newEdge.to,
+              newEdge.output,
+              newEdge.input,
+              newEdge.type
+            ),
+          ]
+        : [];
 
-      // let addedEdge;
-      // if(newEdge) {
-      //   addedEdge: FlowEdge<FlowEdgeData> = {
-      //     ...newEdge,
-      //     id: `${newEdge.source}-${newEdge.target}`,
-      //     source: newEdge.source,
-      //     target: newEdge.target,
-      //     data: { type },
-      //     className: cx(type, edgeType),
-      //     type: 'special',
-      //   };
-      // }
-
-      let newGEs: GraphEdge[] = [];
-      // let mutatedNode: GraphNode | undefined;
-      if (newEdge) {
-        newGEs.push(
-          makeEdge(id, newEdge.to, newEdge.output, newEdge.input, newEdge.type)
-        );
-        // mutatedNode = ensure(graph.nodes.find((n) => n.id === newEdge.to));
-      }
-
-      // console.log('computing context for ...', newGns);
-      // Then compute the context before we convert to flow node, so that
-      // inputs are created on the node correctly
-      // computeContextForNodes(ctx as EngineContext, engine, updatedGraph, [
-      //   ...newGns,
-      //   ...(mutatedNode ? [mutatedNode] : []),
-      // ]);
-
-      // Now we're safe to compute the flow nodes
-      const newFlowNodes = newGns.map((newGn, index) =>
-        graphNodeToFlowNode(newGn, onInputBakedToggle, {
-          x: position.x - 200 + index * 20,
-          y: position.y - 50 + index * 20,
-        })
-      );
-
-      const newEdges = newGEs.map(graphEdgeToFlowEdge);
-
-      // const updatedFlowNodes = flowElements.nodes.map((fe) =>
-      //   fe.id === mutatedNode?.id
-      //     ? graphNodeToFlowNode(mutatedNode, onInputBakedToggle, fe.position)
-      //     : fe
-      // );
-
-      // Then we can update react state
-      const updatedFlowElements = {
-        edges: [...flowElements.edges, ...newEdges],
-        nodes: [...flowElements.nodes, ...newFlowNodes],
-      };
       setGraph((graph) => ({
-        // Put the new nodes in the graph first, because computing context requires
-        // the siblings / nextStage nodes to be present
         ...graph,
         edges: [...graph.edges, ...newGEs],
         nodes: [...graph.nodes, ...newGns],
       }));
-      setFlowElements(updatedFlowElements);
-      setNeedsCompile(true);
 
-      // console.log('updated the graph', { updatedGraph });
-      // setGraph(fromFlowToGraph(updatedGraph, updatedFlowElements));
+      setFlowElements((fe) => ({
+        edges: [...fe.edges, ...newGEs.map(graphEdgeToFlowEdge)],
+        nodes: [
+          ...fe.nodes,
+          ...newGns.map((newGn, index) =>
+            graphNodeToFlowNode(newGn, onInputBakedToggle, {
+              x: position.x - 200 + index * 20,
+              y: position.y - 50 + index * 20,
+            })
+          ),
+        ],
+      }));
+      setNeedsCompile(true);
     },
-    [ctx, engine, flowElements, onInputBakedToggle, setFlowElements, setGraph]
+    [ctx, onInputBakedToggle, setFlowElements, setGraph]
   );
 
   const { project } = useReactFlow();
@@ -1293,7 +1226,6 @@ const Editor: React.FC = () => {
         ),
       ],
     });
-    // );
 
     setGraph(newGraph);
     initializeGraph(

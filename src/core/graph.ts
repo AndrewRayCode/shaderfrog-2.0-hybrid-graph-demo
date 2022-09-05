@@ -480,6 +480,7 @@ export const compileNode = (
   node: GraphNode,
   activeIds: NodeIds = {}
 ): CompileNodeResult => {
+  console.log('Compiling', node.name);
   // THIS DUPLICATES OTHER LINE
   const parser = {
     ...(coreParsers[node.type] || coreParsers[NodeType.SOURCE]),
@@ -624,12 +625,7 @@ export const compileNode = (
 };
 
 // Merge existing node inputs, and inputs based on properties, with new ones
-// found from the source code, using the *name* as the uniqueness key.
-//
-// TODO: The *filler* input "map" loses to the *property* input "map" because
-// they both have the same name. A more correct solution is to merge filler
-// inputs into property inputs *only* if there's a property input that has the
-// *fillerName* matching the filler input.
+// found from the source code, using the *id* as the uniqueness key
 const collapseNodeInputs = (
   node: CodeNode,
   updatedInputs: NodeInput[]

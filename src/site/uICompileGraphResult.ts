@@ -19,14 +19,10 @@ export type UICompileGraphResult = {
   graph: Graph;
 };
 
-export const collectDataInputsFromNodes = (
-  graph: Graph,
-  nodes: GraphNode[]
-) => {
-  return nodes.reduce<IndexedDataInputs>((acc, node) => {
+export const collectDataInputsFromNodes = (graph: Graph, nodes: GraphNode[]) =>
+  nodes.reduce<IndexedDataInputs>((acc, node) => {
     const found = filterGraphFromNode(graph, node, {
       input: isDataInput,
     });
     return { ...acc, ...found.inputs };
   }, {});
-};

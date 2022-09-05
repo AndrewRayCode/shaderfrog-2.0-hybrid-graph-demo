@@ -6,10 +6,9 @@ export type Edge = {
   from: string;
   to: string;
   output: string;
-  /**
-   * The ID of the input of the node this edge connects to
-   */
+  // The ID of the input of the node this edge connects to
   input: string;
+  // Fragment, vertex, or any of the data types
   type?: EdgeType;
 };
 

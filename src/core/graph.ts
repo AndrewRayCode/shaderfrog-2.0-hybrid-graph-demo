@@ -707,7 +707,10 @@ const computeNodeContext = (
 
   node.inputs = collapseNodeInputs(
     node,
-    updatedInputs.map(([i]) => i)
+    updatedInputs.map(([i]) => ({
+      ...i,
+      displayName: mapInputName(node, i),
+    }))
   );
 
   const nodeContext: NodeContext = {

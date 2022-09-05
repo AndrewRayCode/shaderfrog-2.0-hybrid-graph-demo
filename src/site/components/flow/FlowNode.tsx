@@ -71,7 +71,7 @@ export interface FlowNodeSourceData extends CoreFlowNode {
    * Whether or not this node can be used for both shader fragment and vertex
    */
   biStage: boolean;
-  onInputBakedToggle: (id: string, name: string) => void;
+  onInputBakedToggle: (id: string, name: string, baked: boolean) => void;
 }
 export type FlowNodeData = FlowNodeSourceData | FlowNodeDataData;
 
@@ -355,7 +355,7 @@ const SourceNodeComponent = memo(
                       className="switch"
                       onClick={(e) => (
                         e.preventDefault(),
-                        data.onInputBakedToggle(id, input.id)
+                        data.onInputBakedToggle(id, input.id, !input.baked)
                       )}
                     >
                       {input.bakeable ? (input.baked ? '🔒 ' : '➡️') : null}

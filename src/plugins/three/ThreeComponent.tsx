@@ -177,11 +177,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         // @ts-ignore
         mesh.material.uniforms.time.value = time * 0.001;
       }
-      // @ts-ignore
-      if (mesh.material?.uniforms?.cameraPosition) {
-        // @ts-ignore
-        mesh.material.uniforms.cameraPosition.value.copy(camera.position);
-      }
     }
   );
 
@@ -251,7 +246,15 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     // mesh.material = material;
     // sceneData.bg = mesh;
     // scene.add(mesh);
-  }, [previousPreviewObject, sceneData, previewObject, scene]);
+  }, [
+    bg,
+    previousBg,
+    renderer,
+    previousPreviewObject,
+    sceneData,
+    previewObject,
+    scene,
+  ]);
 
   const threeTone = useMemo(() => {
     console.log('loading 3tone image');
@@ -318,16 +321,10 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     } = ctx.runtime as ThreeRuntime;
     console.log('oh hai birfday boi boi boiiiii');
 
-    const pc: any = graph.nodes.find(
-      (node) => node.name === 'Perlin Clouds'
-    )?.id;
     const os1: any = graph.nodes.find((node) => node.name === 'Outline')?.id;
     const fs1: any = graph.nodes.find((node) => node.name === 'Fireball')?.id;
     const fc: any = graph.nodes.find(
       (node) => node.name === 'Fluid Circles'
-    )?.id;
-    const pu: any = graph.nodes.find(
-      (node) => node.name === 'Purple Metal'
     )?.id;
     const edgeId: any = graph.nodes.find(
       (node) => node.name === 'Triplanar'
@@ -363,7 +360,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
     // Note this is setting the uniforms of the shader at creation time. The
     // uniforms are also updated every frame in the useThree() loop
-
     const { uniforms, properties } = Object.entries(
       compileResult.dataInputs || {}
     ).reduce<{
@@ -388,6 +384,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
             if (input.displayName === 'color') {
               // THIS DUPLICATES OTHER LINE
               newValue = new Color(value.x, value.y, value.z);
+            } else if (fromNode.type === 'texture') {
+              newValue = images[(fromNode as TextureNode).value];
             }
             console.log('value, evalauted', {
               fromNode,
@@ -465,27 +463,19 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       },
     };
 
-    // the before code
-    const rawMatProperties = {
-      name: 'ShaderFrog Phong Material',
+    const initialProperties = {
+      name: 'ShaderFrog Material',
       lights: true,
       uniforms: {
         ...finalUniforms,
-        // Temporary hack: required for three internals for meshphysicalmaterial
-        attenuationTint: { value: new three.Color(1.0, 1.0, 1.0) },
-        specularTint: { value: new three.Color(1.0, 1.0, 1.0) },
       },
       transparent: true,
       opacity: 1.0,
       vertexShader: compileResult?.vertexResult,
       fragmentShader: compileResult?.fragmentResult,
-      // onBeforeCompile: () => {
-      //   console.log('raw shader precomp');
-      // },
     };
-    const newMat = new three.RawShaderMaterial(rawMatProperties);
 
-    Object.entries({
+    const additionalProperties = Object.entries({
       ...engineMaterial,
       ...properties,
     })
@@ -500,20 +490,26 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
           // "precision" adds a precision preprocessor line
           property !== 'precision' &&
           // Ignore existing properties
-          !(property in rawMatProperties) &&
+          !(property in initialProperties) &&
           // Ignore STANDARD and PHYSICAL defines to the top of the shader in
           // WebGLProgram
           // https://github.com/mrdoob/three.js/blob/e7042de7c1a2c70e38654a04b6fd97d9c978e781/src/renderers/webgl/WebGLProgram.js#L392
           // which occurs if we set isMeshPhysicalMaterial/isMeshStandardMaterial
           property !== 'defines'
       )
-      // Simply for debug purposes of logging
-      .sort(([a], [b]) => a.localeCompare(b))
-      .forEach(([key, value]) => {
-        console.log('setting', key, 'to', value);
-        // @ts-ignore
-        newMat[key] = value;
-      });
+      .reduce((acc, [key, value]) => ({
+        ...acc,
+        [key]: value,
+      }));
+
+    const newMat = new three.RawShaderMaterial(initialProperties);
+
+    // This prevents a deluge of warnings from three on the constructor saying
+    // that each of these properties is not a property of the material
+    Object.entries(additionalProperties).forEach(([key, value]) => {
+      // @ts-ignore
+      newMat[key] = value;
+    });
 
     console.log('🏞 Re-creating three.js material!', {
       newMat,
@@ -525,7 +521,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
     mesh.material = newMat;
     shadersUpdated.current = true;
-  }, [compileResult, ctx.runtime]);
+  }, [compileResult, ctx.runtime, images]);
 
   const prevLights = usePrevious(lights);
   useEffect(() => {

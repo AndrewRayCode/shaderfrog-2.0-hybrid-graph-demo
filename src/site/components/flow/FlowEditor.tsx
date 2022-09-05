@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, MouseEvent, forwardRef } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
-import ConnectionLine from './flow/ConnectionLine';
+import ConnectionLine from './ConnectionLine';
 import create from 'zustand';
 
 import ReactFlow, {
@@ -11,12 +11,12 @@ import ReactFlow, {
   ReactFlowProps,
 } from 'react-flow-renderer';
 
-import { NodeType } from '../../core/graph';
-import { EngineNodeType } from '../../core/engine';
-import FlowEdgeComponent from './flow/FlowEdge';
-import { DataNodeComponent, SourceNodeComponent } from './flow/FlowNode';
-import { GraphDataType } from '../../core/nodes/data-nodes';
-import { FlowEventHack } from '../flowEventHack';
+import { NodeType } from '../../../core/graph';
+import { EngineNodeType } from '../../../core/engine';
+import FlowEdgeComponent from './FlowEdge';
+import { DataNodeComponent, SourceNodeComponent } from './FlowNode';
+import { GraphDataType } from '../../../core/nodes/data-nodes';
+import { FlowEventHack } from '../../flowEventHack';
 
 import ctxStyles from './context.menu.module.css';
 
@@ -41,7 +41,9 @@ export const useEditorStore = create<EditorStore>((set) => ({
   setMenuPosition: (menuPosition) => set(() => ({ menuPosition })),
 }));
 
-const flowStyles = { height: '100vh', background: '#111' };
+// Terrible hack to make the flow graph full height minus the tab height - I
+// need better layoutting of the tabs + graph
+const flowStyles = { height: 'calc(100vh - 33px)', background: '#111' };
 
 const nodeTypes: Record<NodeType | GraphDataType | EngineNodeType, any> = {
   toon: SourceNodeComponent,

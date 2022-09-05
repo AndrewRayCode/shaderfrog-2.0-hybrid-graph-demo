@@ -242,3 +242,9 @@ textarea.error {
   right: 0;
   bottom: 0;
 }
+
+.reactFlowWrapper {
+  border: 1px inset green;
+  flex-grow: 1;
+  height: 100%;
+}

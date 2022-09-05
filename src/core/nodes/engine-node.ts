@@ -211,7 +211,7 @@ export const physicalNode = (
         property('color', 'color', 'color'),
         property('map', ALBEDO_DISPLAY_NAME, 'texture', 'filler_map'),
         property('normalMap', 'normalMap', 'texture'),
-        property('roughness', 'roughness', 'texture'),
+        property('roughness', 'roughness', 'number'),
         property('roughnessMap', 'roughnessMap', 'texture'),
         property('displacementMap', 'displacementMap', 'texture'),
         property('envMap', 'envMap', 'texture'),

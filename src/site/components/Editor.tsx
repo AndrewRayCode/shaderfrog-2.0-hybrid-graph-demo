@@ -1,7 +1,7 @@
 import styles from '../../pages/editor/editor.module.css';
 import debounce from 'lodash.debounce';
 
-import FlowEditor, { MouseData, useEditorStore } from './FlowEditor';
+import FlowEditor, { MouseData, useEditorStore } from './flow/FlowEditor';
 
 import { SplitPane } from 'react-multi-split-pane';
 import cx from 'classnames';
@@ -33,14 +33,11 @@ import {
 import {
   Graph,
   GraphNode,
-  ShaderStage,
   compileGraph,
   computeAllContexts,
   computeContextForNodes,
-  MAGIC_OUTPUT_STMTS,
   NodeType,
   alphabet,
-  isSourceNode,
   collectConnectedNodes,
 } from '../../core/graph';
 import { Edge as GraphEdge, EdgeType } from '../../core/nodes/edge';
@@ -53,12 +50,7 @@ import {
   physicalNode,
   toonNode,
 } from '../../core/nodes/engine-node';
-import {
-  Engine,
-  EngineContext,
-  convertToEngine,
-  EngineNodeType,
-} from '../../core/engine';
+import { Engine, EngineContext, convertToEngine } from '../../core/engine';
 import { shaderSectionsToAst } from '../../ast/shader-sections';
 
 import useThrottle from '../hooks/useThrottle';
@@ -81,13 +73,7 @@ import { useAsyncExtendedState } from '../hooks/useAsyncExtendedState';
 // import { usePromise } from '../usePromise';
 
 import { FlowEdgeData } from './flow/FlowEdge';
-import {
-  FlowNodeData,
-  FlowNodeSourceData,
-  FlowNodeDataData,
-  InputNodeHandle,
-  flowOutput,
-} from './flow/FlowNode';
+import { FlowNodeSourceData, FlowNodeDataData } from './flow/FlowNode';
 
 import { Tabs, Tab, TabGroup, TabPanel, TabPanels } from './Tabs';
 import CodeEditor from './CodeEditor';
@@ -130,6 +116,23 @@ import { SourceNode } from '../../core/nodes/code-nodes';
 import { makeId } from '../../util/id';
 import { hasParent } from '../../util/hasParent';
 import { useWindowSize } from '../hooks/useWindowSize';
+import { NodeInput } from '../../core/nodes/core-node';
+import {
+  FlowEdgeOrLink,
+  FlowElements,
+  toFlowInputs,
+  setFlowNodeCategories,
+  initializeFlowElementsFromGraph,
+  setFlowNodeStages,
+  graphNodeToFlowNode,
+  graphEdgeToFlowEdge,
+  updateFlowInput,
+  updateGraphInput,
+  updateFlowNodeData,
+  updateGraphNode,
+  addFlowEdge,
+  applyFlowEdgeChanges,
+} from './flow/helpers';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
@@ -194,31 +197,10 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
 /**
  * Where was I?
  * - Trying to add examples, while at the same time
- *    - abstracted out editor component, which broke new node addition location
- *      on shift+a / right-click
- *    - trying to get physical material transmission working but setting
- *      transmission uniform sitll makes material see thru and setting
- *      thickness / ior properties don't have the expected changes
  *    - trying out dropdowns in the UI to support examples, hard coded hi/bye
- *    - added ability to edit final shader source
- *    - added scene background
- *    - moved source to left pane
- *    - Got transmission working. The initial issue was that to tell threejs to
- *      render the transmission rendertarget, the material property in
- *      ThreeComponent needs material.transmission set on it. However to get the
- *      rest of the uniforms on the material, three copies the material
- *      properties onto the shader uniforms, overwriting external uniforms.
- *      This is a deviation from Shaderfrog's GLSL uniforms strategy where
- *      material properties need to be set from the graph. And some, like map,
- *      require both the uniform and the material property to work together.
- *    - Adding properties to materials, need to use in ThreeComponent, need to
- *      distinguish between vertex and fragment properties, properties changes
- *      shouldn't cause a recompile
  *    - wow like 3 years ago I was trying to make a dropdown to change the
  *      scene background and add additional geometry types, and trying to add
  *      EXAMPLES
- *    - Plugging in albedo now fails because it's treated and data and tried to
- *      be evaluated. Need to auto-set inputs similar to colorization
  *    - add auto-bake plugging code into data/uniform
  *    - make background toggle-able
  * - Adding empty toon shader and plugging in breaks at least on production
@@ -251,6 +233,9 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
  *
  * Polish / Improvements
  * - UX
+ *   - Store graph zoom / pan position between tab switches
+ *   - fix default placement of nodes so they don't overlap and stack better,
+ *     and/or save node positions for examples?
  *   - Add more syntax highlighting to the GLSL editor, look at vscode
  *     plugin? https://github.com/stef-levesque/vscode-shader/tree/master/syntaxes
  *   - Allow dragging uniform edge out backwards to create a data node for it
@@ -325,13 +310,6 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
  * - Here we hardcode "out" for the inputs which needs to line up with
  *   the custom handles.
  */
-
-type FlowElement = FlowNode<FlowNodeData> | FlowEdge<FlowEdgeData>;
-type FlowEdgeOrLink = FlowEdge<FlowEdgeData>;
-type FlowElements = {
-  nodes: FlowNode<FlowNodeData>[];
-  edges: FlowEdgeOrLink[];
-};
 
 // Default node setup
 const useTestingNodeSetup = () => {
@@ -453,48 +431,6 @@ const useTestingNodeSetup = () => {
   };
 };
 
-/**
- * A binary node automatically adds/removes inputs based on how many edges
- * connect to it. If a binary node has edges to "a" and "b", removing the edge
- * to "a" means the edge to "b" needs to be moved down to the "a" one. This
- * function essentially groups edges by target node id, and resets the edge
- * target to its index. This doesn't feel good to do here but I don't have a
- * better idea at the moment. One reason the inputs to binary nodes are
- * automatically updated after compile, but the edges are updated here
- * at the editor layer, before compile. This also hard codes assumptions about
- * (binary) node inputs into the graph, namely they can't have blank inputs.
- */
-const collapseBinaryEdges = (flowGraph: FlowElements): FlowElements => {
-  // Find all edges that flow into a binary node, grouped by the target node's
-  // id, since we need to know the total number of edges per node first
-  const binaryEdges = flowGraph.edges.reduce<Record<string, FlowEdgeOrLink[]>>(
-    (acc, edge) => {
-      const toNode = flowGraph.nodes.find(({ id }) => id === edge.target);
-      return toNode?.type === NodeType.BINARY
-        ? {
-            ...acc,
-            [toNode.id]: [...(acc[toNode.id] || []), edge],
-          }
-        : acc;
-    },
-    {}
-  );
-
-  // Then collapse them
-  const updatedEdges = flowGraph.edges.map((edge) => {
-    return edge.target in binaryEdges
-      ? {
-          ...edge,
-          targetHandle: alphabet.charAt(binaryEdges[edge.target].indexOf(edge)),
-        }
-      : edge;
-  });
-  return {
-    ...flowGraph,
-    edges: updatedEdges,
-  };
-};
-
 const compileGraphAsync = async (
   graph: Graph,
   engine: Engine,
@@ -556,246 +492,6 @@ total: ${(now - allStart).toFixed(3)}ms
       });
     }, 0);
   });
-
-// Determine the stage of a node (vertex/fragment) by recursively looking at
-// the noddes that feed into this one, until we find one that has a stage set
-const findInputStage = (
-  ids: Record<string, FlowNode<FlowNodeData>>,
-  edgesByTarget: Record<string, FlowEdge<FlowEdgeData>[]>,
-  node: FlowNode<FlowNodeData>
-): ShaderStage | undefined => {
-  let nodeData = node.data as FlowNodeSourceData;
-  return (
-    (!nodeData?.biStage && nodeData?.stage) ||
-    (edgesByTarget[node.id] || []).reduce<ShaderStage | undefined>(
-      (found, edge) => {
-        const type = edge.data?.type;
-        return (
-          found ||
-          (type === 'fragment' || type === 'vertex' ? type : false) ||
-          findInputStage(ids, edgesByTarget, ids[edge.source])
-        );
-      },
-      undefined
-    )
-  );
-};
-
-const setFlowNodeCategories = (
-  flowElements: FlowElements,
-  dataNodes: Record<string, GraphNode>
-): FlowElements => ({
-  ...flowElements,
-  nodes: flowElements.nodes.map((node) => {
-    if (node.id in dataNodes) {
-      return {
-        ...node,
-        data: {
-          ...node.data,
-          category: 'code',
-        },
-      };
-    }
-    return node;
-  }),
-});
-
-// Some nodes, like add, can be used for either fragment or vertex stage. When
-// we connect edges in the graph, update it to figure out which stage we should
-// set the add node to based on inputs to the node.
-const setFlowNodeStages = (flowElements: FlowElements): FlowElements => {
-  const targets = flowElements.edges.reduce<Record<string, FlowEdge[]>>(
-    (acc, edge) => ({
-      ...acc,
-      [edge.target]: [...(acc[edge.target] || []), edge],
-    }),
-    {}
-  );
-  const ids = flowElements.nodes.reduce<Record<string, FlowNode>>(
-    (acc, node) => ({
-      ...acc,
-      [node.id]: node,
-    }),
-    {}
-  );
-
-  const updatedSides: Record<string, FlowElement> = {};
-  // Update the node stages by looking at their inputs
-  return {
-    nodes: flowElements.nodes.map((node) => {
-      if (!node.data || !('biStage' in node.data)) {
-        return node;
-      }
-      if (!node.data.biStage && node.data.stage) {
-        return node;
-      }
-      return (updatedSides[node.id] = {
-        ...node,
-        data: {
-          ...node.data,
-          stage: findInputStage(ids, targets, node),
-        },
-      });
-    }),
-    // Set the stage for edges connected to nodes whose stage changed
-    edges: flowElements.edges.map((element) => {
-      if (!('source' in element) || !(element.source in updatedSides)) {
-        return element;
-      }
-      const { stage } = updatedSides[element.source].data as FlowNodeSourceData;
-      return {
-        ...element,
-        // className: element.data?.type === 'data' ? element.data.type : stage,
-        data: {
-          ...element.data,
-          stage,
-        },
-      };
-    }),
-  };
-};
-
-const toFlowInputs = (node: GraphNode): InputNodeHandle[] =>
-  (node.inputs || [])
-    .filter(({ displayName }) => displayName !== MAGIC_OUTPUT_STMTS)
-    .map((input) => ({
-      id: input.id,
-      name: input.displayName,
-      type: input.type,
-      baked: input.baked,
-      bakeable: input.bakeable,
-      validTarget: false,
-      accepts: input.accepts,
-    }));
-
-const graphNodeToFlowNode = (
-  node: GraphNode,
-  onInputBakedToggle: any,
-  position: XYPosition
-): FlowNode<FlowNodeData> => {
-  const data: FlowNodeData = isSourceNode(node)
-    ? {
-        label: node.name,
-        stage: node.stage,
-        active: false,
-        biStage: node.biStage || false,
-        inputs: toFlowInputs(node),
-        outputs: node.outputs.map((o) => flowOutput(o.name)),
-        onInputBakedToggle,
-      }
-    : {
-        label: node.name,
-        type: node.type,
-        value: node.value,
-        inputs: toFlowInputs(node),
-        outputs: node.outputs.map((o) => flowOutput(o.name)),
-      };
-  return {
-    id: node.id,
-    data,
-    // type: isSourceNode(node) ? 'source' : 'data',
-    type: node.type,
-    position,
-  };
-};
-
-const initializeFlowElementsFromGraph = (
-  graph: Graph,
-  onInputBakedToggle: any
-): FlowElements => {
-  let engines = 0;
-  let maths = 0;
-  let outputs = 0;
-  let shaders = 0;
-  const spacing = 200;
-  const maxHeight = 4;
-  console.log('Initializing flow elements from', { graph });
-
-  const nodes = graph.nodes.map((node) =>
-    graphNodeToFlowNode(
-      node,
-      onInputBakedToggle,
-      node.type === EngineNodeType.output
-        ? { x: spacing * 2, y: outputs++ * 100 }
-        : node.type === EngineNodeType.phong ||
-          node.type === EngineNodeType.toon ||
-          node.type === EngineNodeType.physical
-        ? { x: spacing, y: engines++ * 100 }
-        : node.type === EngineNodeType.binary
-        ? { x: 0, y: maths++ * 100 }
-        : {
-            x: -spacing - spacing * Math.floor(shaders / maxHeight),
-            y: (shaders++ % maxHeight) * 120,
-          }
-    )
-  );
-
-  const edges: FlowEdgeOrLink[] = graph.edges.map(
-    (edge): FlowEdge<FlowEdgeData> => ({
-      id: `${edge.to}-${edge.from}`,
-      source: edge.from,
-      sourceHandle: edge.output,
-      targetHandle: edge.input,
-      target: edge.to,
-      data: { type: edge.type },
-      className: edge.type,
-      type: 'special',
-    })
-  );
-
-  return setFlowNodeStages({ nodes, edges });
-};
-
-// Convert flow elements to graph
-const fromFlowToGraph = (graph: Graph, flowElements: FlowElements): Graph => {
-  graph.edges = flowElements.edges.map(
-    (edge: FlowEdge<FlowEdgeData>): GraphEdge => ({
-      from: edge.source,
-      to: edge.target,
-      output: 'out',
-      input: edge.targetHandle as string,
-      type: edge.data?.type,
-    })
-  );
-
-  const flowNodesById = flowElements.nodes.reduce<
-    Record<string, FlowNode<FlowNodeData>>
-  >((acc, node) => ({ ...acc, [node.id]: node }), {});
-
-  graph.nodes = graph.nodes.map((node) => {
-    const fromFlow = flowNodesById[node.id];
-    const {
-      data: { inputs: flowInputs },
-    } = flowNodesById[node.id];
-
-    return {
-      ...node,
-      inputs: node.inputs.map((i) => {
-        if (node.name === 'Output') {
-          console.log({ node, i });
-        }
-        // mainStmts is hidden from the graph
-        if (i.displayName === MAGIC_OUTPUT_STMTS) {
-          return i;
-        }
-
-        const inputFromFlow = ensure(
-          flowInputs.find((f) => f.id === i.id),
-          `Flow Node ${node.name} has no input ${i.id}`
-        );
-        return {
-          ...i,
-          ...(inputFromFlow.baked ? { baked: inputFromFlow.baked } : null),
-        };
-      }),
-      ...('value' in node
-        ? { value: (fromFlow.data as FlowNodeDataData).value }
-        : null),
-    };
-  });
-
-  return graph;
-};
 
 const Editor: React.FC = () => {
   const { getRefData } = useHoisty();
@@ -915,17 +611,19 @@ const Editor: React.FC = () => {
       graph: Graph,
       flowElements: FlowElements
     ) => {
-      const updatedGraph = fromFlowToGraph(graph, flowElements);
+      // const updatedGraph = fromFlowToGraph(graph, flowElements);
 
       setGuiMsg('Compiling!');
 
-      compileGraphAsync(updatedGraph, engine, ctx).then((compileResult) => {
+      // compileGraphAsync(updatedGraph, engine, ctx).then((compileResult) => {
+      compileGraphAsync(graph, engine, ctx).then((compileResult) => {
         setNeedsCompile(false);
         console.log('comple async complete!', { compileResult });
         setGuiMsg('');
         setCompileResult(compileResult);
 
-        const byId = updatedGraph.nodes.reduce<Record<string, GraphNode>>(
+        // const byId = updatedGraph.nodes.reduce<Record<string, GraphNode>>(
+        const byId = graph.nodes.reduce<Record<string, GraphNode>>(
           (acc, node) => ({ ...acc, [node.id]: node }),
           {}
         );
@@ -963,67 +661,30 @@ const Editor: React.FC = () => {
   );
 
   const onNodeValueChange = useCallback(
-    (id: string, value: any) => {
-      setFlowElements(({ nodes, edges }) => ({
-        nodes: nodes.map((node) => {
-          if (node.id === id) {
-            node.data = { ...node.data, value };
-          }
-          return node;
-        }),
-        edges,
-      }));
-      const nodesWithUpdatedValue = graph.nodes.map((node) =>
-        node.id === id
-          ? {
-              ...node,
-              value,
-            }
-          : node
-      );
-      setGraph((graph) => ({
-        ...graph,
-        nodes: nodesWithUpdatedValue,
-      }));
-
-      // TODO: How to avoid a recompile here if a data node *only* changes?
+    (nodeId: string, value: any) => {
       if (!compileResult) {
         return;
       }
+
+      setFlowElements((fe) => updateFlowNodeData(fe, nodeId, { value }));
+      setGraph((graph) => updateGraphNode(graph, nodeId, { value }));
+
+      // Only recompile if a non-data-node value changes
       const { dataNodes } = compileResult;
-      if (!(id in dataNodes)) {
+      if (!(nodeId in dataNodes)) {
         debouncedSetNeedsCompile(true);
       }
     },
-    [setFlowElements, compileResult, debouncedSetNeedsCompile, setGraph, graph]
+    [setFlowElements, compileResult, debouncedSetNeedsCompile, setGraph]
   );
 
   const onInputBakedToggle = useCallback(
-    (id: string, inputId: string) => {
-      setFlowElements(({ nodes, edges }) => ({
-        nodes: nodes.map((node) =>
-          node.id === id
-            ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  inputs: node.data.inputs.map((i) =>
-                    i.id === inputId
-                      ? {
-                          ...i,
-                          baked: !i.baked,
-                        }
-                      : i
-                  ),
-                },
-              }
-            : node
-        ),
-        edges,
-      }));
+    (nodeId: string, inputId: string, baked: boolean) => {
+      setFlowElements((fe) => updateFlowInput(fe, nodeId, inputId, { baked }));
+      setGraph((graph) => updateGraphInput(graph, nodeId, inputId, { baked }));
       debouncedSetNeedsCompile(true);
     },
-    [setFlowElements, debouncedSetNeedsCompile]
+    [setGraph, setFlowElements, debouncedSetNeedsCompile]
   );
 
   // Let child components call compile after, say, their lighting has finished
@@ -1148,59 +809,36 @@ const Editor: React.FC = () => {
    * React flow
    */
 
-  const addConnection = (newEdge: FlowEdge | Connection) => {
-    const target = flowElements.nodes.find(
-      (elem) => elem.id === newEdge.source
-    );
-    if (!target) {
-      return;
-    }
+  const addConnection = useCallback(
+    (newEdge: FlowEdge | Connection) => {
+      const target = ensure(
+        flowElements.nodes.find((elem) => elem.id === newEdge.source),
+        'lol wtf'
+      );
 
-    const edgeType = (target.data as FlowNodeDataData).type;
-    const type: EdgeType | undefined =
-      (target.data as FlowNodeSourceData).stage || edgeType;
+      const edgeType = (target.data as FlowNodeDataData).type;
+      const type: EdgeType | undefined =
+        (target.data as FlowNodeSourceData).stage || edgeType;
 
-    if (newEdge.source === null || newEdge.target === null) {
-      throw new Error('No source or target');
-    }
+      if (newEdge.source === null || newEdge.target === null) {
+        throw new Error('No source or target');
+      }
 
-    const addedEdge: FlowEdge<FlowEdgeData> = {
-      ...newEdge,
-      id: `${newEdge.source}-${newEdge.target}`,
-      source: newEdge.source,
-      target: newEdge.target,
-      data: { type },
-      className: cx(type, edgeType),
-      type: 'special',
-    };
+      const addedEdge: FlowEdge<FlowEdgeData> = {
+        ...newEdge,
+        id: `${newEdge.source}-${newEdge.target}`,
+        source: newEdge.source,
+        target: newEdge.target,
+        data: { type },
+        className: cx(type, edgeType),
+        type: 'special',
+      };
 
-    const updatedEdges = flowElements.edges.filter(
-      (element) =>
-        // Prevent one input handle from having multiple inputs
-        !(
-          (
-            'targetHandle' in element &&
-            element.targetHandle === newEdge.targetHandle &&
-            element.target === newEdge.target
-          )
-          // Prevent one output handle from having multiple lines out
-        ) &&
-        !(
-          'sourceHandle' in element &&
-          element.sourceHandle === newEdge.sourceHandle &&
-          element.source === newEdge.source
-        )
-    );
-
-    setFlowElements((flowElements) => {
-      const updatedFlowElements = setFlowNodeStages({
-        ...flowElements,
-        edges: [...updatedEdges, addedEdge],
-      });
-      return collapseBinaryEdges(updatedFlowElements);
-    });
-    setNeedsCompile(true);
-  };
+      setFlowElements((fe) => addFlowEdge(fe, addedEdge));
+      setNeedsCompile(true);
+    },
+    [flowElements, setFlowElements]
+  );
 
   const onConnect = (edge: FlowEdge | Connection) => addConnection(edge);
 
@@ -1214,14 +852,13 @@ const Editor: React.FC = () => {
   // Used for selecting edges, also called when an edge is removed, along with
   // onEdgesDelete above
   const onEdgesChange = useCallback(
+    // todo: does this need to be "applyFlowEdgeChanges(fe, changes))," ? If not
+    // I think I can remove that method
     (changes) =>
-      setFlowElements((flowElements) => {
-        const updatedFlowGraph = setFlowNodeStages({
-          nodes: flowElements.nodes,
-          edges: applyEdgeChanges(changes, flowElements.edges),
-        });
-        return collapseBinaryEdges(updatedFlowGraph);
-      }),
+      setFlowElements((fe) => ({
+        ...fe,
+        edges: applyEdgeChanges(changes, fe.edges),
+      })),
     [setFlowElements]
   );
 
@@ -1319,18 +956,243 @@ const Editor: React.FC = () => {
     [setTargets]
   );
 
-  const onConnectStart = (params: any, { nodeId, handleType }: any) => {
-    setTargets(nodeId, handleType);
-  };
+  const connecting = useRef<{ node: GraphNode; input: NodeInput } | null>();
+  const onConnectStart = useCallback(
+    (params: any, event: any) => {
+      const { nodeId, handleType, handleId } = event;
+      const node = ensure(graph.nodes.find((n) => n.id === nodeId));
+
+      connecting.current = {
+        node,
+        input: ensure(node.inputs.find((i) => i.id === handleId)),
+      };
+      setTargets(nodeId, handleType);
+    },
+    [graph, setTargets]
+  );
+
   const onEdgeUpdateEnd = () => resetTargets();
-  const onConnectStop = () => resetTargets();
+
+  const addNodeAtPosition = useCallback(
+    (type: string, position: XYPosition, newEdge?: Omit<GraphEdge, 'from'>) => {
+      const id = makeId();
+      const groupId = makeId();
+      let newGns: GraphNode[];
+
+      if (type === 'number') {
+        newGns = [numberNode(id, 'number', '1')];
+      } else if (type === 'texture') {
+        newGns = [textureNode(id, 'Texture', 'grayscale-noise')];
+      } else if (type === 'vec2') {
+        newGns = [vectorNode(id, 'vec2', ['1', '1'])];
+      } else if (type === 'vec3') {
+        newGns = [vectorNode(id, 'vec3', ['1', '1', '1'])];
+      } else if (type === 'vec4') {
+        newGns = [vectorNode(id, 'vec4', ['1', '1', '1', '1'])];
+      } else if (type === 'multiply') {
+        newGns = [multiplyNode(id)];
+      } else if (type === 'add') {
+        newGns = [addNode(id)];
+      } else if (type === 'phong') {
+        newGns = [
+          phongNode(id, 'Phong', groupId, 'fragment'),
+          phongNode(makeId(), 'Phong', groupId, 'vertex', id),
+        ];
+      } else if (type === 'toon') {
+        newGns = [
+          toonNode(id, 'Toon', groupId, 'fragment'),
+          toonNode(makeId(), 'Toon', groupId, 'vertex', id),
+        ];
+      } else if (type === 'fragment' || type === 'vertex') {
+        newGns = [
+          sourceNode(
+            makeId(),
+            'Source Code ' + id,
+            {
+              version: 2,
+              preprocess: true,
+              strategies: [
+                uniformStrategy(),
+                texture2DStrategy(),
+                declarationOfStrategy('replaceMe'),
+              ],
+            },
+            type === 'fragment'
+              ? `void main() {
+  gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
+}`
+              : `void main() {
+  gl_Position = vec4(1.0);
+}`,
+            type,
+            ctx?.engine
+          ),
+        ];
+      } else {
+        throw new Error('Unknown type "' + type + '"');
+      }
+
+      /**
+       * On load, we call initializeGraph -> initializeFlowElementsFromGraph, so
+       * data flow is: graph is source of truth -> flow elements, and in there
+       * we set the positions of elements haphazardly. This sets the source of
+       * truth as the frog graph, which makes sense. Except for the positions.
+       * so the flow graph contains some data that needs to be saved that's not
+       * in the nodes themselves.
+       *
+       * Adding edge to graph: addConnection() creates a flow edge, then sets
+       * needcompile to true, which calls compile(), which updates the graph
+       * using fromFlowToGraph(), which copies flow edges into the graph, and
+       * copies "baked" and "value" onto the graph node. So in this sense, any
+       * unsynced changes from the flow graph are "committed" to the main graph.
+       *
+       * Adding element to graph: Creates a *graph* element, computes its
+       * context, *then* creates the flow elements. Where this is getting me
+       * into trouble is creating a data node connected to a megashader isn't
+       * causing a recompile, so the ThreeComponent material isn't getting
+       * re-created.
+       *
+       * From the core graph -> flow graph:
+       * - New inputs from strategies
+       * - Which nodes are "active" based on sibling IDs
+       * - Which nodes are "data" but calculated in Editor not graph.ts (the
+       *   core graph skips these to avoid filling data into
+       *   properties/uniforms, and then Editor * recalculates *all* dataInputs
+       *   from the core graph for colorizing and not recompiling on dragging
+       *   sliders around.)
+       *
+       * From the flow graph -> core graph:
+       * - On baked toggle, sets the *flow* baked, then calls
+       *   setDebouncedNeedsCompile()
+       * - On data value change, which sets the flow elements with the new data
+       *   to make controlled inputs, *and* updates the graph (why? probably
+       *   doesn't need to) then calls setDebouncedNeedsCompile()
+       * - onEdgesDelete updates flow elements, *and* removes the element from
+       *   the core graph (and *doesn't* trigger a recompile, maybe should)
+       * - Adding an edge calls addConnection(), which removes duplicate edges,
+       *   then updates the *flow* graph, then calls setNeedsCompile()
+       *
+       * When a node or edge is added, we need to compute new context for that
+       * node, which can involve a recompilation since there can be new /
+       * different fillers, which then updates the flow graph visuals
+       *
+       * Thinking about
+       *   - Adding a node+edge to that node (what I'm working on now)
+       */
+
+      // let addedEdge;
+      // if(newEdge) {
+      //   addedEdge: FlowEdge<FlowEdgeData> = {
+      //     ...newEdge,
+      //     id: `${newEdge.source}-${newEdge.target}`,
+      //     source: newEdge.source,
+      //     target: newEdge.target,
+      //     data: { type },
+      //     className: cx(type, edgeType),
+      //     type: 'special',
+      //   };
+      // }
+
+      let newGEs: GraphEdge[] = [];
+      // let mutatedNode: GraphNode | undefined;
+      if (newEdge) {
+        newGEs.push(
+          makeEdge(id, newEdge.to, newEdge.output, newEdge.input, newEdge.type)
+        );
+        // mutatedNode = ensure(graph.nodes.find((n) => n.id === newEdge.to));
+      }
+
+      // console.log('computing context for ...', newGns);
+      // Then compute the context before we convert to flow node, so that
+      // inputs are created on the node correctly
+      // computeContextForNodes(ctx as EngineContext, engine, updatedGraph, [
+      //   ...newGns,
+      //   ...(mutatedNode ? [mutatedNode] : []),
+      // ]);
+
+      // Now we're safe to compute the flow nodes
+      const newFlowNodes = newGns.map((newGn, index) =>
+        graphNodeToFlowNode(newGn, onInputBakedToggle, {
+          x: position.x - 200 + index * 20,
+          y: position.y - 50 + index * 20,
+        })
+      );
+
+      const newEdges = newGEs.map(graphEdgeToFlowEdge);
+
+      // const updatedFlowNodes = flowElements.nodes.map((fe) =>
+      //   fe.id === mutatedNode?.id
+      //     ? graphNodeToFlowNode(mutatedNode, onInputBakedToggle, fe.position)
+      //     : fe
+      // );
+
+      // Then we can update react state
+      const updatedFlowElements = {
+        edges: [...flowElements.edges, ...newEdges],
+        nodes: [...flowElements.nodes, ...newFlowNodes],
+      };
+      setGraph((graph) => ({
+        // Put the new nodes in the graph first, because computing context requires
+        // the siblings / nextStage nodes to be present
+        ...graph,
+        edges: [...graph.edges, ...newGEs],
+        nodes: [...graph.nodes, ...newGns],
+      }));
+      setFlowElements(updatedFlowElements);
+      setNeedsCompile(true);
+
+      // console.log('updated the graph', { updatedGraph });
+      // setGraph(fromFlowToGraph(updatedGraph, updatedFlowElements));
+    },
+    [ctx, engine, flowElements, onInputBakedToggle, setFlowElements, setGraph]
+  );
+
+  const { project } = useReactFlow();
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
+
+  const onConnectStop = useCallback(
+    (event) => {
+      resetTargets();
+      const targetIsPane = event.target.classList.contains('react-flow__pane');
+
+      if (targetIsPane && reactFlowWrapper.current && connecting.current) {
+        // we need to remove the wrapper bounds, in order to get the correct position
+        const { top, left } = reactFlowWrapper.current.getBoundingClientRect();
+        const { node, input } = connecting.current;
+
+        let type: EdgeType = 'number';
+        if (input.type === 'property') {
+          const property = (node as SourceNode).config!.properties!.find(
+            (p) => p.property === input.property
+          );
+          type = property!.type as EdgeType;
+        }
+
+        // TODO: This doesn't trigger a compile until the input is dragged?
+        addNodeAtPosition(
+          type,
+          project({
+            x: event.clientX - left,
+            y: event.clientY - top,
+          } as XYPosition),
+          {
+            to: node.id,
+            // This needs to line up with the weird naming convention in data-nodes.ts output
+            output: '1',
+            input: input.id,
+            type,
+          }
+        );
+      }
+    },
+    [project, addNodeAtPosition, resetTargets]
+  );
 
   const mouseRef = useRef<MouseData>({
     real: { x: 0, y: 0 },
     projected: { x: 0, y: 0 },
   });
 
-  const { project } = useReactFlow();
   const onMouseMove = useCallback((event: MouseEvent<HTMLDivElement>) => {
     mouseRef.current.real = { x: event.clientX, y: event.clientY };
   }, []);
@@ -1338,106 +1200,35 @@ const Editor: React.FC = () => {
   const setMenuPos = useEditorStore((state) => state.setMenuPosition);
   const menuPosition = useEditorStore((state) => state.menuPosition);
 
-  const onMenuAdd = (type: string) => {
-    const id = makeId();
-    const groupId = makeId();
-    let newGns: GraphNode[];
+  const onMenuAdd = useCallback(
+    (type: string) => {
+      const pos = project(menuPosition as XYPosition);
+      addNodeAtPosition(type, pos);
+      setMenuPos();
+    },
+    [addNodeAtPosition, setMenuPos, project, menuPosition]
+  );
 
-    if (type === 'number') {
-      newGns = [numberNode(id, 'number', '1')];
-    } else if (type === 'sampler2D') {
-      newGns = [textureNode(id, 'Texture', 'grayscale-noise')];
-    } else if (type === 'vec2') {
-      newGns = [vectorNode(id, 'vec2', ['1', '1'])];
-    } else if (type === 'vec3') {
-      newGns = [vectorNode(id, 'vec3', ['1', '1', '1'])];
-    } else if (type === 'vec4') {
-      newGns = [vectorNode(id, 'vec4', ['1', '1', '1', '1'])];
-    } else if (type === 'multiply') {
-      newGns = [multiplyNode(id)];
-    } else if (type === 'add') {
-      newGns = [addNode(id)];
-    } else if (type === 'phong') {
-      newGns = [
-        phongNode(id, 'Phong', groupId, 'fragment'),
-        phongNode(makeId(), 'Phong', groupId, 'vertex', id),
-      ];
-    } else if (type === 'toon') {
-      newGns = [
-        toonNode(id, 'Toon', groupId, 'fragment'),
-        toonNode(makeId(), 'Toon', groupId, 'vertex', id),
-      ];
-    } else if (type === 'fragment' || type === 'vertex') {
-      newGns = [
-        sourceNode(
-          makeId(),
-          'Source Code ' + id,
-          {
-            version: 2,
-            preprocess: true,
-            strategies: [
-              uniformStrategy(),
-              texture2DStrategy(),
-              declarationOfStrategy('replaceMe'),
-            ],
-          },
-          type === 'fragment'
-            ? `void main() {
-  gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
-}`
-            : `void main() {
-  gl_Position = vec4(1.0);
-}`,
-          type,
-          ctx?.engine
-        ),
-      ];
-    } else {
-      throw new Error('Unknown type "' + type + '"');
-    }
-
-    // Put the new nodes in the graph first, because computing context requires
-    // the siblings / nextStage nodes to be present
-    const updatedGraph = {
-      ...graph,
-      nodes: [...graph.nodes, ...newGns],
-    };
-
-    // Then compute the context before we convert to flow node, so that
-    // inputs are created on the node correctly
-    computeContextForNodes(ctx as EngineContext, engine, updatedGraph, newGns);
-
-    const pos = project(menuPosition as XYPosition);
-
-    // Now we're safe to compute the flow nodes
-    const newNodes = newGns.map((newGn, index) => {
-      return graphNodeToFlowNode(newGn, onInputBakedToggle, {
-        x: pos.x + index * 20,
-        y: pos.y + index * 20,
-      });
-    });
-
-    // Then we can update react state
-    const updatedFlowElements = {
-      ...flowElements,
-      nodes: [...flowElements.nodes, ...newNodes],
-    };
-    setFlowElements(updatedFlowElements);
-    setGraph(fromFlowToGraph(updatedGraph, updatedFlowElements));
-    setMenuPos();
-  };
-
+  /**
+   * Convenience compilation effect. This lets other callbacks update the
+   * graph or flowElements however they want, and then set needsCompliation
+   * to true, without having to worry about all the possible combinations of
+   * updates of the parameters to compile()
+   */
   useEffect(() => {
     if (needsCompile) {
       compile(engine, ctx as EngineContext, graph, flowElements);
     }
   }, [needsCompile, flowElements, ctx, graph, compile, engine]);
 
-  const onContainerClick = (event: React.MouseEvent<HTMLElement>) => {
-    if (!hasParent(event.target as HTMLElement, '#x-context-menu')) {
-      setMenuPos();
-    }
-  };
+  const onContainerClick = useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      if (!hasParent(event.target as HTMLElement, '#x-context-menu')) {
+        setMenuPos();
+      }
+    },
+    [setMenuPos]
+  );
 
   const onNodesDelete = useCallback(
     (nodes: FlowNode[]) => {
@@ -1588,6 +1379,10 @@ const Editor: React.FC = () => {
             <TabPanels>
               {/* Graph tab */}
               <TabPanel onMouseMove={onMouseMove}>
+                <div
+                  ref={reactFlowWrapper}
+                  className={styles.reactFlowWrapper}
+                ></div>
                 <FlowEditor
                   mouse={mouseRef}
                   onMenuAdd={onMenuAdd}

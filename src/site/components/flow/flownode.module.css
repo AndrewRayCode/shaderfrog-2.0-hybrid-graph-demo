@@ -15,6 +15,13 @@
   margin-right: 4px;
 }
 
+:global(.fragment) .inputSection {
+  background: #334433;
+}
+:global(.vertex) .inputSection {
+  background: #443333;
+}
+
 .inputSection {
   color: #eee;
   background: linear-gradient(#333, #333344);

@@ -36,9 +36,6 @@ import {
   GraphNode,
   compileGraph,
   computeAllContexts,
-  computeContextForNodes,
-  NodeType,
-  alphabet,
   collectConnectedNodes,
 } from '../../core/graph';
 import { Edge as GraphEdge, EdgeType } from '../../core/nodes/edge';
@@ -76,7 +73,7 @@ import { useAsyncExtendedState } from '../hooks/useAsyncExtendedState';
 import { FlowEdgeData } from './flow/FlowEdge';
 import { FlowNodeSourceData, FlowNodeDataData } from './flow/FlowNode';
 
-import { Tabs, Tab, TabGroup, TabPanel, TabPanels } from './Tabs';
+import { Tabs, Tab, TabGroup, TabPanel, TabPanels } from './tabs/Tabs';
 import CodeEditor from './CodeEditor';
 
 import {
@@ -119,12 +116,10 @@ import { hasParent } from '../../util/hasParent';
 import { useWindowSize } from '../hooks/useWindowSize';
 import { NodeInput } from '../../core/nodes/core-node';
 import {
-  FlowEdgeOrLink,
   FlowElements,
   toFlowInputs,
   setFlowNodeCategories,
   initializeFlowElementsFromGraph,
-  setFlowNodeStages,
   graphNodeToFlowNode,
   graphEdgeToFlowEdge,
   updateFlowInput,
@@ -132,7 +127,6 @@ import {
   updateFlowNodeData,
   updateGraphNode,
   addFlowEdge,
-  applyFlowEdgeChanges,
   flowEdgeToGraphEdge,
 } from './flow/helpers';
 
@@ -176,6 +170,7 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
             [
               ...acc[1],
               makeEdge(
+                makeId(),
                 n.id,
                 node.id,
                 'out',
@@ -199,6 +194,7 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
 /**
  * Where was I?
  * - Trying to add examples, while at the same time
+ *    - Fixed bugs and double compiling
  *    - trying out dropdowns in the UI to support examples, hard coded hi/bye
  *    - wow like 3 years ago I was trying to make a dropdown to change the
  *      scene background and add additional geometry types, and trying to add
@@ -399,6 +395,7 @@ const useTestingNodeSetup = () => {
       ],
       edges: [
         makeEdge(
+          makeId(),
           physicalF.id,
           outputF.id,
           'out',
@@ -406,6 +403,7 @@ const useTestingNodeSetup = () => {
           'fragment'
         ),
         makeEdge(
+          makeId(),
           physicalV.id,
           outputV.id,
           'out',
@@ -413,6 +411,7 @@ const useTestingNodeSetup = () => {
           'vertex'
         ),
         // makeEdge(
+        //   makeId(),
         //   transmissionNumber.id,
         //   physicalF.id,
         //   'out',
@@ -492,7 +491,7 @@ total: ${(now - allStart).toFixed(3)}ms
         dataInputs,
         graph,
       });
-    }, 0);
+    }, 10);
   });
 
 const Editor: React.FC = () => {
@@ -523,6 +522,7 @@ const Editor: React.FC = () => {
   const [tabIndex, setTabIndex] = useState<number>(0);
   const [sceneTabIndex, setSceneTabIndex] = useState<number>(0);
   const [editorTabIndex, setEditorTabIndex] = useState<number>(0);
+  const [compiling, setCompiling] = useState<boolean>(false);
   const [guiMsg, setGuiMsg] = useState<string>('');
   const [lights, setLights] = useState<PreviewLight>('point');
   const [previewObject, setPreviewObject] = useState('torusknot');
@@ -614,12 +614,14 @@ const Editor: React.FC = () => {
       flowElements: FlowElements
     ) => {
       // const updatedGraph = fromFlowToGraph(graph, flowElements);
-
+      setCompiling(true);
       setGuiMsg('Compiling!');
 
       // compileGraphAsync(updatedGraph, engine, ctx).then((compileResult) => {
       compileGraphAsync(graph, engine, ctx).then((compileResult) => {
         setNeedsCompile(false);
+        setCompiling(false);
+
         console.log('comple async complete!', { compileResult });
         setGuiMsg('');
         setCompileResult(compileResult);
@@ -695,7 +697,6 @@ const Editor: React.FC = () => {
   // handles recompile
   const childCompile = useCallback(
     (ctx: EngineContext) => {
-      console.log('childCompile', ctx.nodes);
       return compile(engine, ctx, graph, flowElements);
     },
     [engine, compile, graph, flowElements]
@@ -857,10 +858,6 @@ const Editor: React.FC = () => {
     [addConnection]
   );
 
-  const onEdgesDelete = useCallback((edges: Edge[]) => {
-    setNeedsCompile(true);
-  }, []);
-
   // Used for selecting edges, also called when an edge is removed, along with
   // onEdgesDelete above
   const onEdgesChange = useCallback(
@@ -872,6 +869,7 @@ const Editor: React.FC = () => {
     [setFlowElements]
   );
 
+  // Handles selection, dragging, and deletion
   const onNodesChange = useCallback(
     (changes) =>
       setFlowElements((elements) => ({
@@ -987,7 +985,11 @@ const Editor: React.FC = () => {
   const onEdgeUpdateEnd = () => resetTargets();
 
   const addNodeAtPosition = useCallback(
-    (type: string, position: XYPosition, newEdge?: Omit<GraphEdge, 'from'>) => {
+    (
+      type: string,
+      position: XYPosition,
+      newEdgeData?: Omit<GraphEdge, 'id' | 'from'>
+    ) => {
       const id = makeId();
       const groupId = makeId();
       let newGns: GraphNode[];
@@ -1045,14 +1047,15 @@ const Editor: React.FC = () => {
         throw new Error('Unknown type "' + type + '"');
       }
 
-      let newGEs: GraphEdge[] = newEdge
+      let newGEs: GraphEdge[] = newEdgeData
         ? [
             makeEdge(
+              makeId(),
               id,
-              newEdge.to,
-              newEdge.output,
-              newEdge.input,
-              newEdge.type
+              newEdgeData.to,
+              newEdgeData.output,
+              newEdgeData.input,
+              newEdgeData.type
             ),
           ]
         : [];
@@ -1086,10 +1089,11 @@ const Editor: React.FC = () => {
   const onConnectStop = useCallback(
     (event) => {
       resetTargets();
+      // Make sure we only drop over the grid, not over a node
       const targetIsPane = event.target.classList.contains('react-flow__pane');
 
       if (targetIsPane && reactFlowWrapper.current && connecting.current) {
-        // we need to remove the wrapper bounds, in order to get the correct position
+        // Remove the wrapper bounds to get the correct position
         const { top, left } = reactFlowWrapper.current.getBoundingClientRect();
         const { node, input } = connecting.current;
 
@@ -1101,7 +1105,6 @@ const Editor: React.FC = () => {
           type = property!.type as EdgeType;
         }
 
-        // TODO: This doesn't trigger a compile until the input is dragged?
         addNodeAtPosition(
           type,
           project({
@@ -1117,6 +1120,9 @@ const Editor: React.FC = () => {
           }
         );
       }
+
+      // Clear the connection info on drag stop
+      connecting.current = null;
     },
     [project, addNodeAtPosition, resetTargets]
   );
@@ -1149,10 +1155,10 @@ const Editor: React.FC = () => {
    * updates of the parameters to compile()
    */
   useEffect(() => {
-    if (needsCompile) {
+    if (needsCompile && !compiling) {
       compile(engine, ctx as EngineContext, graph, flowElements);
     }
-  }, [needsCompile, flowElements, ctx, graph, compile, engine]);
+  }, [compiling, needsCompile, flowElements, ctx, graph, compile, engine]);
 
   const onContainerClick = useCallback(
     (event: React.MouseEvent<HTMLElement>) => {
@@ -1163,6 +1169,24 @@ const Editor: React.FC = () => {
     [setMenuPos]
   );
 
+  // onEdgesChange is what applies the edge changes to the flow graph.
+  const onEdgesDelete = useCallback(
+    (edges: Edge[]) => {
+      const ids = edges.reduce<Record<string, boolean>>(
+        (acc, e) => ({ ...acc, [e.id]: true }),
+        {}
+      );
+      setGraph((graph) => ({
+        ...graph,
+        edges: graph.edges.filter((edge) => !(edge.id in ids)),
+      }));
+      setNeedsCompile(true);
+    },
+    [setGraph]
+  );
+
+  // Note if an edge is connected to this node, onEdgesDelete and onEdgesChange
+  // both fire to update edges in the flow and core graph
   const onNodesDelete = useCallback(
     (nodes: FlowNode[]) => {
       const ids = nodes.reduce<Record<string, boolean>>(
@@ -1211,6 +1235,7 @@ const Editor: React.FC = () => {
       nodes: [outputF, outputV, physicalF, physicalV],
       edges: [
         makeEdge(
+          makeId(),
           physicalF.id,
           outputF.id,
           'out',
@@ -1218,6 +1243,7 @@ const Editor: React.FC = () => {
           'fragment'
         ),
         makeEdge(
+          makeId(),
           physicalV.id,
           outputV.id,
           'out',

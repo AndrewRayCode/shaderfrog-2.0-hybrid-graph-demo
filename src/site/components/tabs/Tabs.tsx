@@ -1,5 +1,7 @@
 import React, { ReactNode } from 'react';
-import cx from 'classnames';
+import classnames from 'classnames/bind';
+import style from './tabs.module.css';
+const cx = classnames.bind(style);
 
 type TabsProps = {
   children: React.ReactNode;

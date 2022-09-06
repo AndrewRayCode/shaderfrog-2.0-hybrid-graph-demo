@@ -40,6 +40,7 @@ import {
 } from './nodes/code-nodes';
 import { InputCategory, nodeInput, NodeInput } from './nodes/core-node';
 import { Vector2, Vector3, Vector4 } from 'three';
+import { makeId } from '../util/id';
 
 export type ShaderStage = 'fragment' | 'vertex';
 
@@ -480,7 +481,6 @@ export const compileNode = (
   node: GraphNode,
   activeIds: NodeIds = {}
 ): CompileNodeResult => {
-  console.log('Compiling', node.name);
   // THIS DUPLICATES OTHER LINE
   const parser = {
     ...(coreParsers[node.type] || coreParsers[NodeType.SOURCE]),
@@ -739,7 +739,7 @@ export const computeContextForNodes = (
   nodes: GraphNode[]
 ) =>
   nodes.filter(isSourceNode).reduce((context, node) => {
-    console.log('computing context for', node.name);
+    console.log('computing context for', `${node.name} (${node.id})`);
 
     let result = computeNodeContext(engineContext, engine, graph, node);
     let nodeContext = isError(result)
@@ -811,15 +811,13 @@ export const computeGraphContext = (
 
   computeContextForNodes(engineContext, engine, graph, [
     outputVert,
-    ...Object.values(vertexIds),
+    ...Object.values(vertexIds).filter((node) => node.id !== outputVert.id),
     ...additionalIds,
   ]);
   computeContextForNodes(engineContext, engine, graph, [
     outputFrag,
-    ...Object.values(fragmentIds),
+    ...Object.values(fragmentIds).filter((node) => node.id !== outputFrag.id),
   ]);
-  // computeSideContext(engineContext, engine, graph, 'fragment');
-  // computeSideContext(engineContext, engine, graph, 'vertex');
 };
 
 export const compileGraph = (
@@ -867,6 +865,7 @@ export const compileGraph = (
   );
 
   const orphanEdges: Edge[] = orphanNodes.map((node) => ({
+    id: makeId(),
     from: node.id,
     to: outputVert.id,
     output: 'main',

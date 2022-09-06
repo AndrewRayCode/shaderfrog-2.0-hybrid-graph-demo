@@ -180,6 +180,7 @@ export const graphNodeToFlowNode = (
 export const flowEdgeToGraphEdge = (
   edge: FlowEdge<FlowEdgeData>
 ): GraphEdge => ({
+  id: edge.id,
   from: edge.source,
   to: edge.target,
   output: 'out',
@@ -190,7 +191,7 @@ export const flowEdgeToGraphEdge = (
 export const graphEdgeToFlowEdge = (
   edge: GraphEdge
 ): FlowEdge<FlowEdgeData> => ({
-  id: `${edge.to}-${edge.from}`,
+  id: edge.id,
   source: edge.from,
   sourceHandle: edge.output,
   targetHandle: edge.input,

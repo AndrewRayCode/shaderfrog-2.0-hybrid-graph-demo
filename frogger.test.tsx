@@ -63,10 +63,10 @@ describe('evaluateNode()', () => {
     const graph: Graph = {
       nodes: [num1, num2, num3, finalAdd, add2],
       edges: [
-        makeEdge(num1.id, finalAdd.id, 'out', 'a'),
-        makeEdge(add2.id, finalAdd.id, 'out', 'b'),
-        makeEdge(num2.id, add2.id, 'out', 'a'),
-        makeEdge(num3.id, add2.id, 'out', 'b'),
+        makeEdge(id(), num1.id, finalAdd.id, 'out', 'a'),
+        makeEdge(id(), add2.id, finalAdd.id, 'out', 'b'),
+        makeEdge(id(), num2.id, add2.id, 'out', 'a'),
+        makeEdge(id(), num3.id, add2.id, 'out', 'b'),
       ],
     };
     expect(evaluateNode(graph, finalAdd)).toBe(15);

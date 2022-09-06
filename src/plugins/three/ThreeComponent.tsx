@@ -143,9 +143,12 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
               ({ to, input: i }) => to === nodeId && i === input.id
             );
             if (edge) {
-              const fromNode = ensure(
-                graph.nodes.find(({ id }) => id === edge.from)
-              );
+              const fromNode = graph.nodes.find(({ id }) => id === edge.from);
+              // In the case where a node has been deleted from the graph,
+              // dataInputs won't have been udpated until a recompile completes
+              if (!fromNode) {
+                return;
+              }
 
               const value = evaluateNode(graph, fromNode);
               let newValue = value;

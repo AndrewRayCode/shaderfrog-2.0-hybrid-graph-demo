@@ -3,6 +3,7 @@ import { GraphDataType } from './data-nodes';
 
 export type EdgeType = ShaderStage | GraphDataType;
 export type Edge = {
+  id: string;
   from: string;
   to: string;
   output: string;
@@ -13,9 +14,10 @@ export type Edge = {
 };
 
 export const makeEdge = (
+  id: string,
   from: string,
   to: string,
   output: string,
   input: string,
   type?: EdgeType
-): Edge => ({ from, to, output, input, type });
+): Edge => ({ id, from, to, output, input, type });

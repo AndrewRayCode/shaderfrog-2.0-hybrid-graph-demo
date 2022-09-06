@@ -1,6 +1,7 @@
 import { CoreNode, NodeInput, NodeOutput } from './core-node';
 
 type Vector = 'vector2' | 'vector3' | 'vector4';
+type Color = 'rgb' | 'rgba';
 type Mat =
   | 'mat2'
   | 'mat3'
@@ -15,7 +16,13 @@ type Mat =
   | 'mat4x3'
   | 'mat4x4';
 
-export type GraphDataType = Vector | Mat | 'texture' | 'number' | 'array';
+export type GraphDataType =
+  | Vector
+  | Color
+  | Mat
+  | 'texture'
+  | 'number'
+  | 'array';
 
 export interface NumberNode extends CoreNode {
   type: 'number';
@@ -149,17 +156,67 @@ export const vectorUniformData = (
     : { value, dimensions: 4, type: 'vector4' }),
 });
 
+export interface RgbNode extends CoreNode {
+  type: 'rgb';
+  dimensions: 3;
+  value: Vector3;
+}
+export interface RgbaNode extends CoreNode {
+  type: 'rgba';
+  dimensions: 4;
+  value: Vector4;
+}
+
+export function colorNode(
+  id: string,
+  name: string,
+  value: Vector3 | Vector4
+): RgbNode | RgbaNode {
+  return {
+    id,
+    name,
+    inputs: [],
+    outputs: [
+      {
+        name: 'out',
+        id: '1',
+        category: 'data',
+      },
+    ],
+    ...(value.length === 3
+      ? { value, dimensions: 3, type: 'rgb' }
+      : { value, dimensions: 4, type: 'rgba' }),
+  };
+}
+
+export type RgbDataUniform = Omit<RgbNode, 'id' | 'inputs' | 'outputs'>;
+export type RgbaDataUniform = Omit<RgbaNode, 'id' | 'inputs' | 'outputs'>;
+
+export const colorUniformData = (
+  name: string,
+  value: Vector3 | Vector4
+): RgbDataUniform | RgbaDataUniform => ({
+  name,
+  ...(value.length === 3
+    ? { value, dimensions: 3, type: 'rgb' }
+    : { value, dimensions: 4, type: 'rgba' }),
+});
+
 // When defining nodes, these are the types allowed in uniforms
 export type UniformDataType =
   | TextureDataUniform
   | NumberDataUniform
   | Vector2DataUniform
   | Vector3DataUniform
-  | Vector4DataUniform;
+  | Vector4DataUniform
+  | RgbDataUniform
+  | RgbaDataUniform;
 
 export type DataNode =
   | TextureNode
   | NumberNode
   | Vector2Node
   | Vector3Node
-  | Vector4Node;
+  | Vector4Node
+  | RgbNode
+  | RgbaNode;

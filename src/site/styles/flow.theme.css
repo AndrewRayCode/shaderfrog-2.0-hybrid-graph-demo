@@ -167,6 +167,10 @@
   min-height: 80px;
 }
 
+.flow-node_data .flowlabel {
+  background: linear-gradient(to right, rgb(19, 40, 144), rgb(9, 23, 91));
+}
+
 .flownode.texture {
   min-height: 40px;
 }

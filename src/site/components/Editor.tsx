@@ -100,6 +100,7 @@ import {
 } from '../../core/strategy';
 import { ensure } from '../../util/ensure';
 import {
+  colorNode,
   numberNode,
   numberUniformData,
   textureNode,
@@ -142,26 +143,63 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
           let n;
           switch (uniform.type) {
             case 'texture': {
-              n = textureNode(makeId(), 'texture', uniform.value);
+              n = textureNode(
+                makeId(),
+                `${uniform.name} (texture)`,
+                uniform.value
+              );
               break;
             }
             case 'number': {
-              n = numberNode(makeId(), 'number', uniform.value, {
-                range: uniform.range,
-                stepper: uniform.stepper,
-              });
+              n = numberNode(
+                makeId(),
+                `${uniform.name} (number)`,
+                uniform.value,
+                {
+                  range: uniform.range,
+                  stepper: uniform.stepper,
+                }
+              );
               break;
             }
             case 'vector2': {
-              n = vectorNode(makeId(), 'vector2', uniform.value as Vector2);
+              n = vectorNode(
+                makeId(),
+                `${uniform.name} (vector2)`,
+                uniform.value as Vector2
+              );
               break;
             }
             case 'vector3': {
-              n = vectorNode(makeId(), 'vector3', uniform.value as Vector3);
+              n = vectorNode(
+                makeId(),
+                `${uniform.name} (vector3)`,
+                uniform.value as Vector3
+              );
               break;
             }
             case 'vector4': {
-              n = vectorNode(makeId(), 'vector4', uniform.value as Vector4);
+              n = vectorNode(
+                makeId(),
+                `${uniform.name} (vector4)`,
+                uniform.value as Vector4
+              );
+              break;
+            }
+            case 'rgb': {
+              n = colorNode(
+                makeId(),
+                `${uniform.name} (rgb)`,
+                uniform.value as Vector3
+              );
+              break;
+            }
+            case 'rgba': {
+              n = colorNode(
+                makeId(),
+                `${uniform.name} (rgba)`,
+                uniform.value as Vector4
+              );
               break;
             }
           }
@@ -256,6 +294,8 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
  *   - Fragment and Vertex nodes should be combined together, because uniforms
  *     are used between both of them (right?). I guess technically you could
  *     set a different value in the fragment vs vertex uniform...
+ *   - Make properties "shadow" the uniforms the control to hide the uniforms
+ *     on the node inputs
  *
  * Features
  * - Ability to export shaders + use in engine
@@ -987,23 +1027,29 @@ const Editor: React.FC = () => {
   const addNodeAtPosition = useCallback(
     (
       type: string,
+      name: string,
       position: XYPosition,
       newEdgeData?: Omit<GraphEdge, 'id' | 'from'>
     ) => {
+      const makeName = (type: string) => (name ? `${name} (${type})` : type);
       const id = makeId();
       const groupId = makeId();
       let newGns: GraphNode[];
 
       if (type === 'number') {
-        newGns = [numberNode(id, 'number', '1')];
+        newGns = [numberNode(id, makeName('number'), '1')];
       } else if (type === 'texture') {
-        newGns = [textureNode(id, 'Texture', 'grayscale-noise')];
+        newGns = [textureNode(id, makeName('texture'), 'grayscale-noise')];
       } else if (type === 'vec2') {
-        newGns = [vectorNode(id, 'vec2', ['1', '1'])];
+        newGns = [vectorNode(id, makeName('vec2'), ['1', '1'])];
       } else if (type === 'vec3') {
-        newGns = [vectorNode(id, 'vec3', ['1', '1', '1'])];
+        newGns = [vectorNode(id, makeName('vec3'), ['1', '1', '1'])];
       } else if (type === 'vec4') {
-        newGns = [vectorNode(id, 'vec4', ['1', '1', '1', '1'])];
+        newGns = [vectorNode(id, makeName('vec4'), ['1', '1', '1', '1'])];
+      } else if (type === 'rgb') {
+        newGns = [colorNode(id, makeName('rgb'), ['1', '1', '1'])];
+      } else if (type === 'rgba') {
+        newGns = [colorNode(id, makeName('rgba'), ['1', '1', '1', '1'])];
       } else if (type === 'multiply') {
         newGns = [multiplyNode(id)];
       } else if (type === 'add') {
@@ -1107,6 +1153,7 @@ const Editor: React.FC = () => {
 
         addNodeAtPosition(
           type,
+          input.displayName,
           project({
             x: event.clientX - left,
             y: event.clientY - top,
@@ -1142,7 +1189,7 @@ const Editor: React.FC = () => {
   const onMenuAdd = useCallback(
     (type: string) => {
       const pos = project(menuPosition as XYPosition);
-      addNodeAtPosition(type, pos);
+      addNodeAtPosition(type, '', pos);
       setMenuPos();
     },
     [addNodeAtPosition, setMenuPos, project, menuPosition]

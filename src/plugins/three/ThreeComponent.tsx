@@ -69,6 +69,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     () => ({
       explosion: new three.TextureLoader().load('/explosion.png'),
       'grayscale-noise': new three.TextureLoader().load('/grayscale-noise.png'),
+      brick: new three.TextureLoader().load('/bricks.jpeg'),
+      brickNormal: new three.TextureLoader().load('/bricknormal.jpeg'),
     }),
     []
   );
@@ -152,10 +154,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
               const value = evaluateNode(graph, fromNode);
               let newValue = value;
-              if (input.displayName === 'color') {
+              if (fromNode.type === 'texture') {
                 // THIS DUPLICATES OTHER LINE
-                newValue = new Color(value.x, value.y, value.z);
-              } else if (fromNode.type === 'texture') {
                 newValue = images[(fromNode as TextureNode).value];
               }
 
@@ -384,10 +384,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
             );
             const value = evaluateNode(graph, fromNode);
             let newValue = value;
-            if (input.displayName === 'color') {
+            if (fromNode.type === 'texture') {
               // THIS DUPLICATES OTHER LINE
-              newValue = new Color(value.x, value.y, value.z);
-            } else if (fromNode.type === 'texture') {
               newValue = images[(fromNode as TextureNode).value];
             }
             console.log('value, evalauted', {

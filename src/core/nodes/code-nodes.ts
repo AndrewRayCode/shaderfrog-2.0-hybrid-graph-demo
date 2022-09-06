@@ -32,8 +32,8 @@ export interface NodeProperty {
 }
 
 export const property = (
-  property: string,
   displayName: string,
+  property: string,
   type: string,
   fillerName = property
 ): NodeProperty => ({

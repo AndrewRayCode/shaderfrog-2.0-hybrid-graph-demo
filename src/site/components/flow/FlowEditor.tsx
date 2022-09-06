@@ -56,6 +56,8 @@ const nodeTypes: Record<NodeType | GraphDataType | EngineNodeType, any> = {
   vector2: DataNodeComponent,
   vector3: DataNodeComponent,
   vector4: DataNodeComponent,
+  rgb: DataNodeComponent,
+  rgba: DataNodeComponent,
   mat2: DataNodeComponent,
   mat3: DataNodeComponent,
   mat4: DataNodeComponent,

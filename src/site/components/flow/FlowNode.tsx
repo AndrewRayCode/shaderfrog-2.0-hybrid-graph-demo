@@ -116,7 +116,7 @@ const FlowWrap = ({
   </div>
 );
 
-const types = 'xyzw';
+const vectorComponents = 'xyzw';
 const VectorEditor = ({
   id,
   value,
@@ -127,7 +127,6 @@ const VectorEditor = ({
   onChange: ChangeHandler;
 }) => {
   const onComponentChange = (component: number, n: string) => {
-    console.log({ component, value, n }, replaceAt(value, component, n));
     onChange(id, replaceAt(value, component, n));
   };
   return (
@@ -135,7 +134,39 @@ const VectorEditor = ({
       {value.map((_, index) => (
         <div key={index}>
           <label className={styles.vectorLabel}>
-            {types.charAt(index)}
+            {vectorComponents.charAt(index)}
+            <input
+              className="nodrag"
+              type="text"
+              onChange={(e) => onComponentChange(index, e.currentTarget.value)}
+              value={value[index]}
+            />
+          </label>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const colorComponents = 'rgba';
+const ColorEditor = ({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: Vector3 | Vector4;
+  onChange: ChangeHandler;
+}) => {
+  const onComponentChange = (component: number, n: string) => {
+    onChange(id, replaceAt(value, component, n));
+  };
+  return (
+    <div className={styles.grid}>
+      {value.map((_, index) => (
+        <div key={index}>
+          <label className={styles.vectorLabel}>
+            {colorComponents.charAt(index)}
             <input
               className="nodrag"
               type="text"
@@ -192,8 +223,9 @@ const TextureEditor = ({
       onChange={(e) => onChange(id, e.currentTarget.value)}
       value={value}
     >
-      <option value="grayscale-noise">grayscale-noise</option>
-      <option value="explosion">explosion</option>
+      <option value="grayscale-noise">Grayscale Noise</option>
+      <option value="brick">Bricks</option>
+      <option value="brickNormal">Brick Normal Map</option>
     </select>
   </>
 );
@@ -238,6 +270,8 @@ const DataNodeComponent = memo(
             data.type === 'vector3' ||
             data.type === 'vector4' ? (
             <VectorEditor id={id} value={data.value} onChange={onChange} />
+          ) : data.type === 'rgb' || data.type === 'rgba' ? (
+            <ColorEditor id={id} value={data.value} onChange={onChange} />
           ) : data.type === 'texture' ? (
             <TextureEditor id={id} value={data.value} onChange={onChange} />
           ) : (

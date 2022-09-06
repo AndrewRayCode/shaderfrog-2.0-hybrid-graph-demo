@@ -39,7 +39,7 @@ import {
   SourceNode,
 } from './nodes/code-nodes';
 import { InputCategory, nodeInput, NodeInput } from './nodes/core-node';
-import { Vector2, Vector3, Vector4 } from 'three';
+import { Color, Vector2, Vector3, Vector4 } from 'three';
 import { makeId } from '../util/id';
 
 export type ShaderStage = 'fragment' | 'vertex';
@@ -368,6 +368,18 @@ export const evaluateNode = (graph: Graph, node: GraphNode): any => {
         parseFloat(node.value[1]),
         parseFloat(node.value[2]),
         parseFloat(node.value[3])
+      );
+    } else if (node.type === 'rgb') {
+      return new Color(
+        parseFloat(node.value[0]),
+        parseFloat(node.value[1]),
+        parseFloat(node.value[2])
+      );
+    } else if (node.type === 'rgba') {
+      return new Color(
+        parseFloat(node.value[0]),
+        parseFloat(node.value[1]),
+        parseFloat(node.value[2])
       );
     } else {
       return node.value;

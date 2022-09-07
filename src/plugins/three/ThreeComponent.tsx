@@ -16,6 +16,7 @@ import { ensure } from '../../util/ensure';
 import { Edge } from '../../core/nodes/edge';
 import { Color, Material, UniformsLib, Vector3 } from 'three';
 import { TextureNode } from '../../core/nodes/data-nodes';
+import { useSize } from '../../site/hooks/useSize';
 
 const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
 
@@ -46,6 +47,13 @@ type ThreeSceneProps = {
   width: number;
   height: number;
 };
+
+const repeat = (t: three.Texture, x: number, y: number) => {
+  t.repeat = new three.Vector2(x, y);
+  t.wrapS = t.wrapT = three.RepeatWrapping;
+  return t;
+};
+
 const ThreeComponent: React.FC<ThreeSceneProps> = ({
   compile,
   guiMsg,
@@ -64,19 +72,25 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   height,
 }) => {
   const shadersUpdated = useRef<boolean>(false);
+  const sceneWrapper = useRef<HTMLDivElement>(null);
+  const size = useSize(sceneWrapper);
 
   const images = useMemo<Record<string, any>>(
     () => ({
       explosion: new three.TextureLoader().load('/explosion.png'),
       'grayscale-noise': new three.TextureLoader().load('/grayscale-noise.png'),
-      brick: new three.TextureLoader().load('/bricks.jpeg'),
-      brickNormal: new three.TextureLoader().load('/bricknormal.jpeg'),
+      brick: repeat(new three.TextureLoader().load('/bricks.jpeg'), 3, 3),
+      brickNormal: repeat(
+        new three.TextureLoader().load('/bricknormal.jpeg'),
+        3,
+        3
+      ),
     }),
     []
   );
 
-  const { sceneData, scene, camera, threeDomRef, renderer } = useThree(
-    (time) => {
+  const { sceneData, scene, camera, threeDomElement, threeDomCbRef, renderer } =
+    useThree((time) => {
       const { mesh } = sceneData;
       if (!mesh) {
         return;
@@ -180,8 +194,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         // @ts-ignore
         mesh.material.uniforms.time.value = time * 0.001;
       }
-    }
-  );
+    });
 
   const previousPreviewObject = usePrevious(previewObject);
   useEffect(() => {
@@ -202,6 +215,9 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     } else if (previewObject === 'sphere') {
       const geometry = new three.SphereBufferGeometry(1, 64, 64);
       mesh = new three.Mesh(geometry);
+    } else if (previewObject === 'icosahedron') {
+      const geometry = new three.IcosahedronGeometry(1, 0);
+      mesh = new three.Mesh(geometry);
     } else {
       throw new Error('fffffff');
     }
@@ -214,17 +230,15 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
   const previousBg = usePrevious(bg);
   useEffect(() => {
-    console.log('bg , previousBg', bg, previousBg);
     if (bg === previousBg) {
       return;
     }
-    const pmremGenerator = new three.PMREMGenerator(renderer);
-    pmremGenerator.compileEquirectangularShader();
+    if (bg) {
+      const pmremGenerator = new three.PMREMGenerator(renderer);
+      pmremGenerator.compileEquirectangularShader();
 
-    // yolo https://stackoverflow.com/a/65817213/743464
-    const envmap = new RGBELoader().load(
-      'envmaps/empty_warehouse_01_2k.hdr',
-      (texture) => {
+      // yolo https://stackoverflow.com/a/65817213/743464
+      new RGBELoader().load('envmaps/empty_warehouse_01_2k.hdr', (texture) => {
         const envMap = pmremGenerator.fromEquirectangular(texture).texture;
 
         scene.background = envMap;
@@ -232,9 +246,11 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
         texture.dispose();
         pmremGenerator.dispose();
-      }
-    );
-    scene.environment = envmap;
+      });
+    } else {
+      scene.environment = null;
+      scene.background = null;
+    }
 
     // if (sceneData.bg) {
     //   scene.remove(sceneData.bg);
@@ -601,63 +617,83 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   }, [sceneData, lights, scene, compile, ctx, prevLights]);
 
   useEffect(() => {
-    if (ctx.runtime?.camera) {
+    if (ctx.runtime?.camera && size) {
       const { camera, renderer } = ctx.runtime;
-      camera.aspect = width / height;
+
+      const canvasWidth = size.width;
+      const canvasHeight = size.height;
+      camera.aspect = canvasWidth / canvasHeight;
       camera.updateProjectionMatrix();
-      renderer.setSize(width, height);
+      renderer.setSize(canvasWidth, canvasHeight);
     }
-  }, [width, height, ctx.runtime]);
+  }, [size, ctx.runtime]);
 
   return (
     <div>
-      <div ref={threeDomRef}></div>
       <div className={styles.sceneLabel}>
         {guiMsg}
         {!guiMsg &&
           compileResult?.compileMs &&
           `Complile took ${compileResult?.compileMs}ms`}
       </div>
-      <div className={styles.sceneControls}>
-        <select
-          onChange={(event) => {
-            console.log('x', event.target.value);
-          }}
-        >
-          <option>hi</option>
-          <option>bye</option>
-        </select>
-        <button
-          className={styles.button}
-          onClick={() => setLights('3point')}
-          disabled={lights === '3point'}
-        >
-          3 Points
-        </button>
-        <button
-          className={styles.button}
-          onClick={() => setLights('point')}
-          disabled={lights === 'point'}
-        >
-          Point Light
-        </button>
-        <button
-          className={styles.button}
-          onClick={() => setLights('spot')}
-          disabled={lights === 'spot'}
-        >
-          Spot Lights
-        </button>
-        <button
-          className={styles.button}
-          onClick={() =>
-            setPreviewObject(
-              previewObject === 'sphere' ? 'torusknot' : 'sphere'
-            )
-          }
-        >
-          {previewObject === 'sphere' ? 'Torus Knot' : 'Sphere'}
-        </button>
+      <div className={styles.paneContainer}>
+        <div className={styles.sceneControls}>
+          <div className={styles.control}>
+            <div className={styles.body}>
+              <label>
+                <span>Lighting</span>
+              </label>
+              <select
+                onChange={(event) => {
+                  setLights(event.target.value);
+                }}
+                value={lights}
+              >
+                <option value="3point">Static Point Lights</option>
+                <option value="point">Animated Point Light</option>
+                <option value="spot">Spot Lights</option>
+              </select>
+            </div>
+          </div>
+          <div className={styles.control}>
+            <div className={styles.body}>
+              <label>
+                <span>Model</span>
+              </label>
+              <select
+                onChange={(event) => {
+                  setPreviewObject(event.target.value);
+                }}
+                value={previewObject}
+              >
+                <option value="sphere">Sphere</option>
+                <option value="torusknot">Torus Knot</option>
+                <option value="icosahedron">Icosahedron</option>
+              </select>
+            </div>
+          </div>
+          <div className={styles.control}>
+            <div className={styles.body}>
+              <label>
+                <span>Background</span>
+              </label>
+              <select
+                onChange={(event) => {
+                  setBg(
+                    event.target.value === 'none' ? null : event.target.value
+                  );
+                }}
+                value={bg ? bg : 'none'}
+              >
+                <option value="none">None</option>
+                <option value="warehouse">Warehouse</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div ref={sceneWrapper} className={styles.sceneContainer}>
+          <div ref={threeDomCbRef}></div>
+        </div>
       </div>
     </div>
   );

@@ -40,8 +40,10 @@ export const useThree = (callback: Callback) => {
     }
   );
 
-  const [threeDom, setThreeDom] = useState<HTMLDivElement | null>(null);
-  const threeDomRef = useCallback((node) => setThreeDom(node), []);
+  const [threeDomElement, setThreeDom] = useState<HTMLDivElement | null>(null);
+  // We use a callback ref to handle re-attaching scene controls when the
+  // scene unmounts or re-mounts
+  const threeDomCbRef = useCallback((node) => setThreeDom(node), []);
 
   const frameRef = useRef<number>(0);
   const controlsRef = useRef<OrbitControls>();
@@ -61,19 +63,19 @@ export const useThree = (callback: Callback) => {
   }, [callback]);
 
   useEffect(() => {
-    if (threeDom && !threeDom.childNodes.length) {
+    if (threeDomElement && !threeDomElement.childNodes.length) {
       console.log(
         'Re-attaching three.js DOM and instantiate OrbitControls, appendingx',
         renderer.domElement,
         'to',
-        threeDom
+        threeDomElement
       );
-      threeDom.appendChild(renderer.domElement);
+      threeDomElement.appendChild(renderer.domElement);
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.update();
       controlsRef.current = controls;
     }
-  }, [camera, renderer, threeDom]);
+  }, [camera, renderer, threeDomElement]);
 
   const animate = useCallback(
     (time: number) => {
@@ -89,7 +91,7 @@ export const useThree = (callback: Callback) => {
   );
 
   useEffect(() => {
-    if (threeDom) {
+    if (threeDomElement) {
       console.log('🎬 Starting requestAnimationFrame');
       frameRef.current = requestAnimationFrame(animate);
     }
@@ -103,7 +105,7 @@ export const useThree = (callback: Callback) => {
         cancelAnimationFrame(frameRef.current);
       }
     };
-  }, [animate, threeDom]);
+  }, [animate, threeDomElement]);
 
-  return { sceneData, threeDomRef, scene, camera, renderer };
+  return { sceneData, threeDomElement, threeDomCbRef, scene, camera, renderer };
 };

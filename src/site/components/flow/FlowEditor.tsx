@@ -11,7 +11,7 @@ import ReactFlow, {
   ReactFlowProps,
 } from 'react-flow-renderer';
 
-import { NodeType } from '../../../core/graph';
+import { NodeType, ShaderStage } from '../../../core/graph';
 import { EngineNodeType } from '../../../core/engine';
 import FlowEdgeComponent from './FlowEdge';
 import { DataNodeComponent, SourceNodeComponent } from './FlowNode';
@@ -178,9 +178,9 @@ const ctxNodes: [string, string][] = [
   ['vertex', 'Vertex'],
   ['number', 'Number'],
   ['texture', 'Texture'],
-  ['vec2', 'Vector2'],
-  ['vec3', 'Vector3'],
-  ['vec4', 'Vector4'],
+  ['vector2', 'Vector2'],
+  ['vector3', 'Vector3'],
+  ['vector4', 'Vector4'],
   ['add', 'Add'],
   ['multiply', 'Multiply'],
   ['phong', 'Phong'],

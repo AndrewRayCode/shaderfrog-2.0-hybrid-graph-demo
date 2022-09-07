@@ -211,6 +211,7 @@ export const physicalNode = (
         property('Color', 'color', 'rgb'),
         property('Texture', 'map', 'texture', 'filler_map'),
         property('Normal Map', 'normalMap', 'texture', 'filler_normalMap'),
+        property('Normal Scale', 'normalScale', 'vector2'),
         property('Metalness', 'metalness', 'number'),
         property('Roughness', 'roughness', 'number'),
         property(

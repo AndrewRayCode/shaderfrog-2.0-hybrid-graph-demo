@@ -566,7 +566,7 @@ const Editor: React.FC = () => {
   const [guiMsg, setGuiMsg] = useState<string>('');
   const [lights, setLights] = useState<PreviewLight>('point');
   const [previewObject, setPreviewObject] = useState('torusknot');
-  const [bg, setBg] = useState('on');
+  const [bg, setBg] = useState('warehouse');
 
   const [activeShader, setActiveShader] = useState<SourceNode>(
     graph.nodes[0] as SourceNode
@@ -1040,11 +1040,11 @@ const Editor: React.FC = () => {
         newGns = [numberNode(id, makeName('number'), '1')];
       } else if (type === 'texture') {
         newGns = [textureNode(id, makeName('texture'), 'grayscale-noise')];
-      } else if (type === 'vec2') {
+      } else if (type === 'vector2') {
         newGns = [vectorNode(id, makeName('vec2'), ['1', '1'])];
-      } else if (type === 'vec3') {
+      } else if (type === 'vector3') {
         newGns = [vectorNode(id, makeName('vec3'), ['1', '1', '1'])];
-      } else if (type === 'vec4') {
+      } else if (type === 'vector4') {
         newGns = [vectorNode(id, makeName('vec4'), ['1', '1', '1', '1'])];
       } else if (type === 'rgb') {
         newGns = [colorNode(id, makeName('rgb'), ['1', '1', '1'])];

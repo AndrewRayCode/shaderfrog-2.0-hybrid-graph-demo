@@ -251,13 +251,6 @@ textarea.error {
   text-shadow: 0 0 5px #000;
 }
 
-.sceneLabel {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  color: #fff;
-}
-
 .nodeEditorPanel {
   background: #333;
   overflow: scroll;
@@ -284,4 +277,49 @@ textarea.error {
   height: 100vh;
   display: grid;
   grid-template-rows: repeat(100px, 1fr);
+}
+
+.guiMsg {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  color: #fff;
+}
+.guiError {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fee;
+  color: #f00;
+  padding: 10px;
+}
+
+.compiling {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 10px;
+  text-align: center;
+}
+.compiling:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(
+    rgba(200, 200, 200, 0.7),
+    rgba(150, 150, 150, 0.6)
+  );
+  z-index: 1;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+.compiling span {
+  color: #fff;
+  text-shadow: 0 0 5px #000;
+  position: relative;
+  z-index: 2;
 }

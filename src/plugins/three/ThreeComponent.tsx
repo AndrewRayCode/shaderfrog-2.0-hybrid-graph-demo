@@ -32,7 +32,6 @@ function mapTextureMapping(texture: three.Texture, mapping: any) {
 type AnyFn = (...args: any) => any;
 type ThreeSceneProps = {
   compile: AnyFn;
-  guiMsg: string;
   compileResult: UICompileGraphResult | undefined;
   graph: Graph;
   lights: PreviewLight;
@@ -56,7 +55,6 @@ const repeat = (t: three.Texture, x: number, y: number) => {
 
 const ThreeComponent: React.FC<ThreeSceneProps> = ({
   compile,
-  guiMsg,
   compileResult,
   graph,
   lights,
@@ -204,8 +202,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     if (sceneData.mesh) {
       scene.remove(sceneData.mesh);
     }
-
-    console.log('re-creating scene mesh');
 
     let mesh;
     if (previewObject === 'torusknot') {
@@ -630,12 +626,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
   return (
     <div>
-      <div className={styles.sceneLabel}>
-        {guiMsg}
-        {!guiMsg &&
-          compileResult?.compileMs &&
-          `Complile took ${compileResult?.compileMs}ms`}
-      </div>
       <div className={styles.paneContainer}>
         <div className={styles.sceneControls}>
           <div className={styles.control}>

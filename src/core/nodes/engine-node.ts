@@ -80,10 +80,10 @@ export const outputNode = (
     inputMapping:
       stage === 'fragment'
         ? {
-            filler_frogFragOut: 'color',
+            filler_frogFragOut: 'Color',
           }
         : {
-            gl_Position: 'position',
+            filler_gl_Position: 'Position',
           },
     strategies: [
       assignemntToStrategy(
@@ -208,7 +208,7 @@ export const physicalNode = (
         normalMap: 'normal',
       },
       properties: [
-        property('Color', 'color', 'rgb'),
+        property('Color', 'color', 'rgb', 'uniform_diffuse'),
         property('Texture', 'map', 'texture', 'filler_map'),
         property('Normal Map', 'normalMap', 'texture', 'filler_normalMap'),
         property('Normal Scale', 'normalScale', 'vector2'),

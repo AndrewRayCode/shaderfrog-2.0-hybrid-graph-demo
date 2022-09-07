@@ -346,6 +346,20 @@ export const coreParsers: CoreParser = {
   },
 };
 
+export const toGlsl = (node: DataNode): string => {
+  const { type, value } = node;
+  if (type === 'vector2') {
+    return `vec2(${value[0]}, ${value[1]})`;
+  }
+  if (type === 'vector3' || type === 'rgb') {
+    return `vec3(${value[0]}, ${value[1]}, ${value[2]})`;
+  }
+  if (type === 'vector4' || type === 'rgba') {
+    return `vec4(${value[0]}, ${value[1]}, ${value[2]}, ${value[3]})`;
+  }
+  throw new Error(`Unknown GLSL inline type: "${node.type}"`);
+};
+
 export const evaluateNode = (graph: Graph, node: GraphNode): any => {
   // TODO: Data nodes themselves should have evaluators
   if ('value' in node) {
@@ -576,16 +590,16 @@ export const compileNode = (
         continuation = mergeShaderSections(continuation, inputSections);
         compiledIds = { ...compiledIds, ...childIds };
 
-        let filler, property;
+        let filler, fillerName;
         if (nodeContext) {
           if (input.property) {
-            property = ensure<NodeProperty>(
+            fillerName = ensure(
               ((node as CodeNode).config.properties || []).find(
                 (p) => p.property === input.property
-              ),
-              `Node ${node.name} has no property named "${input.property}" to find the filler for`
+              )?.fillerName,
+              `Node "${node.name}" has no property named "${input.property}" to find the filler for`
             );
-            filler = inputFillers[property?.fillerName];
+            filler = inputFillers[fillerName];
           } else {
             filler = inputFillers[input.id];
           }
@@ -594,10 +608,10 @@ export const compileNode = (
               input,
               node,
               inputFillers,
-              property,
+              fillerName,
             });
             throw new Error(
-              `Node ${node.name} has no filler for input ${input.displayName} with property ${property?.displayName}`
+              `Node "${node.name}" has no filler for input "${input.displayName}" named ${fillerName}`
             );
           }
           nodeContext.ast = filler(fillerAst);
@@ -615,7 +629,7 @@ export const compileNode = (
     );
 
     const filler = isDataNode(node)
-      ? makeExpression('' + node.value)
+      ? makeExpression(toGlsl(node))
       : parser.produceFiller(node, ast);
 
     return [sections, filler, { ...compiledIds, [node.id]: node }];
@@ -629,7 +643,7 @@ export const compileNode = (
         : findShaderSections(ast as ParserProgram);
 
     const filler = isDataNode(node)
-      ? makeExpression('' + node.value)
+      ? makeExpression(toGlsl(node))
       : parser.produceFiller(node, ast);
 
     return [sections, filler, { ...compiledIds, [node.id]: node }];
@@ -650,7 +664,7 @@ const collapseNodeInputs = (
       `property_${property.property}`,
       'property',
       new Set<InputCategory>(['data']),
-      true,
+      !!property.fillerName,
       property.property
     )
   );

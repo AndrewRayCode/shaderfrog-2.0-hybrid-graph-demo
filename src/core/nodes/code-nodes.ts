@@ -5,8 +5,8 @@ import { CoreNode, NodeInput } from './core-node';
 
 export const mapInputName = (
   node: CodeNode,
-  { displayName }: NodeInput
-): string => node.config?.inputMapping?.[displayName] || displayName;
+  { id, displayName }: NodeInput
+): string => node.config?.inputMapping?.[id] || displayName;
 
 export type InputMapping = { [original: string]: string };
 export type NodeConfig = {
@@ -28,14 +28,14 @@ export interface NodeProperty {
   property: string;
   // The name of the filler this property introduces, aka the GLSL source code
   // to be replaced, if this property is present.
-  fillerName: string;
+  fillerName?: string;
 }
 
 export const property = (
   displayName: string,
   property: string,
   type: string,
-  fillerName = property
+  fillerName?: string
 ): NodeProperty => ({
   displayName,
   type,

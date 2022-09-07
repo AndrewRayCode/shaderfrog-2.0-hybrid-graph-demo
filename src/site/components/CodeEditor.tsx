@@ -102,7 +102,7 @@ const CodeEditor = ({
 
   return (
     <MonacoEditor
-      height="100vh"
+      height="100%"
       language="glsl"
       theme="frogTheme"
       {...(value !== undefined ? { value } : {})}

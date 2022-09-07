@@ -177,7 +177,9 @@
 
 .flownode.vector2,
 .flownode.vector3,
-.flownode.vector4 {
+.flownode.vector4,
+.flownode.rgb,
+.flownode.rgba {
   height: 90px !important;
 }
 
@@ -198,6 +200,8 @@
 .react-flow__edge.number .react-flow__edge-path,
 .react-flow__edge.vector2 .react-flow__edge-path,
 .react-flow__edge.vector3 .react-flow__edge-path,
+.react-flow__edge.rgb .react-flow__edge-path,
+.react-flow__edge.rgba .react-flow__edge-path,
 .react-flow__edge.vector4 .react-flow__edge-path {
   stroke: #00d5ff;
 }
@@ -205,6 +209,8 @@
 .react-flow__edge.vector2.updating .react-flow__edge-path,
 .react-flow__edge.vector3.updating .react-flow__edge-path,
 .react-flow__edge.vector4.updating .react-flow__edge-path,
+.react-flow__edge.rgb.updating .react-flow__edge-path,
+.react-flow__edge.rgba.updating .react-flow__edge-path,
 .react-flow__edge.texture.updating .react-flow__edge-path,
 .react-flow__edge.number.updating .react-flow__edge-path {
   stroke: #00aeff;
@@ -214,6 +220,8 @@
 .react-flow__edge.vector2.selected .react-flow__edge-path,
 .react-flow__edge.vector3.selected .react-flow__edge-path,
 .react-flow__edge.vector4.selected .react-flow__edge-path,
+.react-flow__edge.rgb.selected .react-flow__edge-path,
+.react-flow__edge.rgba.selected .react-flow__edge-path,
 .react-flow__edge.texture.selected .react-flow__edge-path,
 .react-flow__edge.number.selected .react-flow__edge-path {
   stroke: #00d5ff;
@@ -223,6 +231,8 @@
 .react-flow__edge.vector2 .react-flow__edge-path-selector,
 .react-flow__edge.vector3 .react-flow__edge-path-selector,
 .react-flow__edge.vector4 .react-flow__edge-path-selector,
+.react-flow__edge.rgb .react-flow__edge-path-selector,
+.react-flow__edge.rgba .react-flow__edge-path-selector,
 .react-flow__edge.texture .react-flow__edge-path-selector,
 .react-flow__edge.number .react-flow__edge-path-selector {
   stroke: rgba(0, 68, 255, 0.3);

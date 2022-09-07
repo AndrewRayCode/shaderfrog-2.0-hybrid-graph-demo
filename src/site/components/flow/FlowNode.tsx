@@ -385,15 +385,22 @@ const SourceNodeComponent = memo(
                       validTarget: input.validTarget,
                     })}
                   >
-                    <div
-                      className="switch"
-                      onClick={(e) => (
-                        e.preventDefault(),
-                        data.onInputBakedToggle(id, input.id, !input.baked)
-                      )}
-                    >
-                      {input.bakeable ? (input.baked ? '🔒 ' : '➡️') : null}
-                    </div>
+                    {input.bakeable ? (
+                      <div
+                        className="switch"
+                        title={
+                          input.baked
+                            ? 'This input is currently hard coded into the shader source code. Switch it to a property of the material?'
+                            : 'This input is currently a property of the material. Switch it to a value hard coded in the shader source code?'
+                        }
+                        onClick={(e) => (
+                          e.preventDefault(),
+                          data.onInputBakedToggle(id, input.id, !input.baked)
+                        )}
+                      >
+                        {input.baked ? '🔒 ' : '➡️'}
+                      </div>
+                    ) : null}
                     {input.name}
                   </div>
                 </Handle>

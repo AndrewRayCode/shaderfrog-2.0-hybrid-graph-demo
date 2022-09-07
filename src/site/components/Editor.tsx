@@ -483,7 +483,13 @@ const compileGraphAsync = async (
 
       const allStart = performance.now();
 
-      const result = compileGraph(ctx, engine, graph);
+      let result;
+
+      try {
+        result = compileGraph(ctx, engine, graph);
+      } catch (err) {
+        return reject(err);
+      }
       const fragmentResult = generate(
         shaderSectionsToAst(result.fragment, engine.mergeOptions).program
       );
@@ -563,6 +569,7 @@ const Editor: React.FC = () => {
   const [sceneTabIndex, setSceneTabIndex] = useState<number>(0);
   const [editorTabIndex, setEditorTabIndex] = useState<number>(0);
   const [compiling, setCompiling] = useState<boolean>(false);
+  const [guiError, setGuiError] = useState<string>('');
   const [guiMsg, setGuiMsg] = useState<string>('');
   const [lights, setLights] = useState<PreviewLight>('point');
   const [previewObject, setPreviewObject] = useState('torusknot');
@@ -658,48 +665,55 @@ const Editor: React.FC = () => {
       setGuiMsg('Compiling!');
 
       // compileGraphAsync(updatedGraph, engine, ctx).then((compileResult) => {
-      compileGraphAsync(graph, engine, ctx).then((compileResult) => {
-        setNeedsCompile(false);
-        setCompiling(false);
+      compileGraphAsync(graph, engine, ctx)
+        .then((compileResult) => {
+          console.log('comple async complete!', { compileResult });
+          setGuiMsg('');
+          setGuiError('');
+          setCompileResult(compileResult);
 
-        console.log('comple async complete!', { compileResult });
-        setGuiMsg('');
-        setCompileResult(compileResult);
+          // const byId = updatedGraph.nodes.reduce<Record<string, GraphNode>>(
+          const byId = graph.nodes.reduce<Record<string, GraphNode>>(
+            (acc, node) => ({ ...acc, [node.id]: node }),
+            {}
+          );
 
-        // const byId = updatedGraph.nodes.reduce<Record<string, GraphNode>>(
-        const byId = graph.nodes.reduce<Record<string, GraphNode>>(
-          (acc, node) => ({ ...acc, [node.id]: node }),
-          {}
-        );
+          // Update the available inputs from the node after the compile
+          const updatedFlowNodes = flowElements.nodes.map((node) => {
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                inputs: toFlowInputs(byId[node.id]),
+                active: compileResult.result.activeNodeIds.has(node.id),
+              },
+            };
+          });
 
-        // Update the available inputs from the node after the compile
-        const updatedFlowNodes = flowElements.nodes.map((node) => {
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              inputs: toFlowInputs(byId[node.id]),
-              active: compileResult.result.activeNodeIds.has(node.id),
-            },
-          };
+          setFlowElements(
+            setFlowNodeCategories(
+              {
+                ...flowElements,
+                nodes: updatedFlowNodes,
+              },
+              compileResult.dataNodes
+            )
+          );
+
+          // This is a hack to make the edges update to their handles if they move
+          // https://github.com/wbkd/react-flow/issues/2008
+          setTimeout(() => {
+            updatedFlowNodes.forEach((node) => updateNodeInternals(node.id));
+          }, 500);
+        })
+        .catch((err) => {
+          console.error('Error compiling!', err);
+          setGuiError(err.message);
+        })
+        .finally(() => {
+          setNeedsCompile(false);
+          setCompiling(false);
         });
-
-        setFlowElements(
-          setFlowNodeCategories(
-            {
-              ...flowElements,
-              nodes: updatedFlowNodes,
-            },
-            compileResult.dataNodes
-          )
-        );
-
-        // This is a hack to make the edges update to their handles if they move
-        // https://github.com/wbkd/react-flow/issues/2008
-        setTimeout(() => {
-          updatedFlowNodes.forEach((node) => updateNodeInternals(node.id));
-        }, 500);
-      });
     },
     [updateNodeInternals, setFlowElements]
   );
@@ -1473,7 +1487,7 @@ const Editor: React.FC = () => {
                 </div>
               </TabPanel>
               {/* Final source code tab */}
-              <TabPanel>
+              <TabPanel style={{ height: '100%' }}>
                 <Tabs onSelect={setSceneTabIndex} selected={sceneTabIndex}>
                   <TabGroup className={styles.secondary}>
                     <Tab className={{ [styles.errored]: state.fragError }}>
@@ -1485,7 +1499,7 @@ const Editor: React.FC = () => {
                   </TabGroup>
                   <TabPanels>
                     {/* final fragment shader subtab */}
-                    <TabPanel>
+                    <TabPanel style={{ height: '100%' }}>
                       {state.fragError && (
                         <div
                           className={styles.codeError}
@@ -1503,7 +1517,7 @@ const Editor: React.FC = () => {
                       />
                     </TabPanel>
                     {/* final vertex shader subtab */}
-                    <TabPanel>
+                    <TabPanel style={{ height: '100%' }}>
                       {state.vertError && (
                         <div
                           className={styles.codeError}
@@ -1529,6 +1543,19 @@ const Editor: React.FC = () => {
         {/* 3d display split */}
         <div ref={sceneSplit} className={styles.splitInner}>
           <div className={styles.scene}>
+            {guiMsg && !compiling ? (
+              <div className={styles.guiMsg}>{guiMsg}</div>
+            ) : null}
+            {guiError && !compiling ? (
+              <div className={styles.guiError}>
+                <b>Compilation Error!</b> {guiError}
+              </div>
+            ) : null}
+            {compiling ? (
+              <div className={styles.compiling}>
+                <span>Compiling!</span>
+              </div>
+            ) : null}
             {engine.name === 'three' ? (
               <ThreeComponent
                 initialCtx={ctx}
@@ -1541,7 +1568,6 @@ const Editor: React.FC = () => {
                 previewObject={previewObject}
                 setPreviewObject={setPreviewObject}
                 compile={childCompile}
-                guiMsg={guiMsg}
                 compileResult={compileResult}
                 setGlResult={setGlResult}
                 width={state.width}

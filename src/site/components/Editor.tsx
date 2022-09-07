@@ -662,13 +662,11 @@ const Editor: React.FC = () => {
     ) => {
       // const updatedGraph = fromFlowToGraph(graph, flowElements);
       setCompiling(true);
-      setGuiMsg('Compiling!');
 
       // compileGraphAsync(updatedGraph, engine, ctx).then((compileResult) => {
       compileGraphAsync(graph, engine, ctx)
         .then((compileResult) => {
           console.log('comple async complete!', { compileResult });
-          setGuiMsg('');
           setGuiError('');
           setCompileResult(compileResult);
 
@@ -1543,17 +1541,19 @@ const Editor: React.FC = () => {
         {/* 3d display split */}
         <div ref={sceneSplit} className={styles.splitInner}>
           <div className={styles.scene}>
-            {guiMsg && !compiling ? (
-              <div className={styles.guiMsg}>{guiMsg}</div>
-            ) : null}
-            {guiError && !compiling ? (
-              <div className={styles.guiError}>
-                <b>Compilation Error!</b> {guiError}
-              </div>
-            ) : null}
             {compiling ? (
               <div className={styles.compiling}>
                 <span>Compiling!</span>
+              </div>
+            ) : guiError ? (
+              <div className={styles.guiError}>
+                <b>Compilation Error!</b> {guiError}
+              </div>
+            ) : guiMsg ? (
+              <div className={styles.guiMsg}>{guiMsg}</div>
+            ) : compileResult?.compileMs ? (
+              <div className={styles.guiMsg}>
+                Complile took {compileResult?.compileMs}ms
               </div>
             ) : null}
             {engine.name === 'three' ? (

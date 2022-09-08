@@ -136,6 +136,9 @@ export type NodeParser = {
   produceFiller?: NodeFiller;
 };
 
+export const findNode = (graph: Graph, id: string): GraphNode =>
+  ensure(graph.nodes.find((node) => node.id === id));
+
 export const doesLinkThruShader = (graph: Graph, node: GraphNode): boolean => {
   const edges = graph.edges.filter((edge) => edge.from === node.id);
   if (edges.length === 0) {

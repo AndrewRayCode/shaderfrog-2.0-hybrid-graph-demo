@@ -37,6 +37,7 @@ import {
   compileGraph,
   computeAllContexts,
   collectConnectedNodes,
+  findNode,
 } from '../../core/graph';
 import { Edge as GraphEdge, EdgeType } from '../../core/nodes/edge';
 import {
@@ -111,7 +112,7 @@ import {
   vectorUniformData,
 } from '../../core/nodes/data-nodes';
 import { makeEdge } from '../../core/nodes/edge';
-import { SourceNode } from '../../core/nodes/code-nodes';
+import { CodeNode, SourceNode } from '../../core/nodes/code-nodes';
 import { makeId } from '../../util/id';
 import { hasParent } from '../../util/hasParent';
 import { useWindowSize } from '../hooks/useWindowSize';
@@ -129,7 +130,9 @@ import {
   updateGraphNode,
   addFlowEdge,
   flowEdgeToGraphEdge,
+  addGraphEdge,
 } from './flow/helpers';
+import { morphTargetsVertexDeclaration } from 'babylonjs/Shaders/ShadersInclude/morphTargetsVertexDeclaration';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
@@ -866,37 +869,94 @@ const Editor: React.FC = () => {
 
   const addConnection = useCallback(
     (newEdge: FlowEdge | Connection) => {
-      const target = ensure(
-        flowElements.nodes.find((elem) => elem.id === newEdge.source),
-        'lol wtf'
-      );
+      const newEdgeId = makeId();
+      const sourceId = ensure(newEdge.source);
+      const targetId = ensure(newEdge.target);
+      const targetHandleId = ensure(newEdge.targetHandle);
 
-      const edgeType = (target.data as FlowNodeDataData).type;
-      const type: EdgeType | undefined =
-        (target.data as FlowNodeSourceData).stage || edgeType;
+      // Duplicated by the flow graph update after this
+      setGraph((graph) => {
+        const targetGraphNode = findNode(graph, targetId);
+        const input = ensure(
+          targetGraphNode.inputs.find((i) => i.id === targetHandleId)
+        );
+        const sourceGraphNode = findNode(graph, sourceId);
 
-      if (newEdge.source === null || newEdge.target === null) {
-        throw new Error('No source or target');
-      }
+        // Icky business logic here...
+        const edgeType = sourceGraphNode.type;
+        const type: EdgeType | undefined = ((sourceGraphNode as CodeNode)
+          .stage || edgeType) as EdgeType;
+        const isCode = sourceGraphNode.type === 'source';
 
-      const addedEdge: FlowEdge<FlowEdgeData> = {
-        ...newEdge,
-        id: `${newEdge.source}-${newEdge.target}`,
-        source: newEdge.source,
-        target: newEdge.target,
-        data: { type },
-        className: cx(type, edgeType),
-        type: 'special',
-      };
+        const addedEdge: GraphEdge = {
+          id: newEdgeId,
+          from: sourceId,
+          to: targetId,
+          output: 'out',
+          input: targetHandleId,
+          type,
+        };
 
-      setGraph((graph) => ({
-        ...graph,
-        edges: [...graph.edges, flowEdgeToGraphEdge(addedEdge)],
-      }));
-      setFlowElements((fe) => addFlowEdge(fe, addedEdge));
+        return updateGraphInput(
+          addGraphEdge(graph, addedEdge),
+          targetId,
+          targetHandleId,
+          // Here's the "auto-baking"
+          input.bakeable
+            ? {
+                baked: isCode,
+              }
+            : {}
+        );
+      });
+
+      // Duplicates above branch. Another option is to map the result of these
+      // operations into the core graph, but that would require making both
+      // graphs dependencies of this usecallback hook, which could be a lot of
+      // extra renders
+      setFlowElements((fe) => {
+        const targetFlowNode = ensure(
+          fe.nodes.find((node) => node.id === newEdge.target)
+        );
+        const input = ensure(
+          targetFlowNode.data.inputs.find((i) => i.id === targetHandleId)
+        );
+
+        const sourceFlowNode = ensure(
+          fe.nodes.find((node) => node.id === newEdge.source)
+        );
+
+        // More icky business logic here...
+        const edgeType = (sourceFlowNode.data as FlowNodeDataData).type;
+        const type: EdgeType | undefined =
+          (sourceFlowNode.data as FlowNodeSourceData).stage || edgeType;
+        const isCode = sourceFlowNode.type === 'source';
+
+        const addedEdge: FlowEdge<FlowEdgeData> = {
+          ...newEdge,
+          id: newEdgeId,
+          source: sourceId,
+          target: targetId,
+          data: { type },
+          className: cx(type, edgeType),
+          type: 'special',
+        };
+
+        return updateFlowInput(
+          addFlowEdge(fe, addedEdge),
+          sourceId,
+          targetHandleId,
+          input.bakeable
+            ? {
+                baked: isCode,
+              }
+            : {}
+        );
+      });
+
       setNeedsCompile(true);
     },
-    [flowElements, setFlowElements, setGraph]
+    [setFlowElements, setGraph]
   );
 
   const onConnect = useCallback(

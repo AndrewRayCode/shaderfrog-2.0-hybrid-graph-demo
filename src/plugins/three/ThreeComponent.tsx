@@ -164,7 +164,19 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
                 return;
               }
 
-              const value = evaluateNode(graph, fromNode);
+              let value;
+              // When a shader is plugged into the Texture node of a megashader,
+              // this happens, I'm not sure why yet. In fact, why is this branch
+              // getting called at all in useThree() ?
+              try {
+                value = evaluateNode(graph, fromNode);
+              } catch (err) {
+                console.warn('Tried to evaluate a non-data node!', {
+                  err,
+                  dataInputs: compileResult.dataInputs,
+                });
+                return;
+              }
               let newValue = value;
               if (fromNode.type === 'texture') {
                 // THIS DUPLICATES OTHER LINE

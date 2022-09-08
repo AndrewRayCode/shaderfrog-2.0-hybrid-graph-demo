@@ -6,6 +6,7 @@ import {
   isSourceNode,
   NodeType,
   alphabet,
+  findNode,
 } from '../../../core/graph';
 import { Edge as GraphEdge } from '../../../core/nodes/edge';
 import {
@@ -289,6 +290,23 @@ export const updateFlowInput = (
   ),
 });
 
+export const addGraphEdge = (graph: Graph, newEdge: GraphEdge): Graph => {
+  const updatedEdges = graph.edges.filter(
+    (edge) =>
+      // Prevent one input handle from having multiple inputs
+      !(
+        (edge.to === newEdge.to && edge.input === newEdge.input)
+        // Prevent one output handle from having multiple lines out
+      ) && !(edge.from === newEdge.from && edge.output === newEdge.output)
+  );
+
+  const updatedGraph: Graph = {
+    ...graph,
+    edges: [...updatedEdges, newEdge],
+  };
+  return collapseBinaryGraphEdges(updatedGraph);
+};
+
 export const addFlowEdge = (
   flowElements: FlowElements,
   newEdge: FlowEdge
@@ -315,12 +333,10 @@ export const addFlowEdge = (
     ...flowElements,
     edges: [...updatedEdges, newEdge],
   });
-  return collapseBinaryEdges(updatedFlowElements);
+  return collapseBinaryFlowEdges(updatedFlowElements);
 };
 
 /**
- * I don't like how this is on the flow graph and not the core...
- *
  * A binary node automatically adds/removes inputs based on how many edges
  * connect to it. If a binary node has edges to "a" and "b", removing the edge
  * to "a" means the edge to "b" needs to be moved down to the "a" one. This
@@ -331,7 +347,40 @@ export const addFlowEdge = (
  * at the editor layer, before compile. This also hard codes assumptions about
  * (binary) node inputs into the graph, namely they can't have blank inputs.
  */
-export const collapseBinaryEdges = (flowGraph: FlowElements): FlowElements => {
+export const collapseBinaryGraphEdges = (graph: Graph): Graph => {
+  // Find all edges that flow into a binary node, grouped by the target node's
+  // id, since we need to know the total number of edges per node first
+  const binaryEdges = graph.edges.reduce<Record<string, GraphEdge[]>>(
+    (acc, edge) => {
+      const toNode = findNode(graph, edge.to);
+      return toNode.type === NodeType.BINARY
+        ? {
+            ...acc,
+            [toNode.id]: [...(acc[toNode.id] || []), edge],
+          }
+        : acc;
+    },
+    {}
+  );
+
+  // Then collapse them
+  const updatedEdges = graph.edges.map((edge) => {
+    return edge.input in binaryEdges
+      ? {
+          ...edge,
+          input: alphabet.charAt(binaryEdges[edge.input].indexOf(edge)),
+        }
+      : edge;
+  });
+  return {
+    ...graph,
+    edges: updatedEdges,
+  };
+};
+
+export const collapseBinaryFlowEdges = (
+  flowGraph: FlowElements
+): FlowElements => {
   // Find all edges that flow into a binary node, grouped by the target node's
   // id, since we need to know the total number of edges per node first
   const binaryEdges = flowGraph.edges.reduce<Record<string, FlowEdgeOrLink[]>>(

@@ -38,6 +38,7 @@ import {
   computeAllContexts,
   collectConnectedNodes,
   findNode,
+  computeContextForNodes,
 } from '../../core/graph';
 import { Edge as GraphEdge, EdgeType } from '../../core/nodes/edge';
 import {
@@ -132,7 +133,6 @@ import {
   flowEdgeToGraphEdge,
   addGraphEdge,
 } from './flow/helpers';
-import { morphTargetsVertexDeclaration } from 'babylonjs/Shaders/ShadersInclude/morphTargetsVertexDeclaration';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
@@ -1178,11 +1178,19 @@ const Editor: React.FC = () => {
           ]
         : [];
 
-      setGraph((graph) => ({
-        ...graph,
-        edges: [...graph.edges, ...newGEs],
-        nodes: [...graph.nodes, ...newGns],
-      }));
+      setGraph((graph) => {
+        const updatedGraph = {
+          ...graph,
+          edges: [...graph.edges, ...newGEs],
+          nodes: [...graph.nodes, ...newGns],
+        };
+        // Create new inputs for new nodes added to the graph
+        computeContextForNodes(ctx as EngineContext, engine, updatedGraph, [
+          ...newGns,
+          ...(newEdgeData ? [findNode(updatedGraph, newEdgeData.to)] : []),
+        ]);
+        return updatedGraph;
+      });
 
       setFlowElements((fe) => ({
         edges: [...fe.edges, ...newGEs.map(graphEdgeToFlowEdge)],
@@ -1196,9 +1204,18 @@ const Editor: React.FC = () => {
           ),
         ],
       }));
-      setNeedsCompile(true);
+
+      // Give the flow graph time to update after adding the new nodes
+      debouncedSetNeedsCompile(true);
     },
-    [ctx, onInputBakedToggle, setFlowElements, setGraph]
+    [
+      debouncedSetNeedsCompile,
+      engine,
+      ctx,
+      onInputBakedToggle,
+      setFlowElements,
+      setGraph,
+    ]
   );
 
   const { project } = useReactFlow();

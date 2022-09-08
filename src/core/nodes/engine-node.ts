@@ -159,10 +159,37 @@ export const phongNode = (
     config: {
       version: 3,
       preprocess: true,
-      inputMapping: {
-        map: 'albedo',
-        normalMap: 'normal',
-      },
+      properties: [
+        property('Color', 'color', 'rgb', 'uniform_diffuse'),
+        property('Emissive', 'emissive', 'rgb', 'uniform_emissive'),
+        property(
+          'Emissive Map',
+          'emissiveMap',
+          'texture',
+          'filler_emissiveMap'
+        ),
+        property(
+          'Emissive Intensity',
+          'emissiveIntensity',
+          'number',
+          'uniform_emissive'
+        ),
+        property('Texture', 'map', 'texture', 'filler_map'),
+        property('Normal Map', 'normalMap', 'texture', 'filler_normalMap'),
+        property('Normal Scale', 'normalScale', 'vector2'),
+        property('Shininess', 'shininess', 'number'),
+        property('Reflectivity', 'reflectivity', 'number'),
+        property('Refraction Ratio', 'refractionRatio', 'number'),
+        property('Specular', 'specular', 'rgb', 'uniform_specular'),
+        property(
+          'Specular Map',
+          'specularMap',
+          'texture',
+          'filler_specularMap'
+        ),
+        property('Displacement Map', 'displacementMap', 'texture'),
+        property('Env Map', 'envMap', 'texture'),
+      ],
       strategies: [
         uniformStrategy(),
         stage === 'fragment'
@@ -184,8 +211,6 @@ export const phongNode = (
   };
 };
 
-const ALBEDO_DISPLAY_NAME = 'albedo';
-
 export const physicalNode = (
   id: string,
   name: string,
@@ -203,10 +228,6 @@ export const physicalNode = (
       uniforms,
       version: 3,
       preprocess: true,
-      inputMapping: {
-        map: ALBEDO_DISPLAY_NAME,
-        normalMap: 'normal',
-      },
       properties: [
         property('Color', 'color', 'rgb', 'uniform_diffuse'),
         property('Texture', 'map', 'texture', 'filler_map'),

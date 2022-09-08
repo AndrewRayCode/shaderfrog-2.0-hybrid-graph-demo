@@ -312,6 +312,7 @@ export const threngine: Engine = {
           onBeforeCompileMegaShader(
             engineContext,
             new three.MeshPhongMaterial({
+              isMeshPhongMaterial: true,
               ...threeMaterialProperties(three, graph, node, sibling),
             })
           )
@@ -367,6 +368,7 @@ export const threngine: Engine = {
             engineContext,
             new three.MeshToonMaterial({
               gradientMap: threeTone,
+              isMeshToonMaterial: true,
               ...threeMaterialProperties(three, graph, node, sibling),
             })
           )

@@ -411,7 +411,7 @@ export const collapseBinaryFlowEdges = (
   };
 };
 
-export const initializeFlowElementsFromGraph = (
+export const graphToFlowGraph = (
   graph: Graph,
   onInputBakedToggle: any
 ): FlowElements => {

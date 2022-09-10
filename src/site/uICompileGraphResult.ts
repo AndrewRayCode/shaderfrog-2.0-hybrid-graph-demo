@@ -1,10 +1,4 @@
-import {
-  CompileGraphResult,
-  filterGraphFromNode,
-  Graph,
-  GraphNode,
-  isDataInput,
-} from '../core/graph';
+import { CompileGraphResult, Graph, GraphNode } from '../core/graph';
 import { NodeInput } from '../core/nodes/core-node';
 
 export type IndexedDataInputs = Record<string, NodeInput[]>;
@@ -18,11 +12,3 @@ export type UICompileGraphResult = {
   dataInputs: IndexedDataInputs;
   graph: Graph;
 };
-
-export const collectDataInputsFromNodes = (graph: Graph, nodes: GraphNode[]) =>
-  nodes.reduce<IndexedDataInputs>((acc, node) => {
-    const found = filterGraphFromNode(graph, node, {
-      input: isDataInput,
-    });
-    return { ...acc, ...found.inputs };
-  }, {});

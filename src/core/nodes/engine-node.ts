@@ -1,5 +1,5 @@
 import { EngineNodeType } from '../engine';
-import { NodeType, ShaderStage } from '../graph';
+import { NodeType, ShaderStage, prepopulatePropertyInputs } from '../graph';
 import {
   assignemntToStrategy,
   hardCodeStrategy,
@@ -10,26 +10,6 @@ import {
 } from '../strategy';
 import { BinaryNode, CodeNode, NodeConfig, property } from './code-nodes';
 import { UniformDataType } from './data-nodes';
-
-// three last in chain: return gl_position right vec4
-// three not last in chain: return returnRight
-
-// other last in chain: return gl_position right vec4
-// other not last in chain: return vec4(xxxxxxx, 1.0)
-
-// export interface ProgramSource {
-//   fragment: string;
-//   vertex: string;
-// }
-
-// export interface ProgramAst {
-//   fragment: AstNode;
-//   vertex: string;
-// }
-
-// export interface BinaryNode extends Node {
-//   operator: string;
-// }
 
 /**
  * TODO: These definitions should live outside of core since I'm trying to
@@ -150,8 +130,8 @@ export const phongNode = (
   groupId: string,
   stage: ShaderStage,
   nextStageNodeId?: string
-): CodeNode => {
-  return {
+): CodeNode =>
+  prepopulatePropertyInputs({
     id,
     name,
     groupId,
@@ -208,8 +188,7 @@ export const phongNode = (
     source: '',
     stage,
     nextStageNodeId,
-  };
-};
+  });
 
 export const physicalNode = (
   id: string,
@@ -218,8 +197,8 @@ export const physicalNode = (
   uniforms: UniformDataType[],
   stage: ShaderStage,
   nextStageNodeId?: string
-): CodeNode => {
-  return {
+): CodeNode =>
+  prepopulatePropertyInputs({
     id,
     name,
     groupId,
@@ -279,8 +258,7 @@ export const physicalNode = (
     source: '',
     stage,
     nextStageNodeId,
-  };
-};
+  });
 
 export const toonNode = (
   id: string,
@@ -288,8 +266,8 @@ export const toonNode = (
   groupId: string,
   stage: ShaderStage,
   nextStageNodeId?: string
-): CodeNode => {
-  return {
+): CodeNode =>
+  prepopulatePropertyInputs({
     id,
     name,
     groupId,
@@ -319,8 +297,7 @@ export const toonNode = (
     source: '',
     stage,
     nextStageNodeId,
-  };
-};
+  });
 
 export const addNode = (id: string): BinaryNode => ({
   id,

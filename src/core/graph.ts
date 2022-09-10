@@ -435,6 +435,28 @@ export type SearchResult = {
 };
 
 /**
+ * Create the inputs on a node from the properties. This used to be done at
+ * context time. Doing it at node creation time lets us auto-bake edges into
+ * the node at initial graph creation time.
+ */
+export const prepopulatePropertyInputs = (node: CodeNode): CodeNode => ({
+  ...node,
+  inputs: [
+    ...node.inputs,
+    ...(node.config.properties || []).map((property) =>
+      nodeInput(
+        property.displayName,
+        `property_${property.property}`,
+        'property',
+        new Set<InputCategory>(['data']),
+        !!property.fillerName, // bakeable
+        property.property
+      )
+    ),
+  ],
+});
+
+/**
  * Recursively filter the graph, starting from a specific node, looking for
  * nodes and edges that match predicates. This function returns the inputs for
  * matched edges, not the edges themselves, as a convenience for the only
@@ -443,7 +465,8 @@ export type SearchResult = {
 export const filterGraphFromNode = (
   graph: Graph,
   node: GraphNode,
-  predicates: Predicates
+  predicates: Predicates,
+  depth = Infinity
 ): SearchResult => {
   const { inputs } = node;
   const inputEdges = graph.edges.filter((edge) => edge.to === node.id);
@@ -471,8 +494,13 @@ export const filterGraphFromNode = (
           : {}),
       };
 
-      if (inputEdge && fromNode) {
-        const result = filterGraphFromNode(graph, fromNode, predicates);
+      if (inputEdge && fromNode && depth > 1) {
+        const result = filterGraphFromNode(
+          graph,
+          fromNode,
+          predicates,
+          depth - 1
+        );
         return {
           nodes: { ...acc.nodes, ...result.nodes },
           inputs: { ...acc.inputs, ...inputAcc, ...result.inputs },
@@ -492,6 +520,26 @@ export const filterGraphFromNode = (
 
 export const collectConnectedNodes = (graph: Graph, node: GraphNode): NodeIds =>
   filterGraphFromNode(graph, node, { node: () => true }).nodes;
+
+export const filterGraphNodes = (
+  graph: Graph,
+  nodes: GraphNode[],
+  filter: Predicates,
+  depth = Infinity
+) =>
+  nodes.reduce<SearchResult>(
+    (acc, node) => {
+      const result = filterGraphFromNode(graph, node, filter, depth);
+      return {
+        nodes: { ...acc.nodes, ...result.nodes },
+        inputs: { ...acc.inputs, ...result.inputs },
+      };
+    },
+    {
+      nodes: {},
+      inputs: {},
+    }
+  );
 
 type NodeIds = Record<string, GraphNode>;
 export type CompileNodeResult = [ShaderSections, AstNode | void, NodeIds];
@@ -654,31 +702,16 @@ export const compileNode = (
 };
 
 // Merge existing node inputs, and inputs based on properties, with new ones
-// found from the source code, using the *id* as the uniqueness key
+// found from the source code, using the *id* as the uniqueness key. Any filler input gets
+// merged into property inputs with the same id. This preserves the
+// "baked" property on node inputs which is toggle-able in the graph
 const collapseNodeInputs = (
   node: CodeNode,
   updatedInputs: NodeInput[]
-): NodeInput[] => {
-  // Convert the properties into inputs. Maybe it would be good to cache these
-  // rather than compute them every context generation?
-  const propertyInputs = (node.config.properties || []).map((property) =>
-    nodeInput(
-      property.displayName,
-      `property_${property.property}`,
-      'property',
-      new Set<InputCategory>(['data']),
-      !!property.fillerName,
-      property.property
-    )
+): NodeInput[] =>
+  Object.values(groupBy([...updatedInputs, ...node.inputs], (i) => i.id)).map(
+    (dupes) => dupes.reduce((node, dupe) => ({ ...node, ...dupe }))
   );
-
-  // Merge any duplicate nodes into each other by id. Any filler input gets
-  // merged into property inputs with the same id. This preserves the
-  // "baked" property on node inputs which is toggle-able in the graph
-  return Object.values(
-    groupBy([...propertyInputs, ...updatedInputs, ...node.inputs], (i) => i.id)
-  ).map((dupes) => dupes.reduce((node, dupe) => ({ ...node, ...dupe })));
-};
 
 type NodeErrors = { type: 'errors'; errors: any[] };
 const makeError = (...errors: any[]): NodeErrors => ({
@@ -726,22 +759,45 @@ const computeNodeContext = (
     return makeError(error);
   }
 
+  // Find all the inputs of this node where a "source" code node flows into it,
+  // to auto-bake it. This handles the case where a graph is instantiated with
+  // a shader plugged into a texture property. The property on the intial node
+  // doesn't know if it's baked or not
+  const dataInputs = groupBy(
+    filterGraphFromNode(
+      graph,
+      node,
+      { input: (a, b, c, fromNode) => fromNode?.type === 'source' },
+      1
+    ).inputs[node.id] || [],
+    'id'
+  );
+
   // Find the combination if inputs (data) and fillers (runtime context data)
   // and copy the input data onto the node, and the fillers onto the context
-  const updatedInputs = parser.findInputs(engineContext, node, ast, inputEdges);
+  const computedInputs = parser.findInputs(
+    engineContext,
+    node,
+    ast,
+    inputEdges
+  );
 
   node.inputs = collapseNodeInputs(
     node,
-    updatedInputs.map(([i]) => ({
+    computedInputs.map(([i]) => ({
       ...i,
       displayName: mapInputName(node, i),
     }))
-  );
+  ).map((input) => ({
+    // Auto-bake
+    ...input,
+    ...(input.id in dataInputs ? { baked: true } : {}),
+  }));
 
   const nodeContext: NodeContext = {
     ast,
     id: node.id,
-    inputFillers: updatedInputs.reduce<InputFillers>(
+    inputFillers: computedInputs.reduce<InputFillers>(
       (acc, [input, filler]) => ({ ...acc, [input.id]: filler }),
       {}
     ),
@@ -768,7 +824,10 @@ export const computeContextForNodes = (
   nodes: GraphNode[]
 ) =>
   nodes.filter(isSourceNode).reduce((context, node) => {
-    console.log('computing context for', `${node.name} (${node.id})`);
+    console.log(
+      'Computing context for',
+      `${node.name} (${node.id}, ${node.stage || node.type})`
+    );
 
     let result = computeNodeContext(engineContext, engine, graph, node);
     let nodeContext = isError(result)

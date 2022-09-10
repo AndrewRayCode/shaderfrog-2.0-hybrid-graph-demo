@@ -28,6 +28,7 @@ import {
   useReactFlow,
   XYPosition,
   OnConnectStartParams,
+  EdgeText,
   // FlowElement,
 } from 'react-flow-renderer';
 
@@ -39,6 +40,8 @@ import {
   collectConnectedNodes,
   findNode,
   computeContextForNodes,
+  isDataInput,
+  filterGraphNodes,
 } from '../../core/graph';
 import { Edge as GraphEdge, EdgeType } from '../../core/nodes/edge';
 import {
@@ -88,10 +91,7 @@ import {
   engine as babylengine,
 } from '../../plugins/babylon';
 import { Hoisty, useHoisty } from '../hoistedRefContext';
-import {
-  collectDataInputsFromNodes,
-  UICompileGraphResult,
-} from '../uICompileGraphResult';
+import { UICompileGraphResult } from '../uICompileGraphResult';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import {
   declarationOfStrategy,
@@ -122,7 +122,7 @@ import {
   FlowElements,
   toFlowInputs,
   setFlowNodeCategories,
-  initializeFlowElementsFromGraph,
+  graphToFlowGraph,
   graphNodeToFlowNode,
   graphEdgeToFlowEdge,
   updateFlowInput,
@@ -130,7 +130,6 @@ import {
   updateFlowNodeData,
   updateGraphNode,
   addFlowEdge,
-  flowEdgeToGraphEdge,
   addGraphEdge,
 } from './flow/helpers';
 
@@ -420,21 +419,21 @@ const useTestingNodeSetup = () => {
         physicalF,
         physicalV,
         transmissionNumber,
-        // solidColorF,
-        // fireF,
-        // fireV,
-        // fluidF,
+        solidColorF,
+        fireF,
+        fireV,
+        fluidF,
         outputF,
         outputV,
-        // outlineF,
-        // outlineV,
-        // hellOnEarthF,
-        // hellOnEarthV,
-        // perlinCloudsF,
+        outlineF,
+        outlineV,
+        hellOnEarthF,
+        hellOnEarthV,
+        perlinCloudsF,
         purpleNoise,
-        // heatShaderF,
-        // heatShaderV,
-        // staticShader,
+        heatShaderF,
+        heatShaderV,
+        staticShader,
       ],
       edges: [
         makeEdge(
@@ -500,10 +499,11 @@ const compileGraphAsync = async (
         shaderSectionsToAst(result.vertex, engine.mergeOptions).program
       );
 
-      const dataInputs = collectDataInputsFromNodes(graph, [
-        result.outputFrag,
-        result.outputVert,
-      ]);
+      const dataInputs = filterGraphNodes(
+        graph,
+        [result.outputFrag, result.outputVert],
+        { input: isDataInput }
+      ).inputs;
 
       // Find which nodes flow up into uniform inputs, for colorizing and for
       // not recompiling when their data changes
@@ -757,9 +757,9 @@ const Editor: React.FC = () => {
     [engine, compile, graph, flowElements]
   );
 
+  // Computes and recompiles an entirely new graph
   const initializeGraph = useCallback(
     (initialElements: FlowElements, newCtx: EngineContext, graph: Graph) => {
-      setGuiMsg(`🥸 Initializing ${engine.name}...`);
       setTimeout(() => {
         computeAllContexts(newCtx, engine, graph);
         console.log('Initializing flow nodes and compiling graph!', {
@@ -767,15 +767,11 @@ const Editor: React.FC = () => {
           newCtx,
         });
 
-        const initFlowElements = initialElements.nodes.length
-          ? initialElements
-          : initializeFlowElementsFromGraph(graph, onInputBakedToggle);
-
-        compile(engine, newCtx, graph, initFlowElements);
+        compile(engine, newCtx, graph, initialElements);
         setGuiMsg('');
       }, 10);
     },
-    [compile, engine, onInputBakedToggle]
+    [compile, engine]
   );
 
   // Once we receive a new engine context, re-initialize the graph. This method
@@ -802,7 +798,12 @@ const Editor: React.FC = () => {
             }
           }
         }
-        initializeGraph(flowElements, newCtx, newGraph);
+        setGuiMsg(`🥸 Initializing ${engine.name}...`);
+        initializeGraph(
+          graphToFlowGraph(newGraph, onInputBakedToggle),
+          newCtx,
+          newGraph
+        );
         // This branch wasn't here before I started working on the bug where
         // switching away from the scene to the source code tab and back removed
         // the envmap and others. I want to try to cache the whole scene and
@@ -820,7 +821,7 @@ const Editor: React.FC = () => {
       initializeGraph,
       getRefData,
       graph,
-      flowElements,
+      onInputBakedToggle,
     ]
   );
 
@@ -1341,7 +1342,7 @@ const Editor: React.FC = () => {
     [setFlowElements, setGraph]
   );
 
-  const doTheThing = () => {
+  const doTheThing = useCallback(() => {
     if (!ctx) {
       throw new Error('what');
     }
@@ -1352,10 +1353,7 @@ const Editor: React.FC = () => {
       makeId(),
       'Physical',
       physicalGroupId,
-      [
-        numberUniformData('metalness', '0.6'),
-        vectorUniformData('diffuse', ['1', '0.5', '0.5']),
-      ],
+      [],
       'fragment'
     );
     const physicalV = physicalNode(
@@ -1366,9 +1364,10 @@ const Editor: React.FC = () => {
       'vertex',
       physicalF.id
     );
-    // setGraph(
+    const purpleNoise = purpleNoiseNode(makeId());
+
     const newGraph = expandUniformDataNodes({
-      nodes: [outputF, outputV, physicalF, physicalV],
+      nodes: [purpleNoise, outputF, outputV, physicalF, physicalV],
       edges: [
         makeEdge(
           makeId(),
@@ -1386,19 +1385,23 @@ const Editor: React.FC = () => {
           'filler_gl_Position',
           'vertex'
         ),
+        makeEdge(
+          makeId(),
+          purpleNoise.id,
+          physicalF.id,
+          'out',
+          'property_map',
+          'fragment'
+        ),
       ],
     });
 
     setGraph(newGraph);
-    initializeGraph(
-      {
-        nodes: [],
-        edges: [],
-      },
-      ctx,
-      newGraph
-    );
-  };
+
+    const initFlowElements = graphToFlowGraph(newGraph, onInputBakedToggle);
+
+    initializeGraph(initFlowElements, ctx, newGraph);
+  }, [ctx, initializeGraph, setGraph, onInputBakedToggle]);
 
   return (
     <div className={styles.container} onClick={onContainerClick}>

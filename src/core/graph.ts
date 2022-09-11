@@ -572,8 +572,7 @@ export const compileNode = (
   if (onBeforeCompile) {
     const { groupId } = node as SourceNode;
     const sibling = graph.nodes.find(
-      (n) =>
-        n !== node && 'groupId' in n && (n as SourceNode).groupId === groupId
+      (n) => n !== node && (n as SourceNode).groupId === groupId
     );
     onBeforeCompile(
       graph,

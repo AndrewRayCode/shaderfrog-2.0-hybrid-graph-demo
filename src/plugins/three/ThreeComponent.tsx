@@ -227,7 +227,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       const geometry = new three.IcosahedronGeometry(1, 0);
       mesh = new three.Mesh(geometry);
     } else {
-      throw new Error('fffffff');
+      throw new Error(`Wtf there is no preview object named ${previewObject}`);
     }
     if (sceneData.mesh) {
       mesh.material = sceneData.mesh.material;

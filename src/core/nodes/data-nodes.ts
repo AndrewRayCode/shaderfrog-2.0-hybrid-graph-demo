@@ -1,4 +1,4 @@
-import { CoreNode, NodeInput, NodeOutput } from './core-node';
+import { CoreNode, NodeInput, NodeOutput, NodePosition } from './core-node';
 
 type Vector = 'vector2' | 'vector3' | 'vector4';
 type Color = 'rgb' | 'rgba';
@@ -33,6 +33,7 @@ export interface NumberNode extends CoreNode {
 export const numberNode = (
   id: string,
   name: string,
+  position: NodePosition,
   value: string,
   optionals?: {
     range?: [number, number];
@@ -44,6 +45,7 @@ export const numberNode = (
   type: 'number',
   id,
   name,
+  position,
   value,
   inputs: optionals?.inputs || [],
   outputs: optionals?.outputs || [
@@ -57,14 +59,23 @@ export const numberNode = (
   stepper: optionals?.stepper,
 });
 
-export type NumberDataUniform = Omit<NumberNode, 'id' | 'inputs' | 'outputs'>;
+export type NumberDataUniform = Omit<
+  NumberNode,
+  'id' | 'inputs' | 'outputs' | 'position'
+>;
 
 export const numberUniformData = (
   name: string,
   value: string,
   range?: [number, number],
   stepper?: number
-): NumberDataUniform => ({ type: 'number', name, value, range, stepper });
+): NumberDataUniform => ({
+  type: 'number',
+  name,
+  value,
+  range,
+  stepper,
+});
 
 export interface TextureNode extends CoreNode {
   type: 'texture';
@@ -73,11 +84,13 @@ export interface TextureNode extends CoreNode {
 export const textureNode = (
   id: string,
   name: string,
+  position: NodePosition,
   value: string
 ): TextureNode => ({
   type: 'texture',
   id,
   name,
+  position,
   value,
   inputs: [],
   outputs: [
@@ -89,7 +102,10 @@ export const textureNode = (
   ],
 });
 
-export type TextureDataUniform = Omit<TextureNode, 'id' | 'inputs' | 'outputs'>;
+export type TextureDataUniform = Omit<
+  TextureNode,
+  'id' | 'inputs' | 'outputs' | 'position'
+>;
 
 export const textureUniformData = (
   name: string,
@@ -119,11 +135,13 @@ export interface Vector4Node extends CoreNode {
 export function vectorNode(
   id: string,
   name: string,
+  position: NodePosition,
   value: Vector2 | Vector3 | Vector4
 ): Vector2Node | Vector3Node | Vector4Node {
   return {
     id,
     name,
+    position,
     inputs: [],
     outputs: [
       {
@@ -140,9 +158,18 @@ export function vectorNode(
   };
 }
 
-export type Vector2DataUniform = Omit<Vector2Node, 'id' | 'inputs' | 'outputs'>;
-export type Vector3DataUniform = Omit<Vector3Node, 'id' | 'inputs' | 'outputs'>;
-export type Vector4DataUniform = Omit<Vector4Node, 'id' | 'inputs' | 'outputs'>;
+export type Vector2DataUniform = Omit<
+  Vector2Node,
+  'id' | 'inputs' | 'outputs' | 'position'
+>;
+export type Vector3DataUniform = Omit<
+  Vector3Node,
+  'id' | 'inputs' | 'outputs' | 'position'
+>;
+export type Vector4DataUniform = Omit<
+  Vector4Node,
+  'id' | 'inputs' | 'outputs' | 'position'
+>;
 
 export const vectorUniformData = (
   name: string,
@@ -170,11 +197,13 @@ export interface RgbaNode extends CoreNode {
 export function colorNode(
   id: string,
   name: string,
+  position: NodePosition,
   value: Vector3 | Vector4
 ): RgbNode | RgbaNode {
   return {
     id,
     name,
+    position,
     inputs: [],
     outputs: [
       {
@@ -189,8 +218,14 @@ export function colorNode(
   };
 }
 
-export type RgbDataUniform = Omit<RgbNode, 'id' | 'inputs' | 'outputs'>;
-export type RgbaDataUniform = Omit<RgbaNode, 'id' | 'inputs' | 'outputs'>;
+export type RgbDataUniform = Omit<
+  RgbNode,
+  'id' | 'inputs' | 'outputs' | 'position'
+>;
+export type RgbaDataUniform = Omit<
+  RgbaNode,
+  'id' | 'inputs' | 'outputs' | 'position'
+>;
 
 export const colorUniformData = (
   name: string,

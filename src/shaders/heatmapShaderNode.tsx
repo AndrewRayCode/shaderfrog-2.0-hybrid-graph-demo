@@ -1,10 +1,12 @@
+import { NodePosition } from '../core/nodes/core-node';
 import { sourceNode } from '../core/nodes/engine-node';
 import { uniformStrategy } from '../core/strategy';
 
-const heatShaderFragmentNode = (id: string) =>
+const heatShaderFragmentNode = (id: string, position: NodePosition) =>
   sourceNode(
     id,
     'Fake Heatmap',
+    position,
     { version: 2, preprocess: true, strategies: [uniformStrategy()] },
     `
     // Adapted from http://blogs.msdn.com/b/eternalcoding/archive/2014/04/17/learning-shaders-create-your-own-shaders-with-babylon-js.aspx
@@ -66,10 +68,15 @@ const heatShaderFragmentNode = (id: string) =>
     'three'
   );
 
-const heatShaderVertexNode = (id: string, nextStageNodeId?: string) =>
+const heatShaderVertexNode = (
+  id: string,
+  nextStageNodeId: string,
+  position: NodePosition
+) =>
   sourceNode(
     id,
     'Fake Heatmap',
+    position,
     { version: 2, preprocess: true, strategies: [] },
     `
     precision highp float;

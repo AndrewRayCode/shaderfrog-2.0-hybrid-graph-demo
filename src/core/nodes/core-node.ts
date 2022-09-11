@@ -32,10 +32,12 @@ export interface NodeOutput {
   category: InputCategory;
 }
 
+export type NodePosition = { x: number; y: number };
 export interface CoreNode {
   id: string;
   name: string;
   type: string;
   inputs: NodeInput[];
   outputs: NodeOutput[];
+  position: NodePosition;
 }

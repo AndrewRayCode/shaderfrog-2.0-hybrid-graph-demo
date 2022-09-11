@@ -45,31 +45,16 @@ import {
 } from '../../core/graph';
 import { Edge as GraphEdge, EdgeType } from '../../core/nodes/edge';
 import {
-  outputNode,
   addNode,
   sourceNode,
   multiplyNode,
   phongNode,
-  physicalNode,
   toonNode,
 } from '../../core/nodes/engine-node';
 import { Engine, EngineContext, convertToEngine } from '../../core/engine';
 import { shaderSectionsToAst } from '../../ast/shader-sections';
 
 import useThrottle from '../hooks/useThrottle';
-
-import { hellOnEarthFrag, hellOnEarthVert } from '../../shaders/hellOnEarth';
-import perlinCloudsFNode from '../../shaders/perlinClouds';
-import purpleNoiseNode from '../../shaders/purpleNoiseNode';
-import staticShaderNode from '../../shaders/staticShaderNode';
-import fluidCirclesNode from '../../shaders/fluidCirclesNode';
-import solidColorNode from '../../shaders/solidColorNode';
-import {
-  heatShaderFragmentNode,
-  heatShaderVertexNode,
-} from '../../shaders/heatmapShaderNode';
-import { fireFrag, fireVert } from '../../shaders/fireNode';
-import { outlineShaderF, outlineShaderV } from '../../shaders/outlineShader';
 
 // import contrastNoise from '..';
 import { useAsyncExtendedState } from '../hooks/useAsyncExtendedState';
@@ -132,6 +117,7 @@ import {
   addFlowEdge,
   addGraphEdge,
 } from './flow/helpers';
+import { Example, makeExampleGraph } from './examples';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
@@ -141,13 +127,18 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
   graph.nodes.reduce<Graph>((updated, node) => {
     if ('config' in node && node.config.uniforms) {
       const newNodes = node.config.uniforms.reduce<[GraphNode[], GraphEdge[]]>(
-        (acc, uniform) => {
+        (acc, uniform, index) => {
+          const position = {
+            x: node.position.x - 250,
+            y: node.position.y - 200 + index * 100,
+          };
           let n;
           switch (uniform.type) {
             case 'texture': {
               n = textureNode(
                 makeId(),
                 `${uniform.name} (texture)`,
+                position,
                 uniform.value
               );
               break;
@@ -156,6 +147,7 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
               n = numberNode(
                 makeId(),
                 `${uniform.name} (number)`,
+                position,
                 uniform.value,
                 {
                   range: uniform.range,
@@ -168,6 +160,7 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
               n = vectorNode(
                 makeId(),
                 `${uniform.name} (vector2)`,
+                position,
                 uniform.value as Vector2
               );
               break;
@@ -176,6 +169,7 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
               n = vectorNode(
                 makeId(),
                 `${uniform.name} (vector3)`,
+                position,
                 uniform.value as Vector3
               );
               break;
@@ -184,6 +178,7 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
               n = vectorNode(
                 makeId(),
                 `${uniform.name} (vector4)`,
+                position,
                 uniform.value as Vector4
               );
               break;
@@ -192,6 +187,7 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
               n = colorNode(
                 makeId(),
                 `${uniform.name} (rgb)`,
+                position,
                 uniform.value as Vector3
               );
               break;
@@ -200,6 +196,7 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
               n = colorNode(
                 makeId(),
                 `${uniform.name} (rgba)`,
+                position,
                 uniform.value as Vector4
               );
               break;
@@ -360,108 +357,9 @@ const useTestingNodeSetup = () => {
     });
 
   const [graph, setGraph, resetGraph] = useLocalStorage<Graph>('graph', () => {
-    // const expression = expressionNode(makeId(), 'Expression', 'a + b / c');
-    const outputF = outputNode(makeId(), 'Output', 'fragment');
-    const outputV = outputNode(makeId(), 'Output', 'vertex', outputF.id);
-
-    // const phongGroupId = makeId();
-    // const phongF = phongNode(makeId(), 'Phong', phongGroupId, 'fragment');
-    // const phongV = phongNode(
-    //   makeId(),
-    //   'Phong',
-    //   phongGroupId,
-    //   'vertex',
-    //   phongF.id
-    // );
-
-    const physicalGroupId = makeId();
-    const physicalF = physicalNode(
-      makeId(),
-      'Physical',
-      physicalGroupId,
-      [],
-      'fragment'
-    );
-    const physicalV = physicalNode(
-      makeId(),
-      'Physical',
-      physicalGroupId,
-      [],
-      'vertex',
-      physicalF.id
-    );
-
-    // const toonGroupId = makeId();
-    // const toonF = toonNode(makeId(), 'Toon', toonGroupId, 'fragment');
-    // const toonV = toonNode(makeId(), 'Toon', toonGroupId, 'vertex', toonF.id);
-
-    const fluidF = fluidCirclesNode(makeId());
-    const staticShader = staticShaderNode(makeId());
-    const purpleNoise = purpleNoiseNode(makeId());
-    const heatShaderF = heatShaderFragmentNode(makeId());
-    const heatShaderV = heatShaderVertexNode(makeId(), heatShaderF.id);
-    const fireF = fireFrag(makeId());
-    const fireV = fireVert(makeId(), fireF.id);
-    // const add = addNode(makeId());
-    // const add2 = addNode(makeId());
-    // const multiply = multiplyNode(makeId());
-    const outlineF = outlineShaderF(makeId());
-    const outlineV = outlineShaderV(makeId(), outlineF.id);
-    const solidColorF = solidColorNode(makeId());
-    const hellOnEarthF = hellOnEarthFrag(makeId());
-    const hellOnEarthV = hellOnEarthVert(makeId(), hellOnEarthF.id);
-    const perlinCloudsF = perlinCloudsFNode(makeId());
-
-    const transmissionNumber = numberNode(makeId(), 'transmission', '0.9');
-    // const num1 = numberNode(makeId(), 'number', '1');
-    return expandUniformDataNodes({
-      nodes: [
-        physicalF,
-        physicalV,
-        transmissionNumber,
-        solidColorF,
-        fireF,
-        fireV,
-        fluidF,
-        outputF,
-        outputV,
-        outlineF,
-        outlineV,
-        hellOnEarthF,
-        hellOnEarthV,
-        perlinCloudsF,
-        purpleNoise,
-        heatShaderF,
-        heatShaderV,
-        staticShader,
-      ],
-      edges: [
-        makeEdge(
-          makeId(),
-          physicalF.id,
-          outputF.id,
-          'out',
-          'filler_frogFragOut',
-          'fragment'
-        ),
-        makeEdge(
-          makeId(),
-          physicalV.id,
-          outputV.id,
-          'out',
-          'filler_gl_Position',
-          'vertex'
-        ),
-        // makeEdge(
-        //   makeId(),
-        //   transmissionNumber.id,
-        //   physicalF.id,
-        //   'out',
-        //   'property_transmission',
-        //   'fragment'
-        // ),
-      ],
-    });
+    const query = new URLSearchParams(window.location.search);
+    const example = query.get('example') || Example.ALL_NODES_TOGETHER;
+    return expandUniformDataNodes(makeExampleGraph(example as Example)[0]);
   });
 
   return {
@@ -576,7 +474,11 @@ const Editor: React.FC = () => {
   const [guiError, setGuiError] = useState<string>('');
   const [guiMsg, setGuiMsg] = useState<string>('');
   const [lights, setLights] = useState<PreviewLight>('point');
-  const [previewObject, setPreviewObject] = useState('torusknot');
+  const [previewObject, setPreviewObject] = useState(() => {
+    const query = new URLSearchParams(window.location.search);
+    const example = query.get('example') || Example.ALL_NODES_TOGETHER;
+    return makeExampleGraph(example as Example)[1];
+  });
   const [bg, setBg] = useState('warehouse');
 
   const [activeShader, setActiveShader] = useState<SourceNode>(
@@ -1111,38 +1013,45 @@ const Editor: React.FC = () => {
       let newGns: GraphNode[];
 
       if (type === 'number') {
-        newGns = [numberNode(id, makeName('number'), '1')];
+        newGns = [numberNode(id, makeName('number'), position, '1')];
       } else if (type === 'texture') {
-        newGns = [textureNode(id, makeName('texture'), 'grayscale-noise')];
+        newGns = [
+          textureNode(id, makeName('texture'), position, 'grayscale-noise'),
+        ];
       } else if (type === 'vector2') {
-        newGns = [vectorNode(id, makeName('vec2'), ['1', '1'])];
+        newGns = [vectorNode(id, makeName('vec2'), position, ['1', '1'])];
       } else if (type === 'vector3') {
-        newGns = [vectorNode(id, makeName('vec3'), ['1', '1', '1'])];
+        newGns = [vectorNode(id, makeName('vec3'), position, ['1', '1', '1'])];
       } else if (type === 'vector4') {
-        newGns = [vectorNode(id, makeName('vec4'), ['1', '1', '1', '1'])];
+        newGns = [
+          vectorNode(id, makeName('vec4'), position, ['1', '1', '1', '1']),
+        ];
       } else if (type === 'rgb') {
-        newGns = [colorNode(id, makeName('rgb'), ['1', '1', '1'])];
+        newGns = [colorNode(id, makeName('rgb'), position, ['1', '1', '1'])];
       } else if (type === 'rgba') {
-        newGns = [colorNode(id, makeName('rgba'), ['1', '1', '1', '1'])];
+        newGns = [
+          colorNode(id, makeName('rgba'), position, ['1', '1', '1', '1']),
+        ];
       } else if (type === 'multiply') {
-        newGns = [multiplyNode(id)];
+        newGns = [multiplyNode(id, position)];
       } else if (type === 'add') {
-        newGns = [addNode(id)];
+        newGns = [addNode(id, position)];
       } else if (type === 'phong') {
         newGns = [
-          phongNode(id, 'Phong', groupId, 'fragment'),
-          phongNode(makeId(), 'Phong', groupId, 'vertex', id),
+          phongNode(id, 'Phong', groupId, position, 'fragment'),
+          phongNode(makeId(), 'Phong', groupId, position, 'vertex', id),
         ];
       } else if (type === 'toon') {
         newGns = [
-          toonNode(id, 'Toon', groupId, 'fragment'),
-          toonNode(makeId(), 'Toon', groupId, 'vertex', id),
+          toonNode(id, 'Toon', groupId, position, 'fragment'),
+          toonNode(makeId(), 'Toon', groupId, position, 'vertex', id),
         ];
       } else if (type === 'fragment' || type === 'vertex') {
         newGns = [
           sourceNode(
             makeId(),
             'Source Code ' + id,
+            position,
             {
               version: 2,
               preprocess: true,
@@ -1181,7 +1090,21 @@ const Editor: React.FC = () => {
         : [];
 
       setContexting(true);
-      // Let the context UI message get set first.
+
+      setFlowElements((fe) => ({
+        edges: [...fe.edges, ...newGEs.map(graphEdgeToFlowEdge)],
+        nodes: [
+          ...fe.nodes,
+          ...newGns.map((newGn, index) =>
+            graphNodeToFlowNode(newGn, onInputBakedToggle, {
+              x: position.x - 200 + index * 20,
+              y: position.y - 50 + index * 20,
+            })
+          ),
+        ],
+      }));
+
+      // Give the flow graph time to update after adding the new nodes
       setTimeout(() => {
         setGraph((graph) => {
           const updatedGraph = {
@@ -1197,23 +1120,8 @@ const Editor: React.FC = () => {
           return updatedGraph;
         });
 
-        setFlowElements((fe) => ({
-          edges: [...fe.edges, ...newGEs.map(graphEdgeToFlowEdge)],
-          nodes: [
-            ...fe.nodes,
-            ...newGns.map((newGn, index) =>
-              graphNodeToFlowNode(newGn, onInputBakedToggle, {
-                x: position.x - 200 + index * 20,
-                y: position.y - 50 + index * 20,
-              })
-            ),
-          ],
-        }));
-
-        console.log('doing the thing');
-        // Give the flow graph time to update after adding the new nodes
         debouncedSetNeedsCompile(true);
-      }, 0);
+      }, 10);
     },
     [
       debouncedSetNeedsCompile,
@@ -1348,66 +1256,30 @@ const Editor: React.FC = () => {
     [setFlowElements, setGraph]
   );
 
-  const doTheThing = useCallback(() => {
-    if (!ctx) {
-      throw new Error('what');
-    }
-    const outputF = outputNode(makeId(), 'Output', 'fragment');
-    const outputV = outputNode(makeId(), 'Output', 'vertex', outputF.id);
-    const physicalGroupId = makeId();
-    const physicalF = physicalNode(
-      makeId(),
-      'Physical',
-      physicalGroupId,
-      [],
-      'fragment'
-    );
-    const physicalV = physicalNode(
-      makeId(),
-      'Physical',
-      physicalGroupId,
-      [],
-      'vertex',
-      physicalF.id
-    );
-    const purpleNoise = purpleNoiseNode(makeId());
+  const loadExample = useCallback(
+    (example: Example) => {
+      if (!ctx) {
+        throw new Error('what');
+      }
+      const urlParams = new URLSearchParams(window.location.search);
+      urlParams.set('example', example);
+      window.history.replaceState(
+        {},
+        example,
+        `${window.location.pathname}?${urlParams.toString()}`
+      );
 
-    const newGraph = expandUniformDataNodes({
-      nodes: [purpleNoise, outputF, outputV, physicalF, physicalV],
-      edges: [
-        makeEdge(
-          makeId(),
-          physicalF.id,
-          outputF.id,
-          'out',
-          'filler_frogFragOut',
-          'fragment'
-        ),
-        makeEdge(
-          makeId(),
-          physicalV.id,
-          outputV.id,
-          'out',
-          'filler_gl_Position',
-          'vertex'
-        ),
-        makeEdge(
-          makeId(),
-          purpleNoise.id,
-          physicalF.id,
-          'out',
-          'property_map',
-          'fragment'
-        ),
-      ],
-    });
+      const [graph, previewObject] = makeExampleGraph(example);
+      let newGraph = expandUniformDataNodes(graph);
+      setGraph(newGraph);
+      setPreviewObject(previewObject);
 
-    setGraph(newGraph);
+      const initFlowElements = graphToFlowGraph(newGraph, onInputBakedToggle);
 
-    const initFlowElements = graphToFlowGraph(newGraph, onInputBakedToggle);
-
-    initializeGraph(initFlowElements, ctx, newGraph);
-  }, [ctx, initializeGraph, setGraph, onInputBakedToggle]);
+      initializeGraph(initFlowElements, ctx, newGraph);
+    },
+    [ctx, initializeGraph, setGraph, onInputBakedToggle]
+  );
 
   return (
     <div className={styles.container} onClick={onContainerClick}>
@@ -1421,9 +1293,20 @@ const Editor: React.FC = () => {
             <div className={styles.activeEngine}>
               {engine === babylengine ? 'Babylon.js' : 'Three.js'}
             </div>
-            <button className={styles.formButton} onClick={doTheThing}>
-              Help
-            </button>
+            <select
+              onChange={(e) => {
+                if (e.currentTarget.value) {
+                  loadExample(e.currentTarget.value as Example);
+                }
+              }}
+            >
+              <option value="">Select an Example!</option>
+              {Object.entries(Example).map(([key, name]) => (
+                <option key={key} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
             {window.location.href.indexOf('localhost') > -1 ? (
               <>
                 <button

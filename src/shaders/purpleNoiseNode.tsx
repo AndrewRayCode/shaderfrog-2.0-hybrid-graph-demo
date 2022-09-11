@@ -1,11 +1,13 @@
+import { NodePosition } from '../core/nodes/core-node';
 import { numberUniformData, vectorUniformData } from '../core/nodes/data-nodes';
 import { sourceNode } from '../core/nodes/engine-node';
 import { uniformStrategy } from '../core/strategy';
 
-const purpleNoiseNode = (id: string) =>
+const purpleNoiseNode = (id: string, position: NodePosition) =>
   sourceNode(
     id,
     'Purple Metal',
+    position,
     {
       version: 2,
       preprocess: true,

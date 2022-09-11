@@ -1,3 +1,4 @@
+import { NodePosition } from '../core/nodes/core-node';
 import {
   numberUniformData,
   textureUniformData,
@@ -6,10 +7,11 @@ import {
 import { sourceNode } from '../core/nodes/engine-node';
 import { texture2DStrategy, uniformStrategy } from '../core/strategy';
 
-const perlinCloudsF = (id: string) =>
+const perlinCloudsF = (id: string, position: NodePosition) =>
   sourceNode(
     id,
     'Perlin Clouds',
+    position,
     {
       version: 2,
       preprocess: true,

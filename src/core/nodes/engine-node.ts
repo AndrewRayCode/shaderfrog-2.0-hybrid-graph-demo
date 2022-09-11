@@ -9,6 +9,7 @@ import {
   variableStrategy,
 } from '../strategy';
 import { BinaryNode, CodeNode, NodeConfig, property } from './code-nodes';
+import { NodePosition } from './core-node';
 import { UniformDataType } from './data-nodes';
 
 /**
@@ -21,6 +22,7 @@ import { UniformDataType } from './data-nodes';
 export const sourceNode = (
   id: string,
   name: string,
+  position: NodePosition,
   config: NodeConfig,
   source: string,
   stage: ShaderStage,
@@ -31,6 +33,7 @@ export const sourceNode = (
   name,
   type: NodeType.SOURCE,
   config,
+  position,
   inputs: [],
   outputs: [
     {
@@ -48,11 +51,13 @@ export const sourceNode = (
 export const outputNode = (
   id: string,
   name: string,
+  position: NodePosition,
   stage: ShaderStage,
   nextStageNodeId?: string
 ): CodeNode => ({
   id,
   name,
+  position,
   type: NodeType.OUTPUT,
   config: {
     version: 3,
@@ -101,10 +106,12 @@ void main() {
 export const expressionNode = (
   id: string,
   name: string,
+  position: NodePosition,
   source: string
 ): CodeNode => ({
   id,
   name,
+  position,
   type: NodeType.SOURCE,
   expressionOnly: true,
   config: {
@@ -128,6 +135,7 @@ export const phongNode = (
   id: string,
   name: string,
   groupId: string,
+  position: NodePosition,
   stage: ShaderStage,
   nextStageNodeId?: string
 ): CodeNode =>
@@ -135,6 +143,7 @@ export const phongNode = (
     id,
     name,
     groupId,
+    position,
     type: EngineNodeType.phong,
     config: {
       version: 3,
@@ -194,6 +203,7 @@ export const physicalNode = (
   id: string,
   name: string,
   groupId: string,
+  position: NodePosition,
   uniforms: UniformDataType[],
   stage: ShaderStage,
   nextStageNodeId?: string
@@ -202,6 +212,7 @@ export const physicalNode = (
     id,
     name,
     groupId,
+    position,
     type: EngineNodeType.physical,
     config: {
       uniforms,
@@ -264,6 +275,7 @@ export const toonNode = (
   id: string,
   name: string,
   groupId: string,
+  position: NodePosition,
   stage: ShaderStage,
   nextStageNodeId?: string
 ): CodeNode =>
@@ -271,6 +283,7 @@ export const toonNode = (
     id,
     name,
     groupId,
+    position,
     type: EngineNodeType.toon,
     config: {
       version: 3,
@@ -299,9 +312,10 @@ export const toonNode = (
     nextStageNodeId,
   });
 
-export const addNode = (id: string): BinaryNode => ({
+export const addNode = (id: string, position: NodePosition): BinaryNode => ({
   id,
   name: 'add',
+  position,
   type: NodeType.BINARY,
   config: {
     version: 3,
@@ -322,10 +336,14 @@ export const addNode = (id: string): BinaryNode => ({
   biStage: true,
 });
 
-export const multiplyNode = (id: string): BinaryNode => ({
+export const multiplyNode = (
+  id: string,
+  position: NodePosition
+): BinaryNode => ({
   id,
   name: 'multiply',
   type: NodeType.BINARY,
+  position,
   config: {
     version: 3,
     preprocess: true,

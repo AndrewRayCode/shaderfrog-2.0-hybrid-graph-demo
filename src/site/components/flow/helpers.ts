@@ -415,31 +415,10 @@ export const graphToFlowGraph = (
   graph: Graph,
   onInputBakedToggle: any
 ): FlowElements => {
-  let engines = 0;
-  let maths = 0;
-  let outputs = 0;
-  let shaders = 0;
-  const spacing = 200;
-  const maxHeight = 4;
   console.log('Initializing flow elements from', { graph });
 
   const nodes = graph.nodes.map((node) =>
-    graphNodeToFlowNode(
-      node,
-      onInputBakedToggle,
-      node.type === EngineNodeType.output
-        ? { x: spacing * 2, y: outputs++ * 100 }
-        : node.type === EngineNodeType.phong ||
-          node.type === EngineNodeType.toon ||
-          node.type === EngineNodeType.physical
-        ? { x: spacing, y: engines++ * 100 }
-        : node.type === EngineNodeType.binary
-        ? { x: 0, y: maths++ * 100 }
-        : {
-            x: -spacing - spacing * Math.floor(shaders / maxHeight),
-            y: (shaders++ % maxHeight) * 120,
-          }
-    )
+    graphNodeToFlowNode(node, onInputBakedToggle, node.position)
   );
 
   const edges: FlowEdgeOrLink[] = graph.edges.map(graphEdgeToFlowEdge);

@@ -1,10 +1,12 @@
+import { NodePosition } from '../core/nodes/core-node';
 import { sourceNode } from '../core/nodes/engine-node';
 import { uniformStrategy } from '../core/strategy';
 
-const staticShaderNode = (id: string) =>
+const staticShaderNode = (id: string, position: NodePosition) =>
   sourceNode(
     id,
     'Static Shader',
+    position,
     { version: 2, preprocess: true, strategies: [uniformStrategy()] },
     `
 /**

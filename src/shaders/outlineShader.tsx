@@ -1,10 +1,12 @@
+import { NodePosition } from '../core/nodes/core-node';
 import { sourceNode } from '../core/nodes/engine-node';
 import { uniformStrategy } from '../core/strategy';
 
-const outlineShaderF = (id: string) =>
+const outlineShaderF = (id: string, position: NodePosition) =>
   sourceNode(
     id,
     'Outline',
+    position,
     { version: 2, preprocess: true, strategies: [uniformStrategy()] },
     `
 precision highp float;
@@ -28,10 +30,15 @@ void main()
     'fragment'
   );
 
-const outlineShaderV = (id: string, nextStageNodeId: string) =>
+const outlineShaderV = (
+  id: string,
+  nextStageNodeId: string,
+  position: NodePosition
+) =>
   sourceNode(
     id,
     'Outline',
+    position,
     { version: 2, preprocess: true, strategies: [] },
     `
 precision highp float;

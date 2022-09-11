@@ -1,11 +1,13 @@
-import { numberUniformData } from '../core/nodes/data-nodes';
+import { NodePosition } from '../core/nodes/core-node';
+import { numberUniformData, UniformDataType } from '../core/nodes/data-nodes';
 import { sourceNode } from '../core/nodes/engine-node';
 import { uniformStrategy } from '../core/strategy';
 
-const fireFrag = (id: string) =>
+const fireFrag = (id: string, position: NodePosition) =>
   sourceNode(
     id,
     'Fireball',
+    position,
     { version: 2, preprocess: true, strategies: [uniformStrategy()] },
     `
     // Indstiller presisionen, hvor meget plads denne type variabel må bruge (high betyder meget plads)
@@ -35,17 +37,22 @@ void main() {
     'three'
   );
 
-const fireVert = (id: string, nextStageNodeId?: string) =>
+const fireVert = (
+  id: string,
+  nextStageNodeId: string,
+  position: NodePosition,
+  uniforms?: UniformDataType[]
+) =>
   sourceNode(
     id,
     'Fireball',
+    position,
     {
       version: 2,
       preprocess: true,
       strategies: [uniformStrategy()],
 
-      uniforms: [
-        // { name: 'tExplosion', type: 'sampler2D', value: 'image' },
+      uniforms: uniforms || [
         numberUniformData('fireSpeed', '0.6321'),
         numberUniformData('pulseHeight', '0.1'),
         numberUniformData('displacementHeight', '0.612'),

@@ -28,7 +28,7 @@ import groupBy from 'lodash.groupby';
 const headerHeight = 30;
 const labelHeight = 38;
 const inputHeight = 20;
-const outputHandleTopWithLabel = 45;
+const outputHandleTopWithLabel = 38;
 // If there are no labeled input sections, move the output handle top higher up
 const outputHandleTopWithoutLabel = 24;
 const textHeight = 10;
@@ -76,6 +76,13 @@ export interface FlowNodeSourceData extends CoreFlowNode {
   onInputBakedToggle: (id: string, name: string, baked: boolean) => void;
 }
 export type FlowNodeData = FlowNodeSourceData | FlowNodeDataData;
+
+const showPosition = (xPos: number, yPos: number) =>
+  window.location.href.indexOf('localhost') > -1 ? (
+    <>
+      {Math.round(xPos)}, {Math.round(yPos)}
+    </>
+  ) : null;
 
 // interface NodeProp {
 //   nodeId: string;
@@ -238,12 +245,25 @@ const TextureEditor = ({
 );
 
 const DataNodeComponent = memo(
-  ({ id, data }: { id: string; data: FlowNodeDataData }) => {
+  ({
+    id,
+    data,
+    xPos,
+    yPos,
+  }: {
+    id: string;
+    data: FlowNodeDataData;
+    xPos: number;
+    yPos: number;
+  }) => {
     const onChange = useFlowEventHack();
 
     return (
       <FlowWrap data={data} className={cx('flow-node_data', data.type)}>
-        <div className="flowlabel">{data.label}</div>
+        <div className="flowlabel">
+          {data.label}
+          {showPosition(xPos, yPos)}
+        </div>
         <div className="flowInputs">
           {data.inputs.map((input, index) => (
             <React.Fragment key={input.id}>
@@ -314,7 +334,17 @@ const DataNodeComponent = memo(
 DataNodeComponent.displayName = 'DataNodeComponent';
 
 const SourceNodeComponent = memo(
-  ({ id, data }: { id: string; data: FlowNodeSourceData }) => {
+  ({
+    id,
+    data,
+    xPos,
+    yPos,
+  }: {
+    xPos: number;
+    yPos: number;
+    id: string;
+    data: FlowNodeSourceData;
+  }) => {
     // const updateNodeInternals = useUpdateNodeInternals();
     // const key = `${computeIOKey(data.inputs)}${computeIOKey(data.outputs)}`;
 
@@ -361,7 +391,7 @@ const SourceNodeComponent = memo(
         className={cx(data.stage, data.category, { inactive: !data.active })}
       >
         <div className="flowlabel">
-          {data.label}
+          {data.label} {showPosition(xPos, yPos)}
           {data.stage ? (
             <div className="stage">
               {data.stage === 'fragment' ? 'FRAG' : 'VERT'}

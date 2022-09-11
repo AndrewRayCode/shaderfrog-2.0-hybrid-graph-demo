@@ -1,10 +1,12 @@
+import { NodePosition } from '../core/nodes/core-node';
 import { sourceNode } from '../core/nodes/engine-node';
 import { uniformStrategy } from '../core/strategy';
 
-const fluidCirclesNode = (id: string) =>
+const fluidCirclesNode = (id: string, position: NodePosition) =>
   sourceNode(
     id,
     'Fluid Circles',
+    position,
     { version: 2, preprocess: true, strategies: [uniformStrategy()] },
     `
     // Original https://www.shadertoy.com/view/MljSzW - Imported with permission

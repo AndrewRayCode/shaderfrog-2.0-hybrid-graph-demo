@@ -1,10 +1,12 @@
+import { NodePosition } from '../core/nodes/core-node';
 import { sourceNode } from '../core/nodes/engine-node';
 import { uniformStrategy } from '../core/strategy';
 
-const hellOnEarthFrag = (id: string) =>
+const hellOnEarthFrag = (id: string, position: NodePosition) =>
   sourceNode(
     id,
     'Hell',
+    position,
     { version: 2, preprocess: true, strategies: [uniformStrategy()] },
     `
 /**
@@ -196,10 +198,15 @@ void main() {
     'three'
   );
 
-const hellOnEarthVert = (id: string, nextStageNodeId: string) =>
+const hellOnEarthVert = (
+  id: string,
+  nextStageNodeId: string,
+  position: NodePosition
+) =>
   sourceNode(
     id,
     'Hell',
+    position,
     { version: 2, preprocess: true, strategies: [] },
     `
 /**

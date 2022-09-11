@@ -482,7 +482,7 @@ const Editor: React.FC = () => {
   const [bg, setBg] = useState('warehouse');
 
   const [activeShader, setActiveShader] = useState<SourceNode>(
-    graph.nodes[0] as SourceNode
+    graph.nodes.find(n => n.type === 'source') as SourceNode
   );
 
   const [compileResult, setCompileResult] = useState<UICompileGraphResult>();

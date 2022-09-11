@@ -28,7 +28,9 @@ import groupBy from 'lodash.groupby';
 const headerHeight = 30;
 const labelHeight = 38;
 const inputHeight = 20;
-const handleTop = 45;
+const outputHandleTopWithLabel = 45;
+// If there are no labeled input sections, move the output handle top higher up
+const outputHandleTopWithoutLabel = 24;
 const textHeight = 10;
 
 export type InputNodeHandle = {
@@ -108,7 +110,12 @@ const FlowWrap = ({
   <div
     className={classnames('flownode', className)}
     style={{
-      height: height || `${handleTop + Math.max(data.inputs.length, 1) * 20}px`,
+      height:
+        height ||
+        `${
+          outputHandleTopWithLabel +
+          Math.min(Math.max(data.inputs.length, 1) * 20, 100)
+        }px`,
       zIndex: 0,
     }}
   >
@@ -246,14 +253,16 @@ const DataNodeComponent = memo(
                 className={cx({ validTarget: input.validTarget })}
                 type="target"
                 position={Position.Left}
-                style={{ top: `${handleTop + index * 20}px` }}
+                style={{ top: `${outputHandleTopWithLabel + index * 20}px` }}
               />
               <div
                 className={cx('react-flow_handle_label', {
                   validTarget: input.validTarget,
                 })}
                 style={{
-                  top: `${handleTop - textHeight + index * 20}px`,
+                  top: `${
+                    outputHandleTopWithLabel - textHeight + index * 20
+                  }px`,
                   left: 15,
                 }}
               >
@@ -281,22 +290,21 @@ const DataNodeComponent = memo(
 
         <div className={styles.outputs}>
           {data.outputs.map((output, index) => (
-            <React.Fragment key={output.name}>
-              <Handle
-                isConnectable
-                id={output.id}
-                className={cx({ validTarget: output.validTarget })}
-                type="source"
-                position={Position.Right}
-                style={{ top: `${handleTop + index * 20}px` }}
+            <Handle
+              key={output.name}
+              isConnectable
+              id={output.id}
+              className={cx({ validTarget: output.validTarget })}
+              type="source"
+              position={Position.Right}
+              style={{ top: `${outputHandleTopWithLabel + index * 20}px` }}
+            >
+              <div
+                className={cx('react-flow_handle_label', styles.outputLabel)}
               >
-                <div
-                  className={cx('react-flow_handle_label', styles.outputLabel)}
-                >
-                  {output.name}
-                </div>
-              </Handle>
-            </React.Fragment>
+                {output.name}
+              </div>
+            </Handle>
           ))}
         </div>
       </FlowWrap>
@@ -322,22 +330,26 @@ const SourceNodeComponent = memo(
       [{ name: string; inputs: InputNodeHandle[]; offset: number }[], number]
     >(() => {
       const labels: Record<string, string> = {
-        uniform: 'Uniforms',
         property: 'Properties',
+        uniform: 'Uniforms',
         filler: 'Code',
       };
       const group = groupBy<InputNodeHandle>(data.inputs, 'type');
       let offset = 0;
+
       return [
-        Object.entries(group).map(([key, inputs]) => {
-          const result = {
-            name: labels[key] || `UNKNOWN ${key}`,
-            inputs,
-            offset,
-          };
-          offset += labelHeight + inputs.length * inputHeight;
-          return result;
-        }),
+        Object.entries(labels)
+          .filter(([key]) => group[key])
+          .map(([key, name]) => {
+            const inputs = group[key];
+            const result = {
+              name,
+              inputs,
+              offset,
+            };
+            offset += labelHeight + inputs.length * inputHeight;
+            return result;
+          }),
         offset,
       ];
     }, [data.inputs]);
@@ -368,7 +380,6 @@ const SourceNodeComponent = memo(
                 {group.name}
               </div>
               {group.inputs.map((input, index) => (
-                // <React.Fragment key={input.id}>
                 <Handle
                   key={input.id}
                   isConnectable
@@ -404,12 +415,11 @@ const SourceNodeComponent = memo(
                     {input.name}
                   </div>
                 </Handle>
-                // </React.Fragment>
               ))}
             </React.Fragment>
           ))}
 
-          <div className={cx(styles.outputs, styles.outputWithLabel)}>
+          <div className={cx(styles.outputs)}>
             {data.outputs.map((output, index) => (
               <Handle
                 key={output.id}
@@ -418,6 +428,14 @@ const SourceNodeComponent = memo(
                 className={cx({
                   validTarget: output.validTarget,
                 })}
+                style={{
+                  top: `${
+                    (height
+                      ? outputHandleTopWithLabel
+                      : outputHandleTopWithoutLabel) +
+                    index * 20
+                  }px`,
+                }}
                 type="source"
                 position={Position.Right}
               >

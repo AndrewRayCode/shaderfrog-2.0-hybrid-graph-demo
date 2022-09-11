@@ -17,6 +17,7 @@
   box-shadow: 0 0 10px rgba(0, 0, 0, 1);
   position: relative;
   min-width: 220px;
+  min-height: 80px;
 }
 
 .react-flow__node-output.selectable:hover,
@@ -135,7 +136,6 @@
 
 .react-flow__handle.react-flow__handle-connecting {
   box-shadow: 0 0 10px #fff;
-  border: 4px solid #fff;
   background: #fff;
 }
 
@@ -300,7 +300,15 @@
 .fragment.flownode .react-flow__handle {
   border-color: #d4ff00;
   background: #333d00;
-  /* transition: box-shadow 0.2s ease-in; */
+}
+.fragment.flownode .react-flow__handle.react-flow__handle-connecting {
+  border-color: #fff;
+  background: #22ff00;
+}
+.fragment.flownode
+  .react-flow__handle.react-flow__handle-connecting
+  .react-flow_handle_label {
+  color: #fff;
 }
 
 .fragment .react-flow__handle.validTarget {
@@ -374,6 +382,15 @@
   border-color: #fa5b5b;
   background: #3a1919;
   transition: all 0.2s ease-in;
+}
+.vertex.flownode .react-flow__handle.react-flow__handle-connecting {
+  border-color: #fff;
+  background: #ff2525;
+}
+.vertex.flownode
+  .react-flow__handle.react-flow__handle-connecting
+  .react-flow_handle_label {
+  color: #fff;
 }
 
 .vertex .react-flow__handle.validTarget {

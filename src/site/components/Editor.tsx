@@ -571,6 +571,7 @@ const Editor: React.FC = () => {
   const [tabIndex, setTabIndex] = useState<number>(0);
   const [sceneTabIndex, setSceneTabIndex] = useState<number>(0);
   const [editorTabIndex, setEditorTabIndex] = useState<number>(0);
+  const [contexting, setContexting] = useState<boolean>(false);
   const [compiling, setCompiling] = useState<boolean>(false);
   const [guiError, setGuiError] = useState<string>('');
   const [guiMsg, setGuiMsg] = useState<string>('');
@@ -663,10 +664,9 @@ const Editor: React.FC = () => {
       graph: Graph,
       flowElements: FlowElements
     ) => {
-      // const updatedGraph = fromFlowToGraph(graph, flowElements);
+      setContexting(false);
       setCompiling(true);
 
-      // compileGraphAsync(updatedGraph, engine, ctx).then((compileResult) => {
       compileGraphAsync(graph, engine, ctx)
         .then((compileResult) => {
           console.log('comple async complete!', { compileResult });
@@ -714,6 +714,7 @@ const Editor: React.FC = () => {
         .finally(() => {
           setNeedsCompile(false);
           setCompiling(false);
+          setContexting(false);
         });
     },
     [updateNodeInternals, setFlowElements]
@@ -760,6 +761,7 @@ const Editor: React.FC = () => {
   // Computes and recompiles an entirely new graph
   const initializeGraph = useCallback(
     (initialElements: FlowElements, newCtx: EngineContext, graph: Graph) => {
+      setContexting(true);
       setTimeout(() => {
         computeAllContexts(newCtx, engine, graph);
         console.log('Initializing flow nodes and compiling graph!', {
@@ -768,8 +770,7 @@ const Editor: React.FC = () => {
         });
 
         compile(engine, newCtx, graph, initialElements);
-        setGuiMsg('');
-      }, 10);
+      }, 0);
     },
     [compile, engine]
   );
@@ -798,7 +799,7 @@ const Editor: React.FC = () => {
             }
           }
         }
-        setGuiMsg(`🥸 Initializing ${engine.name}...`);
+        // setGuiMsg(`🥸 Initializing ${engine.name}...`);
         initializeGraph(
           graphToFlowGraph(newGraph, onInputBakedToggle),
           newCtx,
@@ -1179,35 +1180,40 @@ const Editor: React.FC = () => {
           ]
         : [];
 
-      setGraph((graph) => {
-        const updatedGraph = {
-          ...graph,
-          edges: [...graph.edges, ...newGEs],
-          nodes: [...graph.nodes, ...newGns],
-        };
-        // Create new inputs for new nodes added to the graph
-        computeContextForNodes(ctx as EngineContext, engine, updatedGraph, [
-          ...newGns,
-          ...(newEdgeData ? [findNode(updatedGraph, newEdgeData.to)] : []),
-        ]);
-        return updatedGraph;
-      });
+      setContexting(true);
+      // Let the context UI message get set first.
+      setTimeout(() => {
+        setGraph((graph) => {
+          const updatedGraph = {
+            ...graph,
+            edges: [...graph.edges, ...newGEs],
+            nodes: [...graph.nodes, ...newGns],
+          };
+          // Create new inputs for new nodes added to the graph
+          computeContextForNodes(ctx as EngineContext, engine, updatedGraph, [
+            ...newGns,
+            ...(newEdgeData ? [findNode(updatedGraph, newEdgeData.to)] : []),
+          ]);
+          return updatedGraph;
+        });
 
-      setFlowElements((fe) => ({
-        edges: [...fe.edges, ...newGEs.map(graphEdgeToFlowEdge)],
-        nodes: [
-          ...fe.nodes,
-          ...newGns.map((newGn, index) =>
-            graphNodeToFlowNode(newGn, onInputBakedToggle, {
-              x: position.x - 200 + index * 20,
-              y: position.y - 50 + index * 20,
-            })
-          ),
-        ],
-      }));
+        setFlowElements((fe) => ({
+          edges: [...fe.edges, ...newGEs.map(graphEdgeToFlowEdge)],
+          nodes: [
+            ...fe.nodes,
+            ...newGns.map((newGn, index) =>
+              graphNodeToFlowNode(newGn, onInputBakedToggle, {
+                x: position.x - 200 + index * 20,
+                y: position.y - 50 + index * 20,
+              })
+            ),
+          ],
+        }));
 
-      // Give the flow graph time to update after adding the new nodes
-      debouncedSetNeedsCompile(true);
+        console.log('doing the thing');
+        // Give the flow graph time to update after adding the new nodes
+        debouncedSetNeedsCompile(true);
+      }, 0);
     },
     [
       debouncedSetNeedsCompile,
@@ -1621,9 +1627,13 @@ const Editor: React.FC = () => {
         {/* 3d display split */}
         <div ref={sceneSplit} className={styles.splitInner}>
           <div className={styles.scene}>
-            {compiling ? (
+            {contexting ? (
               <div className={styles.compiling}>
-                <span>Compiling!</span>
+                <span>Building Context&hellip;</span>
+              </div>
+            ) : compiling ? (
+              <div className={styles.compiling}>
+                <span>Compiling&hellip;</span>
               </div>
             ) : guiError ? (
               <div className={styles.guiError}>

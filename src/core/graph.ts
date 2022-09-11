@@ -767,7 +767,10 @@ const computeNodeContext = (
     filterGraphFromNode(
       graph,
       node,
-      { input: (a, b, c, fromNode) => fromNode?.type === 'source' },
+      {
+        input: (input, b, c, fromNode) =>
+          input.bakeable && fromNode?.type === 'source',
+      },
       1
     ).inputs[node.id] || [],
     'id'

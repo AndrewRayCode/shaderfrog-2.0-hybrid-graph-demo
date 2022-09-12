@@ -192,7 +192,12 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
                 const name = mangleVar(input.displayName, threngine, node);
 
                 // @ts-ignore
-                mesh.material.uniforms[name].value = newValue;
+                if (name in mesh.material.uniforms) {
+                  // @ts-ignore
+                  mesh.material.uniforms[name].value = newValue;
+                } else {
+                  console.warn('Unknown uniform', name);
+                }
               }
             }
           });

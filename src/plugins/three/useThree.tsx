@@ -50,7 +50,7 @@ export const useThree = (callback: Callback) => {
 
   useEffect(() => {
     if (!scene.children.find((child: any) => child === camera)) {
-      camera.position.set(0, 0, 3);
+      camera.position.set(0, 0, 2);
       camera.lookAt(0, 0, 0);
       scene.add(camera);
     }

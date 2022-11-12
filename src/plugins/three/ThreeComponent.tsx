@@ -642,67 +642,65 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   }, [size, ctx.runtime]);
 
   return (
-    <div>
-      <div className={styles.paneContainer}>
-        <div className={styles.sceneControls}>
-          <div className={styles.control}>
-            <div className={styles.body}>
-              <label>
-                <span>Lighting</span>
-              </label>
-              <select
-                onChange={(event) => {
-                  setLights(event.target.value);
-                }}
-                value={lights}
-              >
-                <option value="3point">Static Point Lights</option>
-                <option value="point">Animated Point Light</option>
-                <option value="spot">Spot Lights</option>
-              </select>
-            </div>
-          </div>
-          <div className={styles.control}>
-            <div className={styles.body}>
-              <label>
-                <span>Model</span>
-              </label>
-              <select
-                onChange={(event) => {
-                  setPreviewObject(event.target.value);
-                }}
-                value={previewObject}
-              >
-                <option value="sphere">Sphere</option>
-                <option value="torusknot">Torus Knot</option>
-                <option value="icosahedron">Icosahedron</option>
-              </select>
-            </div>
-          </div>
-          <div className={styles.control}>
-            <div className={styles.body}>
-              <label>
-                <span>Background</span>
-              </label>
-              <select
-                onChange={(event) => {
-                  setBg(
-                    event.target.value === 'none' ? null : event.target.value
-                  );
-                }}
-                value={bg ? bg : 'none'}
-              >
-                <option value="none">None</option>
-                <option value="warehouse">Warehouse</option>
-              </select>
-            </div>
+    <>
+      <div className={styles.sceneControls}>
+        <div className={styles.control}>
+          <div className={styles.body}>
+            <label>
+              <span>Lighting</span>
+            </label>
+            <select
+              onChange={(event) => {
+                setLights(event.target.value);
+              }}
+              value={lights}
+            >
+              <option value="3point">Static Point Lights</option>
+              <option value="point">Animated Point Light</option>
+              <option value="spot">Spot Lights</option>
+            </select>
           </div>
         </div>
-        <div ref={sceneWrapper} className={styles.sceneContainer}>
-          <div ref={threeDomCbRef}></div>
+        <div className={styles.control}>
+          <div className={styles.body}>
+            <label>
+              <span>Model</span>
+            </label>
+            <select
+              onChange={(event) => {
+                setPreviewObject(event.target.value);
+              }}
+              value={previewObject}
+            >
+              <option value="sphere">Sphere</option>
+              <option value="torusknot">Torus Knot</option>
+              <option value="icosahedron">Icosahedron</option>
+            </select>
+          </div>
+        </div>
+        <div className={styles.control}>
+          <div className={styles.body}>
+            <label>
+              <span>Background</span>
+            </label>
+            <select
+              onChange={(event) => {
+                setBg(
+                  event.target.value === 'none' ? null : event.target.value
+                );
+              }}
+              value={bg ? bg : 'none'}
+            >
+              <option value="none">None</option>
+              <option value="warehouse">Warehouse</option>
+            </select>
+          </div>
         </div>
       </div>
-    </div>
+      <div ref={sceneWrapper} className={styles.sceneContainer}>
+        <div ref={threeDomCbRef}></div>
+      </div>
+    </>
   );
 };
 

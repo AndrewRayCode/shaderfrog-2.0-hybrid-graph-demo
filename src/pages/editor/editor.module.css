@@ -273,10 +273,13 @@ textarea.error {
   height: 100%;
   width: 100%;
 }
-.paneContainer {
+
+.sceneAndControls {
   height: 100vh;
   display: grid;
-  grid-template-rows: repeat(100px, 1fr);
+}
+.sceneSmallScreen {
+  height: calc(100vh - 47px);
 }
 
 .guiMsg {

@@ -231,8 +231,8 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
 /**
  * Where was I?
  * - Trying to add examples, while at the same time
+ *    - Took random jump-back-in change to make the mobile view a little better
  *    - Fixed bugs and double compiling
- *    - trying out dropdowns in the UI to support examples, hard coded hi/bye
  *    - wow like 3 years ago I was trying to make a dropdown to change the
  *      scene background and add additional geometry types, and trying to add
  *      EXAMPLES
@@ -463,12 +463,13 @@ const Editor: React.FC = () => {
     resetGraph,
   } = useTestingNodeSetup();
 
-  const sceneSplit = useRef<HTMLDivElement>(null);
+  const sceneWrapRef = useRef<HTMLDivElement>(null);
 
   // tabIndex may still be needed to pause rendering
-  const [tabIndex, setTabIndex] = useState<number>(0);
   const [sceneTabIndex, setSceneTabIndex] = useState<number>(0);
   const [editorTabIndex, setEditorTabIndex] = useState<number>(0);
+  const [smallScreenEditorTabIndex, setSmallScreenEditorTabIndex] =
+    useState<number>(0);
   const [contexting, setContexting] = useState<boolean>(false);
   const [compiling, setCompiling] = useState<boolean>(false);
   const [guiError, setGuiError] = useState<string>('');
@@ -482,7 +483,7 @@ const Editor: React.FC = () => {
   const [bg, setBg] = useState('warehouse');
 
   const [activeShader, setActiveShader] = useState<SourceNode>(
-    graph.nodes.find(n => n.type === 'source') as SourceNode
+    graph.nodes.find((n) => n.type === 'source') as SourceNode
   );
 
   const [compileResult, setCompileResult] = useState<UICompileGraphResult>();
@@ -530,15 +531,15 @@ const Editor: React.FC = () => {
     vertError: string | null;
     programError: string | null;
     compileMs: string | null;
-    width: number;
-    height: number;
+    sceneWidth: number;
+    sceneHeight: number;
   }>({
     fragError: null,
     vertError: null,
     programError: null,
     compileMs: null,
-    width: 0,
-    height: 0,
+    sceneWidth: 0,
+    sceneHeight: 0,
   });
 
   const setGlResult = useCallback(
@@ -750,22 +751,22 @@ const Editor: React.FC = () => {
     }
   }, []);
 
-  const onSplitResize = useThrottle(() => {
-    if (sceneSplit.current) {
-      const { width, height } = sceneSplit.current.getBoundingClientRect();
-      extendState({ width, height });
+  const syncSceneSize = useThrottle(() => {
+    if (sceneWrapRef.current) {
+      const { width, height } = sceneWrapRef.current.getBoundingClientRect();
+      extendState({ sceneWidth: width, sceneHeight: height });
     }
   }, 100);
 
   useEffect(() => {
-    const listener = () => onSplitResize();
+    const listener = () => syncSceneSize();
     window.addEventListener('resize', listener);
     return () => {
       window.removeEventListener('resize', listener);
     };
-  }, [onSplitResize]);
+  }, [syncSceneSize]);
 
-  useEffect(() => onSplitResize(), [defaultMainSplitSize, onSplitResize]);
+  useEffect(() => syncSceneSize(), [defaultMainSplitSize, syncSceneSize]);
 
   /**
    * React flow
@@ -1273,6 +1274,7 @@ const Editor: React.FC = () => {
       let newGraph = expandUniformDataNodes(graph);
       setGraph(newGraph);
       setPreviewObject(previewObject);
+      setActiveShader(newGraph.nodes[0] as SourceNode);
 
       const initFlowElements = graphToFlowGraph(newGraph, onInputBakedToggle);
 
@@ -1281,290 +1283,311 @@ const Editor: React.FC = () => {
     [ctx, initializeGraph, setGraph, onInputBakedToggle]
   );
 
-  return (
-    <div className={styles.container} onClick={onContainerClick}>
-      <SplitPane
-        split={smallScreen ? 'horizontal' : 'vertical'}
-        onChange={onSplitResize}
-        defaultSizes={defaultMainSplitSize}
-      >
-        <div className={styles.splitInner}>
-          <div className={styles.tabControls}>
-            <div className={styles.activeEngine}>
-              {engine === babylengine ? 'Babylon.js' : 'Three.js'}
-            </div>
-            <select
-              onChange={(e) => {
-                if (e.currentTarget.value) {
-                  loadExample(e.currentTarget.value as Example);
-                }
-              }}
-            >
-              <option value="">Select an Example!</option>
-              {Object.entries(Example).map(([key, name]) => (
-                <option key={key} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-            {window.location.href.indexOf('localhost') > -1 ? (
-              <>
-                <button
-                  className={styles.formButton}
-                  onClick={() => {
-                    if (!ctx) {
-                      return;
-                    }
-                    if (engine === babylengine) {
-                      setCompileResult(undefined);
-                      setEngine({ lastEngine: engine, engine: threngine });
-                    } else {
-                      setCompileResult(undefined);
-                      setEngine({ lastEngine: engine, engine: babylengine });
-                    }
-                  }}
-                >
-                  {engine === babylengine
-                    ? 'Switch to Three.js'
-                    : 'Switch to Babylon.js'}
-                </button>
-                <button
-                  className={styles.formButton}
-                  onClick={() => {
-                    localStorage.clear();
-                    if (ctx) {
-                      const rGraph = resetGraph();
-                      const rElements = resetFlowElements();
-                      initializeGraph(rElements, ctx, rGraph);
-                    }
-                  }}
-                >
-                  Reset
-                </button>
-              </>
-            ) : null}
+  const exampleSelectorElement = (
+    <select
+      onChange={(e) => {
+        if (e.currentTarget.value) {
+          loadExample(e.currentTarget.value as Example);
+        }
+      }}
+    >
+      <option value="">Select an Example!</option>
+      {Object.entries(Example).map(([key, name]) => (
+        <option key={key} value={name}>
+          {name}
+        </option>
+      ))}
+    </select>
+  );
+
+  const editorElements = (
+    <>
+      {smallScreen ? null : (
+        <div className={styles.tabControls}>
+          <div className={styles.activeEngine}>
+            {engine === babylengine ? 'Babylon.js' : 'Three.js'}
           </div>
-          <Tabs onSelect={setEditorTabIndex} selected={editorTabIndex}>
-            <TabGroup>
-              <Tab>Graph</Tab>
-              <Tab>
-                Editor ({activeShader.name} -{' '}
-                {'stage' in activeShader
-                  ? activeShader.stage
-                  : activeShader.type}
-                )
-              </Tab>
-              <Tab
-                className={{
-                  [styles.errored]: state.fragError || state.vertError,
+          {exampleSelectorElement}
+          {window.location.href.indexOf('localhost') > -1 ? (
+            <>
+              <button
+                className={styles.formButton}
+                onClick={() => {
+                  if (!ctx) {
+                    return;
+                  }
+                  if (engine === babylengine) {
+                    setCompileResult(undefined);
+                    setEngine({ lastEngine: engine, engine: threngine });
+                  } else {
+                    setCompileResult(undefined);
+                    setEngine({ lastEngine: engine, engine: babylengine });
+                  }
                 }}
               >
-                Compiled Source
-              </Tab>
-            </TabGroup>
-            <TabPanels>
-              {/* Graph tab */}
-              <TabPanel onMouseMove={onMouseMove}>
-                <div
-                  ref={reactFlowWrapper}
-                  className={styles.reactFlowWrapper}
-                ></div>
-                <FlowEditor
-                  mouse={mouseRef}
-                  onMenuAdd={onMenuAdd}
-                  onNodeValueChange={onNodeValueChange}
-                  nodes={flowElements.nodes}
-                  edges={flowElements.edges}
-                  onConnect={onConnect}
-                  onEdgeUpdate={onEdgeUpdate}
-                  onEdgesChange={onEdgesChange}
-                  onNodesChange={onNodesChange}
-                  onNodesDelete={onNodesDelete}
-                  onNodeDoubleClick={onNodeDoubleClick}
-                  onEdgesDelete={onEdgesDelete}
-                  onConnectStart={onConnectStart}
-                  onEdgeUpdateStart={onEdgeUpdateStart}
-                  onEdgeUpdateEnd={onEdgeUpdateEnd}
-                  onConnectStop={onConnectStop}
-                />
-              </TabPanel>
-              {/* Main code editor tab */}
-              <TabPanel>
-                <div className={styles.belowTabs}>
-                  <SplitPane split="horizontal">
-                    <div className={styles.splitInner}>
-                      <div className={styles.editorControls}>
-                        <button
-                          className={styles.button}
-                          onClick={() =>
-                            compile(
-                              engine,
-                              ctx as EngineContext,
-                              graph,
-                              flowElements
-                            )
-                          }
-                        >
-                          Save (⌘-S)
-                        </button>
-                      </div>
-                      <CodeEditor
-                        engine={engine}
-                        defaultValue={activeShader.source}
-                        onSave={() => {
-                          compile(
-                            engine,
-                            ctx as EngineContext,
-                            graph,
-                            flowElements
-                          );
-                        }}
-                        onChange={(value, event) => {
-                          if (value) {
-                            (
-                              graph.nodes.find(
-                                ({ id }) => id === activeShader.id
-                              ) as SourceNode
-                            ).source = value;
-                          }
-                        }}
-                      />
-                    </div>
-                    <div
-                      className={cx(styles.splitInner, styles.nodeEditorPanel)}
+                {engine === babylengine
+                  ? 'Switch to Three.js'
+                  : 'Switch to Babylon.js'}
+              </button>
+              <button
+                className={styles.formButton}
+                onClick={() => {
+                  localStorage.clear();
+                  if (ctx) {
+                    const rGraph = resetGraph();
+                    const rElements = resetFlowElements();
+                    initializeGraph(rElements, ctx, rGraph);
+                  }
+                }}
+              >
+                Reset
+              </button>
+            </>
+          ) : null}
+        </div>
+      )}
+      <Tabs onSelect={setEditorTabIndex} selected={editorTabIndex}>
+        <TabGroup>
+          <Tab>Graph</Tab>
+          <Tab>
+            Editor ({activeShader.name} -{' '}
+            {'stage' in activeShader ? activeShader.stage : activeShader.type})
+          </Tab>
+          <Tab
+            className={{
+              [styles.errored]: state.fragError || state.vertError,
+            }}
+          >
+            Compiled Source
+          </Tab>
+        </TabGroup>
+        <TabPanels>
+          {/* Graph tab */}
+          <TabPanel onMouseMove={onMouseMove}>
+            <div
+              ref={reactFlowWrapper}
+              className={styles.reactFlowWrapper}
+            ></div>
+            <FlowEditor
+              mouse={mouseRef}
+              onMenuAdd={onMenuAdd}
+              onNodeValueChange={onNodeValueChange}
+              nodes={flowElements.nodes}
+              edges={flowElements.edges}
+              onConnect={onConnect}
+              onEdgeUpdate={onEdgeUpdate}
+              onEdgesChange={onEdgesChange}
+              onNodesChange={onNodesChange}
+              onNodesDelete={onNodesDelete}
+              onNodeDoubleClick={onNodeDoubleClick}
+              onEdgesDelete={onEdgesDelete}
+              onConnectStart={onConnectStart}
+              onEdgeUpdateStart={onEdgeUpdateStart}
+              onEdgeUpdateEnd={onEdgeUpdateEnd}
+              onConnectStop={onConnectStop}
+            />
+          </TabPanel>
+          {/* Main code editor tab */}
+          <TabPanel>
+            <div className={styles.belowTabs}>
+              <SplitPane split="horizontal">
+                <div className={styles.splitInner}>
+                  <div className={styles.editorControls}>
+                    <button
+                      className={styles.button}
+                      onClick={() =>
+                        compile(
+                          engine,
+                          ctx as EngineContext,
+                          graph,
+                          flowElements
+                        )
+                      }
                     >
-                      <StrategyEditor
-                        ctx={ctx}
-                        node={
+                      Save (⌘-S)
+                    </button>
+                  </div>
+                  <CodeEditor
+                    engine={engine}
+                    defaultValue={activeShader.source}
+                    onSave={() => {
+                      compile(
+                        engine,
+                        ctx as EngineContext,
+                        graph,
+                        flowElements
+                      );
+                    }}
+                    onChange={(value, event) => {
+                      if (value) {
+                        (
                           graph.nodes.find(
                             ({ id }) => id === activeShader.id
                           ) as SourceNode
-                        }
-                        onSave={() =>
-                          compile(
-                            engine,
-                            ctx as EngineContext,
-                            graph,
-                            flowElements
-                          )
-                        }
-                      ></StrategyEditor>
-                    </div>
-                  </SplitPane>
+                        ).source = value;
+                      }
+                    }}
+                  />
                 </div>
-              </TabPanel>
-              {/* Final source code tab */}
-              <TabPanel style={{ height: '100%' }}>
-                <Tabs onSelect={setSceneTabIndex} selected={sceneTabIndex}>
-                  <TabGroup className={styles.secondary}>
-                    <Tab className={{ [styles.errored]: state.fragError }}>
-                      Fragment
-                    </Tab>
-                    <Tab className={{ [styles.errored]: state.vertError }}>
-                      Vertex
-                    </Tab>
-                  </TabGroup>
-                  <TabPanels>
-                    {/* final fragment shader subtab */}
-                    <TabPanel style={{ height: '100%' }}>
-                      {state.fragError && (
-                        <div
-                          className={styles.codeError}
-                          title={state.fragError}
-                        >
-                          {(state.fragError || '').substring(0, 500)}
-                        </div>
-                      )}
-                      <CodeEditor
-                        engine={engine}
-                        value={compileResult?.fragmentResult}
-                        onChange={(value, event) => {
-                          debouncedSetFragmentOverride(value);
-                        }}
-                      />
-                    </TabPanel>
-                    {/* final vertex shader subtab */}
-                    <TabPanel style={{ height: '100%' }}>
-                      {state.vertError && (
-                        <div
-                          className={styles.codeError}
-                          title={state.vertError}
-                        >
-                          {(state.vertError || '').substring(0, 500)}
-                        </div>
-                      )}
-                      <CodeEditor
-                        engine={engine}
-                        value={compileResult?.vertexResult}
-                        onChange={(value, event) => {
-                          debouncedSetVertexOverride(value);
-                        }}
-                      />
-                    </TabPanel>
-                  </TabPanels>
-                </Tabs>
-              </TabPanel>
-            </TabPanels>
-          </Tabs>
+                <div className={cx(styles.splitInner, styles.nodeEditorPanel)}>
+                  <StrategyEditor
+                    ctx={ctx}
+                    node={
+                      graph.nodes.find(
+                        ({ id }) => id === activeShader.id
+                      ) as SourceNode
+                    }
+                    onSave={() =>
+                      compile(engine, ctx as EngineContext, graph, flowElements)
+                    }
+                  ></StrategyEditor>
+                </div>
+              </SplitPane>
+            </div>
+          </TabPanel>
+          {/* Final source code tab */}
+          <TabPanel style={{ height: '100%' }}>
+            <Tabs onSelect={setSceneTabIndex} selected={sceneTabIndex}>
+              <TabGroup className={styles.secondary}>
+                <Tab className={{ [styles.errored]: state.fragError }}>
+                  Fragment
+                </Tab>
+                <Tab className={{ [styles.errored]: state.vertError }}>
+                  Vertex
+                </Tab>
+              </TabGroup>
+              <TabPanels>
+                {/* final fragment shader subtab */}
+                <TabPanel style={{ height: '100%' }}>
+                  {state.fragError && (
+                    <div className={styles.codeError} title={state.fragError}>
+                      {(state.fragError || '').substring(0, 500)}
+                    </div>
+                  )}
+                  <CodeEditor
+                    engine={engine}
+                    value={compileResult?.fragmentResult}
+                    onChange={(value, event) => {
+                      debouncedSetFragmentOverride(value);
+                    }}
+                  />
+                </TabPanel>
+                {/* final vertex shader subtab */}
+                <TabPanel style={{ height: '100%' }}>
+                  {state.vertError && (
+                    <div className={styles.codeError} title={state.vertError}>
+                      {(state.vertError || '').substring(0, 500)}
+                    </div>
+                  )}
+                  <CodeEditor
+                    engine={engine}
+                    value={compileResult?.vertexResult}
+                    onChange={(value, event) => {
+                      debouncedSetVertexOverride(value);
+                    }}
+                  />
+                </TabPanel>
+              </TabPanels>
+            </Tabs>
+          </TabPanel>
+        </TabPanels>
+      </Tabs>
+    </>
+  );
+
+  const sceneElements = (
+    <div className={styles.scene}>
+      {contexting ? (
+        <div className={styles.compiling}>
+          <span>Building Context&hellip;</span>
         </div>
-        {/* 3d display split */}
-        <div ref={sceneSplit} className={styles.splitInner}>
-          <div className={styles.scene}>
-            {contexting ? (
-              <div className={styles.compiling}>
-                <span>Building Context&hellip;</span>
-              </div>
-            ) : compiling ? (
-              <div className={styles.compiling}>
-                <span>Compiling&hellip;</span>
-              </div>
-            ) : guiError ? (
-              <div className={styles.guiError}>
-                <b>Compilation Error!</b> {guiError}
-              </div>
-            ) : guiMsg ? (
-              <div className={styles.guiMsg}>{guiMsg}</div>
-            ) : compileResult?.compileMs ? (
-              <div className={styles.guiMsg}>
-                Complile took {compileResult?.compileMs}ms
-              </div>
-            ) : null}
-            {engine.name === 'three' ? (
-              <ThreeComponent
-                initialCtx={ctx}
-                bg={bg}
-                setBg={setBg}
-                setCtx={setCtx}
-                graph={graph}
-                lights={lights}
-                setLights={setLights}
-                previewObject={previewObject}
-                setPreviewObject={setPreviewObject}
-                compile={childCompile}
-                compileResult={compileResult}
-                setGlResult={setGlResult}
-                width={state.width}
-                height={state.height}
-              />
-            ) : (
-              <BabylonComponent
-                setCtx={setCtx}
-                graph={graph}
-                lights={lights}
-                setLights={setLights}
-                previewObject={previewObject}
-                setPreviewObject={setPreviewObject}
-                compile={childCompile}
-                guiMsg={guiMsg}
-                compileResult={compileResult}
-                setGlResult={setGlResult}
-                width={state.width}
-                height={state.height}
-              />
-            )}
+      ) : compiling ? (
+        <div className={styles.compiling}>
+          <span>Compiling&hellip;</span>
+        </div>
+      ) : guiError ? (
+        <div className={styles.guiError}>
+          <b>Compilation Error!</b> {guiError}
+        </div>
+      ) : guiMsg ? (
+        <div className={styles.guiMsg}>{guiMsg}</div>
+      ) : compileResult?.compileMs ? (
+        <div className={styles.guiMsg}>
+          Complile took {compileResult?.compileMs}ms
+        </div>
+      ) : null}
+      {smallScreen ? exampleSelectorElement : null}
+      <div
+        className={cx(styles.sceneAndControls, {
+          [styles.sceneSmallScreen]: smallScreen,
+        })}
+      >
+        {engine.name === 'three' ? (
+          <ThreeComponent
+            initialCtx={ctx}
+            bg={bg}
+            setBg={setBg}
+            setCtx={setCtx}
+            graph={graph}
+            lights={lights}
+            setLights={setLights}
+            previewObject={previewObject}
+            setPreviewObject={setPreviewObject}
+            compile={childCompile}
+            compileResult={compileResult}
+            setGlResult={setGlResult}
+            width={state.sceneWidth}
+            height={state.sceneHeight}
+          />
+        ) : (
+          <BabylonComponent
+            setCtx={setCtx}
+            graph={graph}
+            lights={lights}
+            setLights={setLights}
+            previewObject={previewObject}
+            setPreviewObject={setPreviewObject}
+            compile={childCompile}
+            guiMsg={guiMsg}
+            compileResult={compileResult}
+            setGlResult={setGlResult}
+            width={state.sceneWidth}
+            height={state.sceneHeight}
+          />
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className={styles.container} onClick={onContainerClick}>
+      {smallScreen ? (
+        <Tabs
+          onSelect={setSmallScreenEditorTabIndex}
+          selected={smallScreenEditorTabIndex}
+        >
+          <TabGroup>
+            <Tab>Scene</Tab>
+            <Tab>Editor</Tab>
+          </TabGroup>
+          <TabPanels>
+            <TabPanel>
+              <div ref={sceneWrapRef}>{sceneElements}</div>
+            </TabPanel>
+            <TabPanel>
+              <div className={styles.belowTabs}>{editorElements}</div>
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
+      ) : (
+        <SplitPane onChange={syncSceneSize} defaultSizes={defaultMainSplitSize}>
+          <div className={styles.splitInner}>{editorElements}</div>
+          {/* 3d display split */}
+          <div ref={sceneWrapRef} className={styles.splitInner}>
+            {sceneElements}
           </div>
-        </div>
-      </SplitPane>
+        </SplitPane>
+      )}
     </div>
   );
 };
@@ -1578,12 +1601,12 @@ const StrategyEditor = ({
   onSave: () => void;
   ctx?: EngineContext;
 }) => {
-  if (!ctx) {
+  if (!ctx || !node.config) {
     return null;
   }
   const { inputs } = node;
   return (
-    <div>
+    <>
       <div className={styles.uiGroup}>
         <h2 className={styles.uiHeader}>Expression only?</h2>
         <input
@@ -1661,7 +1684,7 @@ const StrategyEditor = ({
           ? inputs.map((i) => i.displayName).join(', ')
           : 'No inputs found'}
       </div>
-    </div>
+    </>
   );
 };
 

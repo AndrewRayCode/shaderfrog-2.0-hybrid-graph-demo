@@ -3,18 +3,18 @@ import classnames from 'classnames/bind';
 import style from './tabs.module.css';
 const cx = classnames.bind(style);
 
-type TabsProps = {
-  children: React.ReactNode;
-  selectedClassName?: any;
-  onSelect: Function;
-  selected: number;
-};
+// Overall wrapping component
 const Tabs = ({
   children,
   selected,
   onSelect,
   selectedClassName,
-}: TabsProps) => {
+}: {
+  children: React.ReactNode;
+  selectedClassName?: any;
+  onSelect: (index: number) => void;
+  selected: number;
+}) => {
   return (
     <>
       {React.Children.map<ReactNode, ReactNode>(
@@ -31,20 +31,20 @@ const Tabs = ({
   );
 };
 
-type TabGroupProps = {
-  children?: React.ReactNode;
-  selected?: number;
-  className?: string;
-  selectedClassName?: string;
-  onSelect?: Function;
-};
+// Group of the tabs themselves
 const TabGroup = ({
   children,
   selected,
   selectedClassName = 'tab_selected',
   onSelect,
   ...props
-}: TabGroupProps) => {
+}: {
+  children?: React.ReactNode;
+  selected?: number;
+  className?: string;
+  selectedClassName?: string;
+  onSelect?: Function;
+}) => {
   return (
     <div {...props} className={cx('tab_tabs', props.className)}>
       {React.Children.map<ReactNode, ReactNode>(
@@ -62,14 +62,7 @@ const TabGroup = ({
   );
 };
 
-type TabProps = {
-  children?: React.ReactNode;
-  selected?: number;
-  className?: any;
-  selectedClassName?: any;
-  onSelect?: Function;
-  index?: number;
-};
+// An individual tab
 const Tab = ({
   children,
   selected,
@@ -78,7 +71,14 @@ const Tab = ({
   onSelect,
   index,
   ...props
-}: TabProps) => {
+}: {
+  children?: React.ReactNode;
+  selected?: number;
+  className?: any;
+  selectedClassName?: any;
+  onSelect?: Function;
+  index?: number;
+}) => {
   return (
     <div
       {...props}
@@ -95,14 +95,22 @@ const Tab = ({
   );
 };
 
-type TabPanelsProps = { selected?: number; children: React.ReactNode };
-const TabPanels = ({ selected, children }: TabPanelsProps) => (
+// Wraps all panels, shows the selected panel
+const TabPanels = ({
+  selected,
+  children,
+}: {
+  selected?: number;
+  children: React.ReactNode;
+}) => (
   <>
     {React.Children.map<ReactNode, ReactNode>(children, (child, index) =>
       selected === index ? child : null
     )}
   </>
 );
+
+// The contents for each tab
 interface TabPanelProps extends React.HTMLAttributes<HTMLDivElement> {}
 const TabPanel = ({ children, ...props }: TabPanelProps) => {
   return <div {...props}>{children}</div>;

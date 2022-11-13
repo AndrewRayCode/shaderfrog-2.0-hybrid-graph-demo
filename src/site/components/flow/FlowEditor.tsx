@@ -146,33 +146,29 @@ const FlowEditor = ({
     [setMenuPos]
   );
 
-  // const { setViewport } = useReactFlow();
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance>();
   const onMoveEnd = useCallback(() => {
     if (rfInstance) {
-      const flow = rfInstance.toObject();
+      const flow = rfInstance.toObject().viewport;
       localStorage.setItem(flowKey, JSON.stringify(flow));
     }
   }, [rfInstance]);
   const defaultViewport = useMemo(
-    () => JSON.parse(localStorage.getItem(flowKey) || 'null'),
+    () =>
+      JSON.parse(localStorage.getItem(flowKey) || 'null') || {
+        x: 0,
+        y: 0,
+        zoom: 1,
+      },
     []
   );
-
-  // useEffect(() => {
-  //   const flow = JSON.parse(localStorage.getItem(flowKey) || 'null');
-  //   if (flow) {
-  //     const { x = 0, y = 0, zoom = 1 } = flow.viewport;
-  //     setViewport({ x, y, zoom });
-  //   }
-  // }, [setViewport]);
 
   return (
     <div onContextMenu={onContextMenu} className={styles.flowContainer}>
       {menuPos ? <ContextMenu position={menuPos} onAdd={onMenuAdd} /> : null}
       <FlowEventHack onChange={onNodeValueChange}>
         <ReactFlow
-          // defaultViewport={defaultViewport}
+          defaultViewport={defaultViewport}
           style={flowStyles}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}

@@ -297,7 +297,7 @@ export const makeExampleGraph = (example: Example): [Graph, string] => {
     let y = -400;
     const nextY = () => {
       let ret = y;
-      y += 250;
+      y += 150;
       return ret;
     };
     const fluidF = fluidCirclesNode(makeId(), { x: -250, y: nextY() });

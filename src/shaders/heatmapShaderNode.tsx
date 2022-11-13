@@ -1,4 +1,5 @@
 import { NodePosition } from '../core/nodes/core-node';
+import { numberUniformData } from '../core/nodes/data-nodes';
 import { sourceNode } from '../core/nodes/engine-node';
 import { uniformStrategy } from '../core/strategy';
 
@@ -125,7 +126,15 @@ const heatShaderFragmentNode = (
     id,
     'Fake Heatmap',
     position,
-    { version: 2, preprocess: true, strategies: [uniformStrategy()] },
+    {
+      version: 2,
+      preprocess: true,
+      strategies: [uniformStrategy()],
+      uniforms: [
+        numberUniformData('scale', '1.2'),
+        numberUniformData('power', '1'),
+      ],
+    },
     source,
     'fragment',
     'three'

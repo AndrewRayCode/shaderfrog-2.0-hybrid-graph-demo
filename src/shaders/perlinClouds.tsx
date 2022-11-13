@@ -1,5 +1,6 @@
 import { NodePosition } from '../core/nodes/core-node';
 import {
+  colorUniformData,
   numberUniformData,
   textureUniformData,
   vectorUniformData,
@@ -17,6 +18,7 @@ const perlinCloudsF = (id: string, position: NodePosition) =>
       preprocess: true,
       strategies: [texture2DStrategy(), uniformStrategy()],
       uniforms: [
+        colorUniformData('color', ['1', '1', '1']),
         numberUniformData('scale', '0.05'),
         textureUniformData('noiseImage', 'grayscale-noise'),
         vectorUniformData('speed', ['-0.002', '-0.002']),

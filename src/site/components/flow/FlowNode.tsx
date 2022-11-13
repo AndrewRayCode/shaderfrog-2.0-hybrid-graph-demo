@@ -77,10 +77,10 @@ export interface FlowNodeSourceData extends CoreFlowNode {
 }
 export type FlowNodeData = FlowNodeSourceData | FlowNodeDataData;
 
-const showPosition = (xPos: number, yPos: number) =>
+const showPosition = (id: any, xPos: number, yPos: number) =>
   window.location.href.indexOf('localhost') > -1 ? (
     <>
-      {Math.round(xPos)}, {Math.round(yPos)}
+      ({id}) {Math.round(xPos)}, {Math.round(yPos)}
     </>
   ) : null;
 
@@ -240,6 +240,7 @@ const TextureEditor = ({
       <option value="grayscale-noise">Grayscale Noise</option>
       <option value="brick">Bricks</option>
       <option value="brickNormal">Brick Normal Map</option>
+      <option value="explosion">Yellow Gradient</option>
     </select>
   </>
 );
@@ -262,7 +263,7 @@ const DataNodeComponent = memo(
       <FlowWrap data={data} className={cx('flow-node_data', data.type)}>
         <div className="flowlabel">
           {data.label}
-          {showPosition(xPos, yPos)}
+          {showPosition(id, xPos, yPos)}
         </div>
         <div className="flowInputs">
           {data.inputs.map((input, index) => (
@@ -391,7 +392,7 @@ const SourceNodeComponent = memo(
         className={cx(data.stage, data.category, { inactive: !data.active })}
       >
         <div className="flowlabel">
-          {data.label} {showPosition(xPos, yPos)}
+          {data.label} {showPosition(id, xPos, yPos)}
           {data.stage ? (
             <div className="stage">
               {data.stage === 'fragment' ? 'FRAG' : 'VERT'}

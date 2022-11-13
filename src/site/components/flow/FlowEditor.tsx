@@ -1,4 +1,12 @@
-import React, { useCallback, useRef, MouseEvent, forwardRef } from 'react';
+import React, {
+  useCallback,
+  useRef,
+  MouseEvent,
+  forwardRef,
+  useState,
+  useEffect,
+  useMemo,
+} from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 import ConnectionLine from './ConnectionLine';
 import create from 'zustand';
@@ -9,9 +17,10 @@ import ReactFlow, {
   useReactFlow,
   XYPosition,
   ReactFlowProps,
+  ReactFlowInstance,
 } from 'react-flow-renderer';
 
-import { NodeType, ShaderStage } from '../../../core/graph';
+import { NodeType } from '../../../core/graph';
 import { EngineNodeType } from '../../../core/engine';
 import FlowEdgeComponent from './FlowEdge';
 import { DataNodeComponent, SourceNodeComponent } from './FlowNode';
@@ -44,6 +53,8 @@ export const useEditorStore = create<EditorStore>((set) => ({
 // Terrible hack to make the flow graph full height minus the tab height - I
 // need better layoutting of the tabs + graph
 const flowStyles = { height: 'calc(100vh - 33px)', background: '#111' };
+
+const flowKey = 'example-flow';
 
 const nodeTypes: Record<NodeType | GraphDataType | EngineNodeType, any> = {
   toon: SourceNodeComponent,
@@ -136,6 +147,23 @@ const FlowEditor = ({
     [setMenuPos]
   );
 
+  const { setViewport } = useReactFlow();
+  const [rfInstance, setRfInstance] = useState<ReactFlowInstance>();
+  const onMoveEnd = useCallback(() => {
+    if (rfInstance) {
+      const flow = rfInstance.toObject();
+      localStorage.setItem(flowKey, JSON.stringify(flow));
+    }
+  }, [rfInstance]);
+
+  useEffect(() => {
+    const flow = JSON.parse(localStorage.getItem(flowKey) || 'null');
+    if (flow) {
+      const { x = 0, y = 0, zoom = 1 } = flow.viewport;
+      setViewport({ x, y, zoom });
+    }
+  }, [setViewport]);
+
   return (
     <div onContextMenu={onContextMenu}>
       {menuPos ? <ContextMenu position={menuPos} onAdd={onMenuAdd} /> : null}
@@ -146,6 +174,7 @@ const FlowEditor = ({
           edgeTypes={edgeTypes}
           nodes={nodes}
           edges={edges}
+          onMoveEnd={onMoveEnd}
           onConnect={onConnect}
           onEdgeUpdate={onEdgeUpdate}
           onEdgesChange={onEdgesChange}
@@ -158,6 +187,7 @@ const FlowEditor = ({
           onEdgeUpdateStart={onEdgeUpdateStart}
           onEdgeUpdateEnd={onEdgeUpdateEnd}
           onConnectStop={onConnectStop}
+          onInit={setRfInstance}
         >
           <Background
             variant={BackgroundVariant.Lines}
@@ -173,43 +203,135 @@ const FlowEditor = ({
 
 FlowEditor.displayName = 'FlowEditor';
 
-const ctxNodes: [string, string][] = [
-  ['fragment', 'Fragment'],
-  ['vertex', 'Vertex'],
-  ['number', 'Number'],
-  ['texture', 'Texture'],
-  ['vector2', 'Vector2'],
-  ['vector3', 'Vector3'],
-  ['vector4', 'Vector4'],
-  ['add', 'Add'],
-  ['multiply', 'Multiply'],
-  ['phong', 'Phong'],
-  ['toon', 'Toon'],
+type Menu = [string, string | Menu][];
+const ctxNodes: Menu = [
+  [
+    'Source Code',
+    [
+      ['Fragment', 'fragment'],
+      ['Vertex', 'vertex'],
+    ],
+  ],
+  [
+    'Data',
+    [
+      ['Number', 'number'],
+      ['Texture', 'texture'],
+      ['Vector2', 'vector2'],
+      ['Vector3', 'vector3'],
+      ['Vector4', 'vector4'],
+      ['Color (RGB)', 'rgb'],
+      ['Color (RGBA)', 'rgba'],
+    ],
+  ],
+  [
+    'Math',
+    [
+      ['Add', 'add'],
+      ['Multiply', 'multiply'],
+    ],
+  ],
+  [
+    'Example Shader',
+    [
+      ['Phong', 'phong'],
+      ['Toon', 'toon'],
+      ['Fireball', 'fireNode'],
+      ['Fluid Circles', 'fluidCirclesNode'],
+      ['Heatmap', 'heatmapShaderNode'],
+      ['Hell', 'hellOnEarth'],
+      ['Outline', 'outlineShader'],
+      ['Perlin Clouds', 'perlinClouds'],
+      ['Purple Noise', 'purpleNoiseNode'],
+      ['Solid Color', 'solidColorNode'],
+      ['Static', 'staticShaderNode'],
+    ],
+  ],
 ];
 const ContextMenu = ({
   position,
   onAdd,
+  menu = ctxNodes,
+  title = 'Add a node',
+  onMouseEnter,
 }: {
   onAdd: (name: string) => void;
   position: XYPosition;
+  menu?: Menu;
+  title?: string;
+  onMouseEnter?: (e: MouseEvent<any>) => void;
 }) => {
+  const [childMenu, setChildMenu] = useState<[string, Menu]>();
+
+  const timeout = useRef<NodeJS.Timeout>();
+  const onParentMenuEnter = useCallback(() => {
+    if (childMenu) {
+      if (timeout.current) {
+        clearTimeout(timeout.current);
+      }
+      timeout.current = setTimeout(() => {
+        setChildMenu(undefined);
+      }, 500);
+    }
+  }, [childMenu, setChildMenu]);
+
+  useEffect(() => {
+    return () => {
+      if (timeout.current) {
+        clearTimeout(timeout.current);
+      }
+    };
+  }, []);
+
   return (
-    <div
-      id="x-context-menu"
-      className={ctxStyles.contextMenu}
-      style={{ top: position.y, left: position.x }}
-    >
-      <div className={ctxStyles.contextHeader}>Add a Node</div>
-      {ctxNodes.map(([type, display]) => (
-        <div
-          key={type}
-          className={ctxStyles.contextRow}
-          onClick={() => onAdd(type)}
-        >
-          {display}
-        </div>
-      ))}
-    </div>
+    <>
+      <div
+        id="x-context-menu"
+        className={ctxStyles.contextMenu}
+        style={{ top: position.y, left: position.x }}
+        onMouseEnter={onMouseEnter}
+      >
+        <div className={ctxStyles.contextHeader}>{title}</div>
+        {menu.map(([display, typeOrChildren]) =>
+          typeof typeOrChildren === 'string' ? (
+            <div
+              key={display}
+              className={ctxStyles.contextRow}
+              onClick={() => onAdd(typeOrChildren)}
+              onMouseEnter={onParentMenuEnter}
+            >
+              {display}
+            </div>
+          ) : (
+            <div
+              key={display}
+              className={ctxStyles.contextRow}
+              onMouseEnter={() => {
+                if (timeout.current) {
+                  clearTimeout(timeout.current);
+                }
+                setChildMenu([display, typeOrChildren]);
+              }}
+            >
+              {display} ➤
+            </div>
+          )
+        )}
+      </div>
+      {childMenu ? (
+        <ContextMenu
+          onAdd={onAdd}
+          position={{ ...position, x: position.x + 128 }}
+          title={childMenu[0]}
+          menu={childMenu[1]}
+          onMouseEnter={() => {
+            if (timeout.current) {
+              clearTimeout(timeout.current);
+            }
+          }}
+        ></ContextMenu>
+      ) : null}
+    </>
   );
 };
 

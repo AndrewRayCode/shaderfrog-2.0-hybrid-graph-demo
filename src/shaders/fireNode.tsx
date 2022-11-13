@@ -1,5 +1,9 @@
 import { NodePosition } from '../core/nodes/core-node';
-import { numberUniformData, UniformDataType } from '../core/nodes/data-nodes';
+import {
+  numberUniformData,
+  textureUniformData,
+  UniformDataType,
+} from '../core/nodes/data-nodes';
 import { sourceNode } from '../core/nodes/engine-node';
 import { uniformStrategy } from '../core/strategy';
 
@@ -8,7 +12,12 @@ const fireFrag = (id: string, position: NodePosition) =>
     id,
     'Fireball',
     position,
-    { version: 2, preprocess: true, strategies: [uniformStrategy()] },
+    {
+      version: 2,
+      preprocess: true,
+      strategies: [uniformStrategy()],
+      uniforms: [textureUniformData('tExplosion', 'explosion')],
+    },
     `
     // Indstiller presisionen, hvor meget plads denne type variabel må bruge (high betyder meget plads)
 precision highp float;

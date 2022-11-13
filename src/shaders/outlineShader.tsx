@@ -1,4 +1,5 @@
 import { NodePosition } from '../core/nodes/core-node';
+import { colorUniformData, numberUniformData } from '../core/nodes/data-nodes';
 import { sourceNode } from '../core/nodes/engine-node';
 import { uniformStrategy } from '../core/strategy';
 
@@ -7,7 +8,17 @@ const outlineShaderF = (id: string, position: NodePosition) =>
     id,
     'Outline',
     position,
-    { version: 2, preprocess: true, strategies: [uniformStrategy()] },
+    {
+      version: 2,
+      preprocess: true,
+      strategies: [uniformStrategy()],
+      uniforms: [
+        colorUniformData('color', ['1', '1', '1']),
+        numberUniformData('start', '0'),
+        numberUniformData('end', '1'),
+        numberUniformData('alpha', '1'),
+      ],
+    },
     `
 precision highp float;
 

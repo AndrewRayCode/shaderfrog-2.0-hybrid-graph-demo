@@ -1,12 +1,24 @@
 .contextMenu {
   position: absolute;
   z-index: 10;
-  background: #000;
+  background: #222;
   color: #fff;
   border-radius: 8px;
-  border: 1px solid #333;
+  border: 1px solid #444;
   padding: 0 0 8px 0;
   user-select: none;
+  min-width: 125px;
+  font-size: 12px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+.contextBg {
+  position: absolute;
+  z-index: 9;
+  top: 0;
+  border: 1px solid red;
+  min-width: 120px;
+  height: 100%;
 }
 
 .contextHeader {

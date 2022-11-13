@@ -13,8 +13,6 @@ import { usePrevious } from '../../site/hooks/usePrevious';
 import { UICompileGraphResult } from '../../site/uICompileGraphResult';
 import { PreviewLight } from '../../site/components/Editor';
 import { ensure } from '../../util/ensure';
-import { Edge } from '../../core/nodes/edge';
-import { Color, Material, UniformsLib, Vector3 } from 'three';
 import { TextureNode } from '../../core/nodes/data-nodes';
 import { useSize } from '../../site/hooks/useSize';
 
@@ -165,16 +163,16 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
               }
 
               let value;
+              // THIS DUPLICATES OTHER LINE
               // When a shader is plugged into the Texture node of a megashader,
               // this happens, I'm not sure why yet. In fact, why is this branch
               // getting called at all in useThree() ?
               try {
                 value = evaluateNode(graph, fromNode);
               } catch (err) {
-                console.warn('Tried to evaluate a non-data node!', {
-                  err,
-                  dataInputs: compileResult.dataInputs,
-                });
+                console.warn(
+                  `Tried to evaluate a non-data node! ${input.displayName} on ${node.name}`
+                );
                 return;
               }
               let newValue = value;
@@ -353,18 +351,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     } = ctx.runtime as ThreeRuntime;
     console.log('oh hai birfday boi boi boiiiii');
 
-    const os1: any = graph.nodes.find((node) => node.name === 'Outline')?.id;
-    const fs1: any = graph.nodes.find((node) => node.name === 'Fireball')?.id;
-    const fc: any = graph.nodes.find(
-      (node) => node.name === 'Fluid Circles'
-    )?.id;
-    const edgeId: any = graph.nodes.find(
-      (node) => node.name === 'Triplanar'
-    )?.id;
-    const hs1: any = graph.nodes.find(
-      (node) => node.name === 'Fake Heatmap'
-    )?.id;
-
     // const envMap = new RGBELoader().load(
     //   '/envmaps/empty_warehouse_01_2k.hdr',
     //   (textureCb) => {
@@ -411,7 +397,17 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
             const fromNode = ensure(
               graph.nodes.find(({ id }) => id === edge.from)
             );
-            const value = evaluateNode(graph, fromNode);
+            // THIS DUPLICATE OTHER LINE
+            let value;
+            try {
+              value = evaluateNode(graph, fromNode);
+            } catch (err) {
+              console.warn('Tried to evaluate a non-data node!', {
+                err,
+                dataInputs: compileResult.dataInputs,
+              });
+              return;
+            }
             let newValue = value;
             if (fromNode.type === 'texture') {
               // THIS DUPLICATES OTHER LINE
@@ -450,44 +446,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       ...three.ShaderLib.phong.uniforms,
       ...three.ShaderLib.toon.uniforms,
       ...three.ShaderLib.physical.uniforms,
-
-      time: { value: 0 },
-
-      [`scale_${hs1}`]: { value: 1.2 },
-      [`power_${hs1}`]: { value: 1 },
-
-      [`speed_${fc}`]: { value: 1 },
-      [`baseRadius_${fc}`]: { value: 1 },
-      [`colorVariation_${fc}`]: { value: 0.6 },
-      [`brightnessVariation_${fc}`]: { value: 0 },
-      [`variation_${fc}`]: { value: 8 },
-      [`backgroundColor_${fc}`]: { value: new three.Vector3(0.0, 0.0, 0.5) },
-
-      [`tExplosion_${fs1}`]: {
-        value: new three.TextureLoader().load('/explosion.png'),
-      },
-      [`fireSpeed_${fs1}`]: { value: 0.6 },
-      [`pulseHeight_${fs1}`]: { value: 0.1 },
-      [`displacementHeight_${fs1}`]: { value: 0.6 },
-      [`turbulenceDetail_${fs1}`]: { value: 0.8 },
-      [`brightness`]: { value: 0.8 },
-
-      [`cel0_${edgeId}`]: { value: 1.0 },
-      [`cel1_${edgeId}`]: { value: 1.0 },
-      [`cel2_${edgeId}`]: { value: 1.0 },
-      [`cel3_${edgeId}`]: { value: 1.0 },
-      [`cel4_${edgeId}`]: { value: 1.0 },
-      [`celFade_${edgeId}`]: { value: 1.0 },
-      [`edgeSteepness_${edgeId}`]: { value: 0.1 },
-      [`edgeBorder_${edgeId}`]: { value: 0.1 },
-      [`color_${edgeId}`]: { value: 1.0 },
-
-      [`color_${os1}`]: { value: new three.Vector3(1, 1, 1) },
-      [`start_${os1}`]: { value: 0 },
-      [`end_${os1}`]: { value: 1 },
-      [`alpha_${os1}`]: { value: 1 },
-
       ...uniforms,
+      time: { value: 0 },
       envMap: {
         value: envMapTexture,
       },

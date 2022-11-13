@@ -135,61 +135,7 @@ export const strategyRunners: Strategies = {
         node.declaration?.specified_type?.qualifiers?.find(
           (n: AstNode) => n.token === 'uniform'
         )
-        /**
-         * Hit an issue while adding textures as data nodes to the graph. Before
-         * I was hard coding texture uniforms in ThreeComponent. Now I want them
-         * as data nodes. To do that, this uniform strategy needs to include
-         * sampler2D uniforms. It *didn't* before because there was no support
-         * for texture data nodes, and because the texture2D strategy handles
-         * the texture2D calls loading the sampler2D.
-         *
-         * So I commented this out to allow for sampler2D uniforms to appear as
-         * inputs. But NOW the sampler2d "map" line in the physical shader is
-         * overwriting the "map" PROPERTY input on the shader (both are mapped
-         * to "albedo") so when I plug in a shader into "albedo" now it triggers
-         * the uniform filler (previously sampler2d filler) which makes the
-         * invalid line "texture(purple_metal(), vUv)"
-         *
-         * So if there's an albdeo UNIFORM filler which replaces instances of
-         * that uniform with a filler, (by the way that SUCKS and this should
-         * only inject the filler once if possible), AND a texture2D filler,
-         * then... uh... hold on.
-         *  - before: albedo was sampler2d filler (or becomes property setter if
-         *    the category input is "data")
-         *  - now: albedo is uniform filler and plugging in code slaps it in the
-         *    wrong spot. I want sampler2D uniforms to show up so I can add data
-         *    into them. So I need
-         *    albedo_uniform_data/albedo_uniform_code/albedo_sampler2d_code? You
-         *    can't put data into the sampler2d code filler, it's only bakeable
-         *    I don't see it right now, bedtime
-         *
-         * As an aside maybe the sampler2D strategy isn't what I want in the
-         * sense that it finds three noiseImage inputs on the perlin clouds
-         * shader ... although that seems right, because that's all different uv
-         * lookups.
-         *
-         * ... so now i've added an "accepts" property to inputs to say if they
-         * accept data or code. I've moved "category" into "baked" and
-         * "bakeable". I added image data nodes to the graph. I moved proeprty
-         * setting out of hard coding in ThreeComponent. I added "type" to
-         * inputs (uniform | property | filler). Made IDs more unique on inputs
-         * because a map texture() filler is not the same as a map() uniform
-         * filler is nto the same as a map() property.
-         *
-         * All of this is to allow a texture and a shader to be plugged into
-         * albedo.
-         *
-         * Now in the graph plugging in thickness does nothing lol. Albedo works
-         * as a shader, but after baking, plugging in shader, it can't be un-
-         * baked? Need auto-baking too when dragging a shader or texture into an
-         * input. And now we have two inputs named map. Had shower thought: for
-         * "albedo" is there a higher grouping object that hides multiple inputs
-         * behind the group? "special: ["filler_map" | "property_map"]"? I don't
-         * like that a property has a fillerName, it would be nice if something
-         * else knew about that relationship.
-         *
-         * wtf why isn't transmission working now
-         */
+        // commented this out to allow for sampler2D uniforms to appear as inputs
         // && uniformType !== 'sampler2D'
       ) {
         // Capture all the declared names, removing mangling suffix

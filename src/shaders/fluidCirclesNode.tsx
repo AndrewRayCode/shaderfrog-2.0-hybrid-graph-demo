@@ -1,13 +1,26 @@
 import { NodePosition } from '../core/nodes/core-node';
 import { sourceNode } from '../core/nodes/engine-node';
 import { uniformStrategy } from '../core/strategy';
+import { numberUniformData, colorUniformData } from '../core/nodes/data-nodes';
 
 const fluidCirclesNode = (id: string, position: NodePosition) =>
   sourceNode(
     id,
     'Fluid Circles',
     position,
-    { version: 2, preprocess: true, strategies: [uniformStrategy()] },
+    {
+      version: 2,
+      preprocess: true,
+      strategies: [uniformStrategy()],
+      uniforms: [
+        numberUniformData('speed', '0.2'),
+        numberUniformData('baseRadius', '0.286'),
+        numberUniformData('colorVariation', '0.6'),
+        numberUniformData('brightnessVariation', '0'),
+        numberUniformData('variation', '8'),
+        colorUniformData('backgroundColor', ['0.0', '0.0', '0.5']),
+      ],
+    },
     `
     // Original https://www.shadertoy.com/view/MljSzW - Imported with permission
     // Created by Stefan Draganov - vortex/2015

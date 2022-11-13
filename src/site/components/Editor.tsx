@@ -119,6 +119,19 @@ import {
 } from './flow/helpers';
 import { Example, makeExampleGraph } from './examples';
 
+import { fireFrag, fireVert } from '../../shaders/fireNode';
+import fluidCirclesNode from '../../shaders/fluidCirclesNode';
+import {
+  heatShaderFragmentNode,
+  heatShaderVertexNode,
+} from '../../shaders/heatmapShaderNode';
+import perlinCloudsFNode from '../../shaders/perlinClouds';
+import { hellOnEarthFrag, hellOnEarthVert } from '../../shaders/hellOnEarth';
+import { outlineShaderF, outlineShaderV } from '../../shaders/outlineShader';
+import purpleNoiseNode from '../../shaders/purpleNoiseNode';
+import solidColorNode from '../../shaders/solidColorNode';
+import staticShaderNode from '../../shaders/staticShaderNode';
+
 export type PreviewLight = 'point' | '3point' | 'spot';
 
 const SMALL_SCREEN_WIDTH = 500;
@@ -326,11 +339,16 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
  *   - Data nodes hard coded as '1' fail because that's not a valid float, like
  *     hard coding "transmission" uniform.
  * - Nodes / Graph
+ *   - Plugging in Shader > Add > Baked Texture Input causes the input to be
+ *     unbaked. This is because the auto-bake algorithm only looks one node
+ *     level deep, and the "add" node isn't type = "source"
  *   - Deleting a node while it's plugged into the output (maybe any connected
  *     node, i repro'd with the Physical node) node causes crash
  *   - Adding together a three.js phong and physical lighting model fails to
  *     compiles becaues it introduces duplicated structs - structs aren't
  *     suffixed/renamed? Interesting
+ *   - "color" is an engine variable but most shaders have their own unique
+ *     color uniform. So "color" should only be preserved in engine nodes
  * - Core
  *   - In a source node, if two functions declare a variable, the
  *     current "Variable" strategy will only pick the second one as
@@ -402,6 +420,7 @@ const compileGraphAsync = async (
         [result.outputFrag, result.outputVert],
         { input: isDataInput }
       ).inputs;
+      console.log('dataInputs', dataInputs);
 
       // Find which nodes flow up into uniform inputs, for colorizing and for
       // not recompiling when their data changes
@@ -424,11 +443,7 @@ const compileGraphAsync = async (
       }, {});
 
       const now = performance.now();
-      console.log(`Compilation took:
--------------------
-total: ${(now - allStart).toFixed(3)}ms
--------------------
-`);
+      console.log(`Compilation too ${(now - allStart).toFixed(3)}ms`);
       resolve({
         compileMs: (now - allStart).toFixed(3),
         result,
@@ -1047,6 +1062,33 @@ const Editor: React.FC = () => {
           toonNode(id, 'Toon', groupId, position, 'fragment'),
           toonNode(makeId(), 'Toon', groupId, position, 'vertex', id),
         ];
+      } else if (type === 'fireNode') {
+        newGns = [fireFrag(id, position), fireVert(makeId(), id, position)];
+      } else if (type === 'fluidCirclesNode') {
+        newGns = [fluidCirclesNode(id, position)];
+      } else if (type === 'heatmapShaderNode') {
+        newGns = [
+          heatShaderFragmentNode(id, position),
+          heatShaderVertexNode(makeId(), id, position),
+        ];
+      } else if (type === 'hellOnEarth') {
+        newGns = [
+          hellOnEarthFrag(id, position),
+          hellOnEarthVert(makeId(), id, position),
+        ];
+      } else if (type === 'outlineShader') {
+        newGns = [
+          outlineShaderF(id, position),
+          outlineShaderV(makeId(), id, position),
+        ];
+      } else if (type === 'perlinClouds') {
+        newGns = [perlinCloudsFNode(id, position)];
+      } else if (type === 'purpleNoiseNode') {
+        newGns = [purpleNoiseNode(id, position)];
+      } else if (type === 'solidColorNode') {
+        newGns = [solidColorNode(id, position)];
+      } else if (type === 'staticShaderNode') {
+        newGns = [staticShaderNode(id, position)];
       } else if (type === 'fragment' || type === 'vertex') {
         newGns = [
           sourceNode(
@@ -1148,12 +1190,17 @@ const Editor: React.FC = () => {
         const { top, left } = reactFlowWrapper.current.getBoundingClientRect();
         const { node, input } = connecting.current;
 
-        let type: EdgeType = 'number';
+        let type: EdgeType | undefined;
         if (input.type === 'property') {
           const property = (node as SourceNode).config!.properties!.find(
             (p) => p.property === input.property
           );
           type = property!.type as EdgeType;
+        }
+
+        if (!type) {
+          console.log('Could not resolve dragged edge type for', input);
+          return;
         }
 
         addNodeAtPosition(

@@ -1413,6 +1413,7 @@ const Editor: React.FC = () => {
           <TabPanel
             onMouseMove={onMouseMove}
             className={styles.reactFlowWrapper}
+            ref={reactFlowWrapper}
           >
             <FlowEditor
               mouse={mouseRef}

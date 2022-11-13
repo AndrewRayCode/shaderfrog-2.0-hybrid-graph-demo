@@ -8,28 +8,28 @@ import {
 } from 'reactflow';
 
 const ConnectionLine = ({
-  sourceX,
-  sourceY,
-  sourcePosition,
-  targetX,
-  targetY,
-  targetPosition,
+  fromX,
+  fromY,
+  fromPosition,
+  toX,
+  toY,
+  toPosition,
   connectionLineType,
   connectionLineStyle,
-  sourceNode,
-  sourceHandle,
+  fromNode,
+  fromHandle,
 }: ConnectionLineComponentProps) => {
-  const edgePath = getBezierPath({
-    sourceX,
-    sourceY,
-    sourcePosition,
-    targetX,
-    targetY,
-    targetPosition,
+  const [edgePath] = getBezierPath({
+    sourceX: fromX,
+    sourceY: fromY,
+    sourcePosition: fromPosition,
+    targetX: toX,
+    targetY: toY,
+    targetPosition: toPosition,
   });
 
   return (
-    <g className={cx('react-flow__edge animated', sourceNode?.data?.stage)}>
+    <g className={cx('react-flow__edge animated', fromNode?.data?.stage)}>
       <path className="react-flow__edge-path" d={edgePath} fillRule="evenodd" />
     </g>
   );

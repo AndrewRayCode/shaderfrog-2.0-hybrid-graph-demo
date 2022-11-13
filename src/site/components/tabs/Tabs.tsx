@@ -112,8 +112,15 @@ const TabPanels = ({
 
 // The contents for each tab
 interface TabPanelProps extends React.HTMLAttributes<HTMLDivElement> {}
-const TabPanel = ({ children, ...props }: TabPanelProps) => {
-  return <div {...props}>{children}</div>;
-};
+const TabPanel = React.forwardRef<HTMLDivElement | null, TabPanelProps>(
+  ({ children, ...props }, ref) => {
+    return (
+      <div ref={ref} {...props}>
+        {children}
+      </div>
+    );
+  }
+);
+TabPanel.displayName = 'TabPanel';
 
 export { Tabs, Tab, TabGroup, TabPanels, TabPanel };

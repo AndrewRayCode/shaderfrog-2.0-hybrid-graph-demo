@@ -5,6 +5,7 @@ import { findAssignmentTo, findDeclarationOf } from '../ast/manipulate';
 import { ComputedInput, GraphNode, mangleName } from './graph';
 import { SourceNode } from './nodes/code-nodes';
 import { InputCategory, nodeInput, NodeInput } from './nodes/core-node';
+import { GraphDataType } from './nodes/data-nodes';
 
 export enum StrategyType {
   VARIABLE = 'Variable Names',
@@ -110,6 +111,111 @@ type StrategyImpl = (
 
 type Strategies = Record<StrategyType, StrategyImpl>;
 
+const DATA_TYPE_MAP: Readonly<[GraphDataType, Set<string>][]> = [
+  ['vector2', new Set(['bvec2', 'dvec2', 'ivec2', 'uvec2', 'vec2'])],
+  ['number', new Set(['float', 'double', 'int', 'uint', 'atomic_uint'])],
+  ['vector3', new Set(['bvec3', 'dvec3', 'ivec3', 'uvec3', 'vec3'])],
+  ['vector4', new Set(['bvec4', 'dvec4', 'ivec4', 'uvec4', 'vec4'])],
+  ['texture', new Set(['sampler2D'])],
+  ['mat2', new Set(['mat2', 'dmat2'])],
+  ['mat3', new Set(['mat3', 'dmat3'])],
+  ['mat4', new Set(['mat4', 'dmat4'])],
+  ['mat2x2', new Set(['mat2x2', 'dmat2x2'])],
+  ['mat2x3', new Set(['mat2x3', 'dmat2x3'])],
+  ['mat2x4', new Set(['mat2x4', 'dmat2x4'])],
+  ['mat3x2', new Set(['mat3x2', 'dmat3x2'])],
+  ['mat3x3', new Set(['mat3x3', 'dmat3x3'])],
+  ['mat3x4', new Set(['mat3x4', 'dmat3x4'])],
+  ['mat4x2', new Set(['mat4x2', 'dmat4x2'])],
+  ['mat4x3', new Set(['mat4x3', 'dmat4x3'])],
+  ['mat4x4', new Set(['mat4x4', 'dmat4x4'])],
+];
+/**
+ * Uncategorized:
+ * 
+"sampler1D"
+"sampler3D"
+"samplerCube"
+"sampler1DShadow"
+"sampler2DShadow"
+"samplerCubeShadow"
+"sampler1DArray"
+"sampler2DArray"
+"sampler1DArrayShadow"
+"sampler2DArrayshadow"
+"isampler1D"
+"isampler2D"
+"isampler3D"
+"isamplerCube"
+"isampler1Darray"
+"isampler2DArray"
+"usampler1D"
+"usampler2D"
+"usampler3D"
+"usamplerCube"
+"usampler1DArray"
+"usampler2DArray"
+"sampler2DRect"
+"sampler2DRectshadow"
+"isampler2DRect"
+"usampler2DRect"
+"samplerBuffer"
+"isamplerBuffer"
+"usamplerBuffer"
+"samplerCubeArray"
+"samplerCubeArrayShadow"
+"isamplerCubeArray"
+"usamplerCubeArray"
+"sampler2DMS"
+"isampler2DMS"
+"usampler2DMS"
+"sampler2DMSArray"
+"isampler2DMSArray"
+"usampler2DMSArray"
+"image1D"
+"iimage1D"
+"uimage1D"
+"image2D"
+"iimage2D"
+"uimage2D"
+"image3D"
+"iimage3D"
+"uimage3D"
+"image2DRect"
+"iimage2DRect"
+"uimage2DRect"
+"imageCube"
+"iimageCube"
+"uimageCube"
+"imageBuffer"
+"iimageBuffer"
+"uimageBuffer"
+"image1DArray"
+"iimage1DArray"
+"uimage1DArray"
+"image2DArray"
+"iimage2DArray"
+"uimage2DArray"
+"imageCubeArray"
+"iimageCubeArray"
+"uimageCubeArray"
+"image2DMS"
+"iimage2DMS"
+"uimage2DMS"
+"image2DMArray"
+"iimage2DMSArray"
+"uimage2DMSArray"
+"struct"
+ */
+
+const mapUniformType = (type: string): GraphDataType | undefined => {
+  const found = DATA_TYPE_MAP.find(([_, set]) => set.has(type));
+  if (found) {
+    return found[0];
+  }
+  console.log(`Unknown uniform type, can't map to graph: ${type}`);
+};
+
 export const applyStrategy = (
   strategy: Strategy,
   node: SourceNode,
@@ -128,6 +234,7 @@ export const strategyRunners: Strategies = {
       // The uniform declration type, like vec4
       const uniformType =
         node.declaration?.specified_type?.specifier?.specifier?.token;
+      const graphDataType = mapUniformType(uniformType);
 
       // If this is a uniform declaration line
       if (
@@ -156,6 +263,7 @@ export const strategyRunners: Strategies = {
             name,
             `uniform_${name}`,
             'uniform',
+            graphDataType,
             new Set<InputCategory>(['code', 'data']),
             true
           ),
@@ -209,6 +317,7 @@ export const strategyRunners: Strategies = {
               name,
               `filler_${name}`,
               'filler',
+              undefined, // Data type for what plugs into this filler
               new Set<InputCategory>(['code', 'data']),
               false
             ),
@@ -231,6 +340,7 @@ export const strategyRunners: Strategies = {
               name,
               `filler_${name}`,
               'filler',
+              undefined, // Data type for what plugs into this filler
               new Set<InputCategory>(['code', 'data']),
               false
             ),
@@ -291,6 +401,7 @@ export const strategyRunners: Strategies = {
             iName,
             `filler_${iName}`,
             'filler',
+            undefined, // Data type for what plugs into this filler
             new Set<InputCategory>(['code', 'data']),
             false
           ),
@@ -313,6 +424,7 @@ export const strategyRunners: Strategies = {
           attributeName,
           `filler_${attributeName}`,
           'filler',
+          undefined, // Data type for what plugs into this filler
           new Set<InputCategory>(['code', 'data']),
           true
         ),
@@ -377,6 +489,7 @@ export const strategyRunners: Strategies = {
                 identifier,
                 `filler_${identifier}`,
                 'filler',
+                undefined, // Data type for what plugs into this filler
                 new Set<InputCategory>(['code', 'data']),
                 false
               ),

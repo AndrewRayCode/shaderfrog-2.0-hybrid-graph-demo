@@ -16,7 +16,7 @@
   border: 1px solid #666;
   box-shadow: 0 0 10px rgba(0, 0, 0, 1);
   position: relative;
-  min-width: 220px;
+  min-width: 240px;
   min-height: 80px;
 }
 
@@ -100,7 +100,8 @@
 }
 
 .react-flow_handle_label {
-  width: 200px;
+  min-width: 200px;
+  white-space: nowrap;
   left: 20px;
   top: -3px;
   pointer-events: none;

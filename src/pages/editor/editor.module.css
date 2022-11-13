@@ -265,7 +265,8 @@ textarea.error {
 
 .reactFlowWrapper {
   flex-grow: 1;
-  height: 100%;
+  /* approximate height of tabs :( */
+  height: calc(100% - 28px);
 }
 
 .sceneContainer {

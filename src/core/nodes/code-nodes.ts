@@ -1,6 +1,6 @@
 import { ShaderStage } from '../graph';
 import { Strategy } from '../strategy';
-import { UniformDataType } from './data-nodes';
+import { GraphDataType, UniformDataType } from './data-nodes';
 import { CoreNode, NodeInput } from './core-node';
 
 export const mapInputName = (
@@ -23,7 +23,7 @@ export interface NodeProperty {
   // Display name, like "albedo"
   displayName: string;
   // Type in the engine, like "texture"
-  type: string;
+  type: GraphDataType;
   // Property name to apply to the material, like "map"
   property: string;
   // The name of the filler this property introduces, aka the GLSL source code
@@ -34,7 +34,7 @@ export interface NodeProperty {
 export const property = (
   displayName: string,
   property: string,
-  type: string,
+  type: GraphDataType,
   fillerName?: string
 ): NodeProperty => ({
   displayName,

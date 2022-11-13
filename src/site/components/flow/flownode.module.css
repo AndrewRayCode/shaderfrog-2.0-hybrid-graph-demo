@@ -42,3 +42,9 @@
   width: 200px;
   top: 0;
 }
+
+.dataType {
+  font-size: 10px;
+  margin-left: 4px;
+  color: #888;
+}

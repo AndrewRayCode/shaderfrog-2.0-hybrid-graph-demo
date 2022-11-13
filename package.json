@@ -30,9 +30,9 @@
     "next": "11.1.0",
     "react": "17.0.2",
     "react-dom": "17.0.2",
-    "react-flow-renderer": "^10.3.17",
     "react-hotkeys-hook": "^3.4.6",
     "react-multi-split-pane": "^0.3.2",
+    "reactflow": "^11.2.0",
     "three": "^0.132.2",
     "zustand": "^4.0.0-rc.1"
   },

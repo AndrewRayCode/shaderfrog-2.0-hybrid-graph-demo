@@ -4,7 +4,7 @@ import {
   getBezierPath,
   // getEdgeCenter,
   // getMarkerEnd,
-} from 'react-flow-renderer';
+} from 'reactflow';
 import { EdgeType } from '../../../core/nodes/edge';
 
 export type LinkEdgeData = {
@@ -26,7 +26,7 @@ export default function FlowEdge({
   style = {},
   markerEnd,
 }: EdgeProps<any>) {
-  const edgePath = getBezierPath({
+  const [edgePath] = getBezierPath({
     sourceX,
     sourceY,
     sourcePosition,

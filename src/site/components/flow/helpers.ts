@@ -15,7 +15,7 @@ import {
   XYPosition,
   applyEdgeChanges,
   EdgeChange,
-} from 'react-flow-renderer';
+} from 'reactflow';
 import { FlowEdgeData } from './FlowEdge';
 import {
   FlowNodeData,
@@ -141,6 +141,7 @@ export const toFlowInputs = (node: GraphNode): InputNodeHandle[] =>
       id: input.id,
       name: input.displayName,
       type: input.type,
+      dataType: input.dataType,
       baked: input.baked,
       bakeable: input.bakeable,
       validTarget: false,

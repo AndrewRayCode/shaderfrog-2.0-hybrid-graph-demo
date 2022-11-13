@@ -2,7 +2,6 @@ import React, {
   useCallback,
   useRef,
   MouseEvent,
-  forwardRef,
   useState,
   useEffect,
   useMemo,
@@ -14,11 +13,11 @@ import create from 'zustand';
 import ReactFlow, {
   Background,
   BackgroundVariant,
-  useReactFlow,
   XYPosition,
   ReactFlowProps,
   ReactFlowInstance,
-} from 'react-flow-renderer';
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 
 import { NodeType } from '../../../core/graph';
 import { EngineNodeType } from '../../../core/engine';
@@ -27,7 +26,7 @@ import { DataNodeComponent, SourceNodeComponent } from './FlowNode';
 import { GraphDataType } from '../../../core/nodes/data-nodes';
 import { FlowEventHack } from '../../flowEventHack';
 
-import ctxStyles from './context.menu.module.css';
+import styles from './context.menu.module.css';
 
 /**
  * This file is an attempt to break up Editor.tsx by abstracting out the view
@@ -111,7 +110,7 @@ type FlowEditorProps =
       | 'onConnectStart'
       | 'onEdgeUpdateStart'
       | 'onEdgeUpdateEnd'
-      | 'onConnectStop'
+      | 'onConnectEnd'
     >;
 
 const FlowEditor = ({
@@ -129,7 +128,7 @@ const FlowEditor = ({
   onConnectStart,
   onEdgeUpdateStart,
   onEdgeUpdateEnd,
-  onConnectStop,
+  onConnectEnd,
   onNodeValueChange,
 }: FlowEditorProps) => {
   const menuPos = useEditorStore((state) => state.menuPosition);
@@ -147,7 +146,7 @@ const FlowEditor = ({
     [setMenuPos]
   );
 
-  const { setViewport } = useReactFlow();
+  // const { setViewport } = useReactFlow();
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance>();
   const onMoveEnd = useCallback(() => {
     if (rfInstance) {
@@ -155,20 +154,25 @@ const FlowEditor = ({
       localStorage.setItem(flowKey, JSON.stringify(flow));
     }
   }, [rfInstance]);
+  const defaultViewport = useMemo(
+    () => JSON.parse(localStorage.getItem(flowKey) || 'null'),
+    []
+  );
 
-  useEffect(() => {
-    const flow = JSON.parse(localStorage.getItem(flowKey) || 'null');
-    if (flow) {
-      const { x = 0, y = 0, zoom = 1 } = flow.viewport;
-      setViewport({ x, y, zoom });
-    }
-  }, [setViewport]);
+  // useEffect(() => {
+  //   const flow = JSON.parse(localStorage.getItem(flowKey) || 'null');
+  //   if (flow) {
+  //     const { x = 0, y = 0, zoom = 1 } = flow.viewport;
+  //     setViewport({ x, y, zoom });
+  //   }
+  // }, [setViewport]);
 
   return (
-    <div onContextMenu={onContextMenu}>
+    <div onContextMenu={onContextMenu} className={styles.flowContainer}>
       {menuPos ? <ContextMenu position={menuPos} onAdd={onMenuAdd} /> : null}
       <FlowEventHack onChange={onNodeValueChange}>
         <ReactFlow
+          // defaultViewport={defaultViewport}
           style={flowStyles}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
@@ -186,8 +190,9 @@ const FlowEditor = ({
           onConnectStart={onConnectStart}
           onEdgeUpdateStart={onEdgeUpdateStart}
           onEdgeUpdateEnd={onEdgeUpdateEnd}
-          onConnectStop={onConnectStop}
+          onConnectEnd={onConnectEnd}
           onInit={setRfInstance}
+          minZoom={0.2}
         >
           <Background
             variant={BackgroundVariant.Lines}
@@ -287,16 +292,16 @@ const ContextMenu = ({
     <>
       <div
         id="x-context-menu"
-        className={ctxStyles.contextMenu}
+        className={styles.contextMenu}
         style={{ top: position.y, left: position.x }}
         onMouseEnter={onMouseEnter}
       >
-        <div className={ctxStyles.contextHeader}>{title}</div>
+        <div className={styles.contextHeader}>{title}</div>
         {menu.map(([display, typeOrChildren]) =>
           typeof typeOrChildren === 'string' ? (
             <div
               key={display}
-              className={ctxStyles.contextRow}
+              className={styles.contextRow}
               onClick={() => onAdd(typeOrChildren)}
               onMouseEnter={onParentMenuEnter}
             >
@@ -305,7 +310,7 @@ const ContextMenu = ({
           ) : (
             <div
               key={display}
-              className={ctxStyles.contextRow}
+              className={styles.contextRow}
               onMouseEnter={() => {
                 if (timeout.current) {
                   clearTimeout(timeout.current);

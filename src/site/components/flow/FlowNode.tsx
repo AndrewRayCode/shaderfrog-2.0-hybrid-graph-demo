@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo } from 'react';
+import React, { memo, MouseEventHandler, useEffect, useMemo } from 'react';
 import classnames from 'classnames/bind';
 import {
   Handle,
@@ -6,21 +6,21 @@ import {
   Node as FlowNode,
   Edge as FlowEdge,
   HandleProps,
-} from 'react-flow-renderer';
+} from 'reactflow';
 
 import styles from './flownode.module.css';
 const cx = classnames.bind(styles);
 
 import { ShaderStage } from '../../../core/graph';
 
-import { useUpdateNodeInternals } from 'react-flow-renderer';
+import { useUpdateNodeInternals } from 'reactflow';
 import {
   GraphDataType,
   Vector2,
   Vector3,
   Vector4,
 } from '../../../core/nodes/data-nodes';
-import { InputCategory, NodeInput } from '../../../core/nodes/core-node';
+import { InputCategory } from '../../../core/nodes/core-node';
 import { ChangeHandler, useFlowEventHack } from '../../flowEventHack';
 import { replaceAt } from '../../../util/replaceAt';
 import groupBy from 'lodash.groupby';
@@ -37,6 +37,7 @@ export type InputNodeHandle = {
   name: string;
   id: string;
   type: string;
+  dataType?: GraphDataType;
   validTarget: boolean;
   accepts?: Set<InputCategory>;
   baked?: boolean;
@@ -102,6 +103,52 @@ const showPosition = (id: any, xPos: number, yPos: number) =>
 // };
 
 // const computeIOKey = (arr: NodeHandle[]) => arr.map((a) => a.name).join(',');
+
+const InputHande = ({
+  input,
+  top,
+  onClick,
+}: {
+  input: InputNodeHandle;
+  top: number;
+  onClick?: MouseEventHandler<HTMLDivElement>;
+}) => (
+  <Handle
+    key={input.id}
+    isConnectable
+    id={input.id}
+    className={cx({ validTarget: input.validTarget })}
+    type="target"
+    position={Position.Left}
+    style={{
+      top: `${top}px`,
+    }}
+  >
+    <div
+      className={cx('react-flow_handle_label', {
+        validTarget: input.validTarget,
+      })}
+    >
+      {input.bakeable ? (
+        <div
+          className="switch"
+          title={
+            input.baked
+              ? 'This input is currently hard coded into the shader source code. Switch it to a property of the material?'
+              : 'This input is currently a property of the material. Switch it to a value hard coded in the shader source code?'
+          }
+          onClick={onClick}
+        >
+          {input.baked ? '🔒 ' : '➡️'}
+        </div>
+      ) : null}
+      {input.name}
+      {input.dataType ? (
+        <span className={styles.dataType}>{input.dataType}</span>
+      ) : null}
+    </div>
+  </Handle>
+);
 
 const FlowWrap = ({
   children,
@@ -267,29 +314,11 @@ const DataNodeComponent = memo(
         </div>
         <div className="flowInputs">
           {data.inputs.map((input, index) => (
-            <React.Fragment key={input.id}>
-              <Handle
-                isConnectable
-                id={input.id}
-                className={cx({ validTarget: input.validTarget })}
-                type="target"
-                position={Position.Left}
-                style={{ top: `${outputHandleTopWithLabel + index * 20}px` }}
-              />
-              <div
-                className={cx('react-flow_handle_label', {
-                  validTarget: input.validTarget,
-                })}
-                style={{
-                  top: `${
-                    outputHandleTopWithLabel - textHeight + index * 20
-                  }px`,
-                  left: 15,
-                }}
-              >
-                {input.name}
-              </div>
-            </React.Fragment>
+            <InputHande
+              key={input.id}
+              input={input}
+              top={outputHandleTopWithLabel + index * 20}
+            />
           ))}
         </div>
 
@@ -411,41 +440,15 @@ const SourceNodeComponent = memo(
                 {group.name}
               </div>
               {group.inputs.map((input, index) => (
-                <Handle
+                <InputHande
                   key={input.id}
-                  isConnectable
-                  id={input.id}
-                  className={cx({ validTarget: input.validTarget })}
-                  type="target"
-                  position={Position.Left}
-                  style={{
-                    top: `${group.offset + labelHeight + index * 20}px`,
-                  }}
-                >
-                  <div
-                    className={cx('react-flow_handle_label', {
-                      validTarget: input.validTarget,
-                    })}
-                  >
-                    {input.bakeable ? (
-                      <div
-                        className="switch"
-                        title={
-                          input.baked
-                            ? 'This input is currently hard coded into the shader source code. Switch it to a property of the material?'
-                            : 'This input is currently a property of the material. Switch it to a value hard coded in the shader source code?'
-                        }
-                        onClick={(e) => (
-                          e.preventDefault(),
-                          data.onInputBakedToggle(id, input.id, !input.baked)
-                        )}
-                      >
-                        {input.baked ? '🔒 ' : '➡️'}
-                      </div>
-                    ) : null}
-                    {input.name}
-                  </div>
-                </Handle>
+                  input={input}
+                  top={group.offset + labelHeight + index * 20}
+                  onClick={(e) => (
+                    e.preventDefault(),
+                    data.onInputBakedToggle(id, input.id, !input.baked)
+                  )}
+                />
               ))}
             </React.Fragment>
           ))}

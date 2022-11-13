@@ -36,3 +36,8 @@
   background: rgb(58, 58, 124);
   cursor: pointer;
 }
+
+.flowContainer {
+  height: 100%;
+  width: 100%;
+}

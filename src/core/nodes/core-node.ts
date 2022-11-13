@@ -1,3 +1,5 @@
+import { GraphDataType } from './data-nodes';
+
 export type InputCategory = 'data' | 'code';
 export type InputType = 'uniform' | 'property' | 'filler';
 
@@ -5,6 +7,7 @@ export interface NodeInput {
   displayName: string;
   id: string;
   type: InputType;
+  dataType?: GraphDataType;
   accepts: Set<InputCategory>;
   baked?: boolean;
   bakeable: boolean;
@@ -14,6 +17,7 @@ export const nodeInput = (
   displayName: string,
   id: string,
   type: InputType,
+  dataType: GraphDataType | undefined,
   accepts: Set<InputCategory>,
   bakeable: boolean,
   property?: string
@@ -21,6 +25,7 @@ export const nodeInput = (
   displayName,
   id,
   type,
+  dataType,
   accepts,
   bakeable,
   property,

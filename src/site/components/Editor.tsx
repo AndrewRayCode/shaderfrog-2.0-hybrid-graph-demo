@@ -30,7 +30,7 @@ import {
   OnConnectStartParams,
   EdgeText,
   // FlowElement,
-} from 'react-flow-renderer';
+} from 'reactflow';
 
 import {
   Graph,
@@ -349,6 +349,10 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
  *     suffixed/renamed? Interesting
  *   - "color" is an engine variable but most shaders have their own unique
  *     color uniform. So "color" should only be preserved in engine nodes
+ *   - Dragging out a color/vec3 auto-creates a number node, causing webgl
+ *     render crash. TODO WIP RIGHT NOW: started adding input datatype - see
+ *     type errors in strategy.ts - and then use those types to auto-create
+ *     dragged out nodes
  * - Core
  *   - In a source node, if two functions declare a variable, the
  *     current "Variable" strategy will only pick the second one as
@@ -1018,7 +1022,7 @@ const Editor: React.FC = () => {
 
   const addNodeAtPosition = useCallback(
     (
-      type: string,
+      nodeDataType: string,
       name: string,
       position: XYPosition,
       newEdgeData?: Omit<GraphEdge, 'id' | 'from'>
@@ -1028,68 +1032,68 @@ const Editor: React.FC = () => {
       const groupId = makeId();
       let newGns: GraphNode[];
 
-      if (type === 'number') {
+      if (nodeDataType === 'number') {
         newGns = [numberNode(id, makeName('number'), position, '1')];
-      } else if (type === 'texture') {
+      } else if (nodeDataType === 'texture') {
         newGns = [
           textureNode(id, makeName('texture'), position, 'grayscale-noise'),
         ];
-      } else if (type === 'vector2') {
+      } else if (nodeDataType === 'vector2') {
         newGns = [vectorNode(id, makeName('vec2'), position, ['1', '1'])];
-      } else if (type === 'vector3') {
+      } else if (nodeDataType === 'vector3') {
         newGns = [vectorNode(id, makeName('vec3'), position, ['1', '1', '1'])];
-      } else if (type === 'vector4') {
+      } else if (nodeDataType === 'vector4') {
         newGns = [
           vectorNode(id, makeName('vec4'), position, ['1', '1', '1', '1']),
         ];
-      } else if (type === 'rgb') {
+      } else if (nodeDataType === 'rgb') {
         newGns = [colorNode(id, makeName('rgb'), position, ['1', '1', '1'])];
-      } else if (type === 'rgba') {
+      } else if (nodeDataType === 'rgba') {
         newGns = [
           colorNode(id, makeName('rgba'), position, ['1', '1', '1', '1']),
         ];
-      } else if (type === 'multiply') {
+      } else if (nodeDataType === 'multiply') {
         newGns = [multiplyNode(id, position)];
-      } else if (type === 'add') {
+      } else if (nodeDataType === 'add') {
         newGns = [addNode(id, position)];
-      } else if (type === 'phong') {
+      } else if (nodeDataType === 'phong') {
         newGns = [
           phongNode(id, 'Phong', groupId, position, 'fragment'),
           phongNode(makeId(), 'Phong', groupId, position, 'vertex', id),
         ];
-      } else if (type === 'toon') {
+      } else if (nodeDataType === 'toon') {
         newGns = [
           toonNode(id, 'Toon', groupId, position, 'fragment'),
           toonNode(makeId(), 'Toon', groupId, position, 'vertex', id),
         ];
-      } else if (type === 'fireNode') {
+      } else if (nodeDataType === 'fireNode') {
         newGns = [fireFrag(id, position), fireVert(makeId(), id, position)];
-      } else if (type === 'fluidCirclesNode') {
+      } else if (nodeDataType === 'fluidCirclesNode') {
         newGns = [fluidCirclesNode(id, position)];
-      } else if (type === 'heatmapShaderNode') {
+      } else if (nodeDataType === 'heatmapShaderNode') {
         newGns = [
           heatShaderFragmentNode(id, position),
           heatShaderVertexNode(makeId(), id, position),
         ];
-      } else if (type === 'hellOnEarth') {
+      } else if (nodeDataType === 'hellOnEarth') {
         newGns = [
           hellOnEarthFrag(id, position),
           hellOnEarthVert(makeId(), id, position),
         ];
-      } else if (type === 'outlineShader') {
+      } else if (nodeDataType === 'outlineShader') {
         newGns = [
           outlineShaderF(id, position),
           outlineShaderV(makeId(), id, position),
         ];
-      } else if (type === 'perlinClouds') {
+      } else if (nodeDataType === 'perlinClouds') {
         newGns = [perlinCloudsFNode(id, position)];
-      } else if (type === 'purpleNoiseNode') {
+      } else if (nodeDataType === 'purpleNoiseNode') {
         newGns = [purpleNoiseNode(id, position)];
-      } else if (type === 'solidColorNode') {
+      } else if (nodeDataType === 'solidColorNode') {
         newGns = [solidColorNode(id, position)];
-      } else if (type === 'staticShaderNode') {
+      } else if (nodeDataType === 'staticShaderNode') {
         newGns = [staticShaderNode(id, position)];
-      } else if (type === 'fragment' || type === 'vertex') {
+      } else if (nodeDataType === 'fragment' || nodeDataType === 'vertex') {
         newGns = [
           sourceNode(
             makeId(),
@@ -1104,19 +1108,22 @@ const Editor: React.FC = () => {
                 declarationOfStrategy('replaceMe'),
               ],
             },
-            type === 'fragment'
+            nodeDataType === 'fragment'
               ? `void main() {
   gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
 }`
               : `void main() {
   gl_Position = vec4(1.0);
 }`,
-            type,
+            nodeDataType,
             ctx?.engine
           ),
         ];
       } else {
-        throw new Error('Unknown type "' + type + '"');
+        console.warn(
+          `Could not create node: Unknown node type "${nodeDataType}'"`
+        );
+        return;
       }
 
       let newGEs: GraphEdge[] = newEdgeData
@@ -1179,7 +1186,7 @@ const Editor: React.FC = () => {
   const { project } = useReactFlow();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
 
-  const onConnectStop = useCallback(
+  const onConnectEnd = useCallback(
     (event) => {
       resetTargets();
       // Make sure we only drop over the grid, not over a node
@@ -1190,14 +1197,7 @@ const Editor: React.FC = () => {
         const { top, left } = reactFlowWrapper.current.getBoundingClientRect();
         const { node, input } = connecting.current;
 
-        let type: EdgeType | undefined;
-        if (input.type === 'property') {
-          const property = (node as SourceNode).config!.properties!.find(
-            (p) => p.property === input.property
-          );
-          type = property!.type as EdgeType;
-        }
-
+        let type: EdgeType | undefined = input.dataType;
         if (!type) {
           console.log('Could not resolve dragged edge type for', input);
           return;
@@ -1410,11 +1410,10 @@ const Editor: React.FC = () => {
         </TabGroup>
         <TabPanels>
           {/* Graph tab */}
-          <TabPanel onMouseMove={onMouseMove}>
-            <div
-              ref={reactFlowWrapper}
-              className={styles.reactFlowWrapper}
-            ></div>
+          <TabPanel
+            onMouseMove={onMouseMove}
+            className={styles.reactFlowWrapper}
+          >
             <FlowEditor
               mouse={mouseRef}
               onMenuAdd={onMenuAdd}
@@ -1431,7 +1430,7 @@ const Editor: React.FC = () => {
               onConnectStart={onConnectStart}
               onEdgeUpdateStart={onEdgeUpdateStart}
               onEdgeUpdateEnd={onEdgeUpdateEnd}
-              onConnectStop={onConnectStop}
+              onConnectEnd={onConnectEnd}
             />
           </TabPanel>
           {/* Main code editor tab */}

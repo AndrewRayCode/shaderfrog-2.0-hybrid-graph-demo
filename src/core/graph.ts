@@ -249,6 +249,7 @@ export const coreParsers: CoreParser = {
             MAGIC_OUTPUT_STMTS,
             `filler_${MAGIC_OUTPUT_STMTS}`,
             'filler',
+            'rgba',
             new Set<InputCategory>(['code']),
             false
           ),
@@ -295,6 +296,7 @@ export const coreParsers: CoreParser = {
               letter,
               letter,
               'filler',
+              undefined,
               new Set<InputCategory>(['data', 'code']),
               false
             ),
@@ -448,6 +450,7 @@ export const prepopulatePropertyInputs = (node: CodeNode): CodeNode => ({
         property.displayName,
         `property_${property.property}`,
         'property',
+        property.type,
         new Set<InputCategory>(['data']),
         !!property.fillerName, // bakeable
         property.property

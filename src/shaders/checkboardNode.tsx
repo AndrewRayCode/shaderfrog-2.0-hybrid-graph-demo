@@ -21,7 +21,6 @@ precision highp float;
 precision highp int;
     
 uniform float multiplicationFactor;
-uniform float time;
 
 varying vec2 vUv;
 varying vec3 vPosition;

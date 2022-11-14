@@ -75,6 +75,12 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     () => ({
       explosion: new three.TextureLoader().load('/explosion.png'),
       'grayscale-noise': new three.TextureLoader().load('/grayscale-noise.png'),
+      threeTone: (() => {
+        const image = new three.TextureLoader().load('/3tone.jpg');
+        image.minFilter = three.NearestFilter;
+        image.magFilter = three.NearestFilter;
+        return image;
+      })(),
       brick: repeat(new three.TextureLoader().load('/bricks.jpeg'), 3, 3),
       brickNormal: repeat(
         new three.TextureLoader().load('/bricknormal.jpeg'),
@@ -286,13 +292,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     scene,
   ]);
 
-  const threeTone = useMemo(() => {
-    console.log('loading 3tone image');
-    const image = new three.TextureLoader().load('/3tone.jpg');
-    image.minFilter = three.NearestFilter;
-    image.magFilter = three.NearestFilter;
-  }, []);
-
   const [ctx] = useState<EngineContext>(
     // EXPERIMENTAL! Added context from hoisted ref as initializer to avoid
     // re-creating context including cache and envmaptexture. Remove this
@@ -311,7 +310,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         camera,
         envMapTexture: null,
         index: 0,
-        threeTone,
         cache: { data: {}, nodes: {} },
       },
       nodes: {},
@@ -344,7 +342,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     }
     const { graph } = compileResult;
     const {
-      threeTone,
       sceneData: { mesh },
       envMapTexture,
       engineMaterial,

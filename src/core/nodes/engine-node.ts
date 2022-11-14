@@ -276,6 +276,7 @@ export const toonNode = (
   name: string,
   groupId: string,
   position: NodePosition,
+  uniforms: UniformDataType[],
   stage: ShaderStage,
   nextStageNodeId?: string
 ): CodeNode =>
@@ -286,12 +287,23 @@ export const toonNode = (
     position,
     type: EngineNodeType.toon,
     config: {
+      uniforms,
       version: 3,
       preprocess: true,
-      inputMapping: {
-        map: 'albedo',
-        normalMap: 'normal',
-      },
+      properties: [
+        property('Color', 'color', 'rgb', 'uniform_diffuse'),
+        property('Texture', 'map', 'texture', 'filler_map'),
+        property(
+          'Gradient Map',
+          'gradientMap',
+          'texture',
+          'filler_gradientMap'
+        ),
+        property('Normal Map', 'normalMap', 'texture', 'filler_normalMap'),
+        property('Normal Scale', 'normalScale', 'vector2'),
+        property('Displacement Map', 'displacementMap', 'texture'),
+        property('Env Map', 'envMap', 'texture'),
+      ],
       strategies: [
         uniformStrategy(),
         stage === 'fragment'

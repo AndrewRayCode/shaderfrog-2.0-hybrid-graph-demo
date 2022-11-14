@@ -131,6 +131,8 @@ import { outlineShaderF, outlineShaderV } from '../../shaders/outlineShader';
 import purpleNoiseNode from '../../shaders/purpleNoiseNode';
 import solidColorNode from '../../shaders/solidColorNode';
 import staticShaderNode from '../../shaders/staticShaderNode';
+import { checkerboardF, checkerboardV } from '../../shaders/checkboardNode';
+import normalMapify from '../../shaders/normalmapifyNode';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
@@ -148,31 +150,20 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
           let n;
           switch (uniform.type) {
             case 'texture': {
-              n = textureNode(
-                makeId(),
-                `${uniform.name} (texture)`,
-                position,
-                uniform.value
-              );
+              n = textureNode(makeId(), uniform.name, position, uniform.value);
               break;
             }
             case 'number': {
-              n = numberNode(
-                makeId(),
-                `${uniform.name} (number)`,
-                position,
-                uniform.value,
-                {
-                  range: uniform.range,
-                  stepper: uniform.stepper,
-                }
-              );
+              n = numberNode(makeId(), uniform.name, position, uniform.value, {
+                range: uniform.range,
+                stepper: uniform.stepper,
+              });
               break;
             }
             case 'vector2': {
               n = vectorNode(
                 makeId(),
-                `${uniform.name} (vector2)`,
+                uniform.name,
                 position,
                 uniform.value as Vector2
               );
@@ -181,7 +172,7 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
             case 'vector3': {
               n = vectorNode(
                 makeId(),
-                `${uniform.name} (vector3)`,
+                uniform.name,
                 position,
                 uniform.value as Vector3
               );
@@ -190,7 +181,7 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
             case 'vector4': {
               n = vectorNode(
                 makeId(),
-                `${uniform.name} (vector4)`,
+                uniform.name,
                 position,
                 uniform.value as Vector4
               );
@@ -199,7 +190,7 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
             case 'rgb': {
               n = colorNode(
                 makeId(),
-                `${uniform.name} (rgb)`,
+                uniform.name,
                 position,
                 uniform.value as Vector3
               );
@@ -208,7 +199,7 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
             case 'rgba': {
               n = colorNode(
                 makeId(),
-                `${uniform.name} (rgba)`,
+                uniform.name,
                 position,
                 uniform.value as Vector4
               );
@@ -380,7 +371,7 @@ const useTestingNodeSetup = () => {
 
   const [graph, setGraph, resetGraph] = useLocalStorage<Graph>('graph', () => {
     const query = new URLSearchParams(window.location.search);
-    const example = query.get('example') || Example.ALL_NODES_TOGETHER;
+    const example = query.get('example') || Example.DEFAULT;
     return expandUniformDataNodes(makeExampleGraph(example as Example)[0]);
   });
 
@@ -496,13 +487,14 @@ const Editor: React.FC = () => {
   const [lights, setLights] = useState<PreviewLight>('point');
   const [previewObject, setPreviewObject] = useState(() => {
     const query = new URLSearchParams(window.location.search);
-    const example = query.get('example') || Example.ALL_NODES_TOGETHER;
+    const example = query.get('example') || Example.DEFAULT;
     return makeExampleGraph(example as Example)[1];
   });
   const [bg, setBg] = useState('warehouse');
 
   const [activeShader, setActiveShader] = useState<SourceNode>(
-    graph.nodes.find((n) => n.type === 'source') as SourceNode
+    (graph.nodes.find((n) => n.type === 'source') ||
+      graph.nodes[0]) as SourceNode
   );
 
   const [compileResult, setCompileResult] = useState<UICompileGraphResult>();
@@ -1027,7 +1019,7 @@ const Editor: React.FC = () => {
       position: XYPosition,
       newEdgeData?: Omit<GraphEdge, 'id' | 'from'>
     ) => {
-      const makeName = (type: string) => (name ? `${name} (${type})` : type);
+      const makeName = (type: string) => name || type;
       const id = makeId();
       const groupId = makeId();
       let newGns: GraphNode[];
@@ -1063,11 +1055,16 @@ const Editor: React.FC = () => {
         ];
       } else if (nodeDataType === 'toon') {
         newGns = [
-          toonNode(id, 'Toon', groupId, position, 'fragment'),
-          toonNode(makeId(), 'Toon', groupId, position, 'vertex', id),
+          toonNode(id, 'Toon', groupId, position, [], 'fragment'),
+          toonNode(makeId(), 'Toon', groupId, position, [], 'vertex', id),
         ];
       } else if (nodeDataType === 'fireNode') {
         newGns = [fireFrag(id, position), fireVert(makeId(), id, position)];
+      } else if (nodeDataType === 'checkerboardF') {
+        newGns = [
+          checkerboardF(id, position),
+          checkerboardV(makeId(), id, position),
+        ];
       } else if (nodeDataType === 'fluidCirclesNode') {
         newGns = [fluidCirclesNode(id, position)];
       } else if (nodeDataType === 'heatmapShaderNode') {
@@ -1093,6 +1090,8 @@ const Editor: React.FC = () => {
         newGns = [solidColorNode(id, position)];
       } else if (nodeDataType === 'staticShaderNode') {
         newGns = [staticShaderNode(id, position)];
+      } else if (nodeDataType === 'normalMapify') {
+        newGns = [normalMapify(id, position)];
       } else if (nodeDataType === 'fragment' || nodeDataType === 'vertex') {
         newGns = [
           sourceNode(
@@ -1397,8 +1396,13 @@ const Editor: React.FC = () => {
         <TabGroup>
           <Tab>Graph</Tab>
           <Tab>
-            Editor ({activeShader.name} -{' '}
-            {'stage' in activeShader ? activeShader.stage : activeShader.type})
+            Editor
+            {activeShader
+              ? `(${activeShader.name} - 
+            ${
+              'stage' in activeShader ? activeShader.stage : activeShader.type
+            })}`
+              : null}
           </Tab>
           <Tab
             className={{

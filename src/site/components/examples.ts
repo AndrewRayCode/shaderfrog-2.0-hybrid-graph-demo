@@ -1,14 +1,20 @@
 import { Graph } from '../../core/graph';
 import {
   colorNode,
+  DataNode,
   numberNode,
   numberUniformData,
+  textureNode,
+  textureUniformData,
+  vectorNode,
+  vectorUniformData,
 } from '../../core/nodes/data-nodes';
 import { makeEdge } from '../../core/nodes/edge';
 import {
   outputNode,
   physicalNode,
   sourceNode,
+  toonNode,
 } from '../../core/nodes/engine-node';
 import { fireFrag, fireVert } from '../../shaders/fireNode';
 import fluidCirclesNode from '../../shaders/fluidCirclesNode';
@@ -25,25 +31,20 @@ import solidColorNode from '../../shaders/solidColorNode';
 import staticShaderNode, { variation1 } from '../../shaders/staticShaderNode';
 import { makeId } from '../../util/id';
 import { texture2DStrategy, uniformStrategy } from '../../core/strategy';
+import { checkerboardF, checkerboardV } from '../../shaders/checkboardNode';
+import normalMapify from '../../shaders/normalmapifyNode';
 
 export enum Example {
   GLASS_FIRE_BALL = 'Glass Fireball',
   GEMSTONE = 'Gemstone',
-  ALL_NODES_TOGETHER = 'All Example Nodes',
+  DIAMOND = 'Living Diamond',
+  TOON = 'Toon',
+  DEFAULT = 'Mesh Physical Material',
 }
-
-const normaledSource = `
-uniform sampler2D normal_map;
-uniform float normal_strength;
-varying vec2 vUv;
-
-void main() {
-  gl_FragColor = vec4(normal_strength * texture2D(normal_map, vUv).rgb, 1.0);
-}
-`;
 
 export const makeExampleGraph = (example: Example): [Graph, string] => {
-  let newGraph, previewObject;
+  let newGraph: Graph;
+  let previewObject: string;
   if (example === Example.GEMSTONE) {
     const outputF = outputNode(
       makeId(),
@@ -92,19 +93,7 @@ export const makeExampleGraph = (example: Example): [Graph, string] => {
       y: -194,
     });
 
-    const normaled = sourceNode(
-      makeId(),
-      'Normal Map-ify',
-      { x: -178, y: -149 },
-      {
-        version: 2,
-        preprocess: true,
-        strategies: [uniformStrategy(), texture2DStrategy()],
-      },
-      normaledSource,
-      'fragment',
-      'three'
-    );
+    const normaled = normalMapify(makeId(), { x: -178, y: -149 });
     const normalStrength = numberNode(
       makeId(),
       'Normal Strength',
@@ -112,7 +101,7 @@ export const makeExampleGraph = (example: Example): [Graph, string] => {
       '1..0'
     );
 
-    const color = colorNode(makeId(), 'Color (rgb)', { x: -187, y: -413 }, [
+    const color = colorNode(makeId(), 'Color', { x: -187, y: -413 }, [
       '1.0',
       '0.75',
       '1.0',
@@ -246,7 +235,7 @@ export const makeExampleGraph = (example: Example): [Graph, string] => {
       ],
     };
     previewObject = 'icosahedron';
-  } else if (example === Example.ALL_NODES_TOGETHER) {
+  } else if (example === Example.TOON) {
     const outputF = outputNode(
       makeId(),
       'Output',
@@ -261,15 +250,90 @@ export const makeExampleGraph = (example: Example): [Graph, string] => {
       outputF.id
     );
 
-    // const phongGroupId = makeId();
-    // const phongF = phongNode(makeId(), 'Phong', phongGroupId, 'fragment');
-    // const phongV = phongNode(
-    //   makeId(),
-    //   'Phong',
-    //   phongGroupId,
-    //   'vertex',
-    //   phongF.id
-    // );
+    const toonGroupId = makeId();
+    const toonF = toonNode(
+      makeId(),
+      'Toon',
+      toonGroupId,
+      { x: 178, y: -103 },
+      [],
+      'fragment'
+    );
+    const toonV = toonNode(
+      makeId(),
+      'Toon',
+      toonGroupId,
+      { x: 434, y: 130 },
+      [],
+      'vertex',
+      toonF.id
+    );
+    const pps: [string, DataNode][] = [
+      [
+        'color',
+        colorNode(makeId(), 'Color', { x: -153, y: -268 }, ['0', '0.7', '0']),
+      ],
+      [
+        'gradientMap',
+        textureNode(
+          makeId(),
+          'Gradient Map',
+          { x: -153, y: -160 },
+          'threeTone'
+        ),
+      ],
+      [
+        'normalMap',
+        textureNode(makeId(), 'Normal Map', { x: -153, y: -50 }, 'brickNormal'),
+      ],
+    ];
+
+    newGraph = {
+      nodes: [outputF, outputV, toonF, toonV, ...pps.map(([, p]) => p)],
+      edges: [
+        makeEdge(
+          makeId(),
+          toonF.id,
+          outputF.id,
+          'out',
+          'filler_frogFragOut',
+          'fragment'
+        ),
+        makeEdge(
+          makeId(),
+          toonV.id,
+          outputV.id,
+          'out',
+          'filler_gl_Position',
+          'vertex'
+        ),
+        ...pps.map(([name, prop]) =>
+          makeEdge(
+            makeId(),
+            prop.id,
+            toonF.id,
+            'out',
+            `property_${name}`,
+            prop.type
+          )
+        ),
+      ],
+    };
+    previewObject = 'torusknot';
+  } else if (example === Example.DEFAULT) {
+    const outputF = outputNode(
+      makeId(),
+      'Output',
+      { x: 434, y: -97 },
+      'fragment'
+    );
+    const outputV = outputNode(
+      makeId(),
+      'Output',
+      { x: 434, y: 16 },
+      'vertex',
+      outputF.id
+    );
 
     const physicalGroupId = makeId();
     const physicalF = physicalNode(
@@ -290,61 +354,20 @@ export const makeExampleGraph = (example: Example): [Graph, string] => {
       physicalF.id
     );
 
-    // const toonGroupId = makeId();
-    // const toonF = toonNode(makeId(), 'Toon', toonGroupId, 'fragment');
-    // const toonV = toonNode(makeId(), 'Toon', toonGroupId, 'vertex', toonF.id);
-
-    let y = -400;
-    const nextY = () => {
-      let ret = y;
-      y += 150;
-      return ret;
-    };
-    const fluidF = fluidCirclesNode(makeId(), { x: -250, y: nextY() });
-    const staticShader = staticShaderNode(makeId(), { x: -250, y: nextY() });
-    const purpleNoise = purpleNoiseNode(makeId(), { x: -250, y: nextY() });
-    const heatShaderF = heatShaderFragmentNode(makeId(), {
-      x: -250,
-      y: nextY(),
+    const checkerboardf = checkerboardF(makeId(), { x: -162, y: -105 });
+    const checkerboardv = checkerboardV(makeId(), checkerboardf.id, {
+      x: -162,
+      y: 43,
     });
-    const heatShaderV = heatShaderVertexNode(makeId(), heatShaderF.id, {
-      x: -250,
-      y: nextY(),
-    });
-    const fireF = fireFrag(makeId(), { x: -250, y: nextY() });
-    const fireV = fireVert(makeId(), fireF.id, { x: -250, y: nextY() });
-    const outlineF = outlineShaderF(makeId(), { x: -250, y: nextY() });
-    const outlineV = outlineShaderV(makeId(), outlineF.id, {
-      x: -250,
-      y: nextY(),
-    });
-    const solidColorF = solidColorNode(makeId(), { x: -250, y: nextY() });
-    const hellOnEarthF = hellOnEarthFrag(makeId(), { x: -250, y: nextY() });
-    const hellOnEarthV = hellOnEarthVert(makeId(), hellOnEarthF.id, {
-      x: -250,
-      y: nextY(),
-    });
-    const perlinCloudsF = perlinCloudsFNode(makeId(), { x: -250, y: nextY() });
 
     newGraph = {
       nodes: [
-        physicalF,
-        physicalV,
-        solidColorF,
-        fireF,
-        fireV,
-        fluidF,
         outputF,
         outputV,
-        outlineF,
-        outlineV,
-        hellOnEarthF,
-        hellOnEarthV,
-        perlinCloudsF,
-        purpleNoise,
-        heatShaderF,
-        heatShaderV,
-        staticShader,
+        physicalF,
+        physicalV,
+        checkerboardf,
+        checkerboardv,
       ],
       edges: [
         makeEdge(
@@ -363,17 +386,132 @@ export const makeExampleGraph = (example: Example): [Graph, string] => {
           'filler_gl_Position',
           'vertex'
         ),
-        // makeEdge(
-        //   makeId(),
-        //   transmissionNumber.id,
-        //   physicalF.id,
-        //   'out',
-        //   'property_transmission',
-        //   'fragment'
-        // ),
+        makeEdge(
+          makeId(),
+          checkerboardf.id,
+          physicalF.id,
+          'out',
+          'property_map',
+          'fragment'
+        ),
       ],
     };
     previewObject = 'sphere';
+  } else if (example === Example.DIAMOND) {
+    const outputF = outputNode(
+      makeId(),
+      'Output',
+      { x: 434, y: -97 },
+      'fragment'
+    );
+    const outputV = outputNode(
+      makeId(),
+      'Output',
+      { x: 434, y: 16 },
+      'vertex',
+      outputF.id
+    );
+
+    const nMap = normalMapify(makeId(), { x: -185, y: 507 });
+
+    const purple = purpleNoiseNode(makeId(), { x: -512, y: 434 }, [
+      numberUniformData('speed', '0.2'),
+      numberUniformData('brightnessX', '1.0'),
+      numberUniformData('permutations', '10'),
+      numberUniformData('iterations', '2'),
+      vectorUniformData('uvScale', ['0.9', '0.9']),
+      vectorUniformData('color1', ['0', '1', '1']),
+      vectorUniformData('color2', ['1', '0', '1']),
+      vectorUniformData('color3', ['1', '1', '0']),
+    ]);
+
+    const properties = [
+      numberNode(makeId(), 'Metalness', { x: -185, y: -110 }, '0.1'),
+      numberNode(makeId(), 'Roughness', { x: -185, y: 0 }, '0.055'),
+      numberNode(makeId(), 'Transmission', { x: -185, y: 110 }, '0.9'),
+      numberNode(makeId(), 'Thickness', { x: -185, y: 220 }, '1.1'),
+      numberNode(makeId(), 'Index of Refraction', { x: -185, y: 330 }, '2.4'),
+    ];
+
+    const physicalGroupId = makeId();
+    const physicalF = physicalNode(
+      makeId(),
+      'Physical',
+      physicalGroupId,
+      { x: 178, y: -103 },
+      [],
+      'fragment'
+    );
+    const physicalV = physicalNode(
+      makeId(),
+      'Physical',
+      physicalGroupId,
+      { x: 434, y: 130 },
+      [],
+      'vertex',
+      physicalF.id
+    );
+
+    newGraph = {
+      nodes: [
+        outputF,
+        outputV,
+        physicalF,
+        physicalV,
+        purple,
+        nMap,
+        ...properties,
+      ],
+      edges: [
+        makeEdge(
+          makeId(),
+          physicalF.id,
+          outputF.id,
+          'out',
+          'filler_frogFragOut',
+          'fragment'
+        ),
+        makeEdge(
+          makeId(),
+          physicalV.id,
+          outputV.id,
+          'out',
+          'filler_gl_Position',
+          'vertex'
+        ),
+        makeEdge(
+          makeId(),
+          purple.id,
+          nMap.id,
+          'out',
+          'filler_normal_map',
+          'fragment'
+        ),
+        makeEdge(
+          makeId(),
+          nMap.id,
+          physicalF.id,
+          'out',
+          'property_normalMap',
+          'fragment'
+        ),
+        ...properties.map((prop) =>
+          makeEdge(
+            makeId(),
+            prop.id,
+            physicalF.id,
+            'out',
+            `property_${
+              prop.name === 'Index of Refraction'
+                ? 'ior'
+                : prop.name.toLowerCase()
+            }`,
+            prop.type
+          )
+        ),
+      ],
+    };
+    previewObject = 'icosahedron';
   } else if (example === Example.GLASS_FIRE_BALL) {
     const outputF = outputNode(
       makeId(),
@@ -415,7 +553,7 @@ export const makeExampleGraph = (example: Example): [Graph, string] => {
       numberUniformData('turbulenceDetail', '0.907'),
     ]);
 
-    const color = colorNode(makeId(), 'Color (rgb)', { x: -97, y: -223 }, [
+    const color = colorNode(makeId(), 'Color', { x: -97, y: -223 }, [
       '1',
       '0.8',
       '0.6',

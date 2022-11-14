@@ -156,9 +156,9 @@ const FlowEditor = ({
   const defaultViewport = useMemo(
     () =>
       JSON.parse(localStorage.getItem(flowKey) || 'null') || {
-        x: 0,
-        y: 0,
-        zoom: 1,
+        x: 200,
+        y: 150,
+        zoom: 0.5,
       },
     []
   );
@@ -238,6 +238,7 @@ const ctxNodes: Menu = [
       ['Phong', 'phong'],
       ['Toon', 'toon'],
       ['Fireball', 'fireNode'],
+      ['Checkerboard', 'checkerboardF'],
       ['Fluid Circles', 'fluidCirclesNode'],
       ['Heatmap', 'heatmapShaderNode'],
       ['Hell', 'hellOnEarth'],
@@ -246,6 +247,7 @@ const ctxNodes: Menu = [
       ['Purple Noise', 'purpleNoiseNode'],
       ['Solid Color', 'solidColorNode'],
       ['Static', 'staticShaderNode'],
+      ['Normal Map-ify', 'normalMapify'],
     ],
   ],
 ];

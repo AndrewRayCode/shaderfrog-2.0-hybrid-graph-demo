@@ -9,17 +9,10 @@ import {
   findNode,
 } from '../../../core/graph';
 import { Edge as GraphEdge } from '../../../core/nodes/edge';
-import {
-  Node as FlowNode,
-  Edge as FlowEdge,
-  XYPosition,
-  applyEdgeChanges,
-  EdgeChange,
-} from 'reactflow';
+import { Node as FlowNode, Edge as FlowEdge, XYPosition } from 'reactflow';
 import { FlowEdgeData } from './FlowEdge';
 import {
   FlowNodeData,
-  FlowNodeDataData,
   FlowNodeSourceData,
   flowOutput,
   InputNodeHandle,
@@ -169,6 +162,7 @@ export const graphNodeToFlowNode = (
         value: node.value,
         inputs: toFlowInputs(node),
         outputs: node.outputs.map((o) => flowOutput(o.name)),
+        config: { ...node },
       };
   return {
     id: node.id,

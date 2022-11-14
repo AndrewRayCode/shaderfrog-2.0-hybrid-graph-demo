@@ -213,7 +213,7 @@ const mapUniformType = (type: string): GraphDataType | undefined => {
   if (found) {
     return found[0];
   }
-  console.log(`Unknown uniform type, can't map to graph: ${type}`);
+  // console.log(`Unknown uniform type, can't map to graph: ${type}`);
 };
 
 export const applyStrategy = (

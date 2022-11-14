@@ -23,7 +23,6 @@ export type ThreeRuntime = {
   envMapTexture: any;
   engineMaterial: any;
   index: number;
-  threeTone: any;
   cache: {
     data: {
       [key: string]: any;
@@ -70,8 +69,7 @@ const onBeforeCompileMegaShader = (
   newMat: any
 ) => {
   console.log('compiling three megashader!');
-  const { renderer, sceneData, scene, camera, threeTone, three } =
-    engineContext.runtime;
+  const { renderer, sceneData, scene, camera } = engineContext.runtime;
   const { mesh } = sceneData;
 
   // Temporarily swap the mesh material to the new one, since materials can
@@ -363,13 +361,13 @@ export const threngine: Engine = {
     },
     [EngineNodeType.toon]: {
       onBeforeCompile: (graph, engineContext, node, sibling) => {
-        const { three, threeTone } = engineContext.runtime;
+        const { three } = engineContext.runtime;
 
         cacher(engineContext, graph, node, sibling as SourceNode, () =>
           onBeforeCompileMegaShader(
             engineContext,
             new three.MeshToonMaterial({
-              gradientMap: threeTone,
+              gradientMap: new three.Texture(),
               isMeshToonMaterial: true,
               ...threeMaterialProperties(three, graph, node, sibling),
             })

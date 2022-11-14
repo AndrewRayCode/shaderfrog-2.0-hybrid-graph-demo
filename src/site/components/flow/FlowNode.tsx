@@ -65,6 +65,7 @@ export interface CoreFlowNode {
 export interface FlowNodeDataData extends CoreFlowNode {
   type: GraphDataType;
   value: any;
+  config: Record<string, any>;
 }
 export interface FlowNodeSourceData extends CoreFlowNode {
   stage?: ShaderStage;
@@ -180,19 +181,19 @@ const FlowWrap = ({
 const vectorComponents = 'xyzw';
 const VectorEditor = ({
   id,
-  value,
+  data,
   onChange,
 }: {
   id: string;
-  value: Vector2 | Vector3 | Vector4;
+  data: FlowNodeDataData;
   onChange: ChangeHandler;
 }) => {
   const onComponentChange = (component: number, n: string) => {
-    onChange(id, replaceAt(value, component, n));
+    onChange(id, replaceAt(data.value, component, n));
   };
   return (
     <div className={styles.grid}>
-      {value.map((_, index) => (
+      {(data.value as Vector2 | Vector3 | Vector4).map((_, index) => (
         <div key={index}>
           <label className={styles.vectorLabel}>
             {vectorComponents.charAt(index)}
@@ -200,7 +201,7 @@ const VectorEditor = ({
               className="nodrag"
               type="text"
               onChange={(e) => onComponentChange(index, e.currentTarget.value)}
-              value={value[index]}
+              value={data.value[index]}
             />
           </label>
         </div>
@@ -212,13 +213,14 @@ const VectorEditor = ({
 const colorComponents = 'rgba';
 const ColorEditor = ({
   id,
-  value,
+  data,
   onChange,
 }: {
   id: string;
-  value: Vector3 | Vector4;
+  data: FlowNodeDataData;
   onChange: ChangeHandler;
 }) => {
+  const value = data.value as Vector3 | Vector4;
   const onComponentChange = (component: number, n: string) => {
     onChange(id, replaceAt(value, component, n));
   };
@@ -243,11 +245,11 @@ const ColorEditor = ({
 
 const NumberEditor = ({
   id,
-  value,
+  data,
   onChange,
 }: {
   id: string;
-  value: string;
+  data: FlowNodeDataData;
   onChange: ChangeHandler;
 }) => (
   <>
@@ -255,38 +257,39 @@ const NumberEditor = ({
       className="nodrag"
       type="text"
       onChange={(e) => onChange(id, e.currentTarget.value)}
-      value={value}
+      value={data.value}
     />
     <input
       className="nodrag"
       type="range"
-      min="0"
-      max="1"
-      step="0.001"
+      min={data.config.range?.[0] || '0'}
+      max={data.config.range?.[1] || '1'}
+      step={data.config.stepper || '0.001'}
       onChange={(e) => onChange(id, e.currentTarget.value)}
-      value={value}
+      value={data.value}
     ></input>
   </>
 );
 
 const TextureEditor = ({
   id,
-  value,
+  data,
   onChange,
 }: {
   id: string;
-  value: string;
+  data: FlowNodeDataData;
   onChange: ChangeHandler;
 }) => (
   <>
     <select
       className="nodrag"
       onChange={(e) => onChange(id, e.currentTarget.value)}
-      value={value}
+      value={data.value}
     >
       <option value="grayscale-noise">Grayscale Noise</option>
       <option value="brick">Bricks</option>
       <option value="brickNormal">Brick Normal Map</option>
+      <option value="threeTone">Three Tone</option>
       <option value="explosion">Yellow Gradient</option>
     </select>
   </>
@@ -311,6 +314,7 @@ const DataNodeComponent = memo(
         <div className="flowlabel">
           {data.label}
           {showPosition(id, xPos, yPos)}
+          <div className="dataType">{data.type}</div>
         </div>
         <div className="flowInputs">
           {data.inputs.map((input, index) => (
@@ -324,15 +328,15 @@ const DataNodeComponent = memo(
 
         <div className="body">
           {data.type === 'number' ? (
-            <NumberEditor id={id} value={data.value} onChange={onChange} />
+            <NumberEditor id={id} data={data} onChange={onChange} />
           ) : data.type === 'vector2' ||
             data.type === 'vector3' ||
             data.type === 'vector4' ? (
-            <VectorEditor id={id} value={data.value} onChange={onChange} />
+            <VectorEditor id={id} data={data} onChange={onChange} />
           ) : data.type === 'rgb' || data.type === 'rgba' ? (
-            <ColorEditor id={id} value={data.value} onChange={onChange} />
+            <ColorEditor id={id} data={data} onChange={onChange} />
           ) : data.type === 'texture' ? (
-            <TextureEditor id={id} value={data.value} onChange={onChange} />
+            <TextureEditor id={id} data={data} onChange={onChange} />
           ) : (
             <div>NOOOOOO FlowNode for {data.type}</div>
           )}

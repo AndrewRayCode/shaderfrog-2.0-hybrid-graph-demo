@@ -42,7 +42,9 @@
   border-bottom: 1px solid #ccc;
 }
 
-.flowlabel .stage {
+.flowlabel .stage,
+.flowlabel .dataType {
+  text-transform: uppercase;
   font-size: 12px;
   float: right;
   padding: 2px 8px;
@@ -163,6 +165,11 @@
 /* -------------- */
 /* Data theme     */
 /* -------------- */
+.flow-node_data .flowlabel .dataType {
+  color: #fff;
+  background: #3c627c;
+}
+
 .flownode.flow-node_data {
   background: rgb(6, 16, 68);
   min-height: 80px;

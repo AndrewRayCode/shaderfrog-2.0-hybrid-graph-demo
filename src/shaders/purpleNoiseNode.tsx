@@ -1,9 +1,17 @@
 import { NodePosition } from '../core/nodes/core-node';
-import { numberUniformData, vectorUniformData } from '../core/nodes/data-nodes';
+import {
+  numberUniformData,
+  UniformDataType,
+  vectorUniformData,
+} from '../core/nodes/data-nodes';
 import { sourceNode } from '../core/nodes/engine-node';
 import { uniformStrategy } from '../core/strategy';
 
-const purpleNoiseNode = (id: string, position: NodePosition) =>
+const purpleNoiseNode = (
+  id: string,
+  position: NodePosition,
+  uniforms?: UniformDataType[]
+) =>
   sourceNode(
     id,
     'Purple Metal',
@@ -12,7 +20,7 @@ const purpleNoiseNode = (id: string, position: NodePosition) =>
       version: 2,
       preprocess: true,
       strategies: [uniformStrategy()],
-      uniforms: [
+      uniforms: uniforms || [
         numberUniformData('speed', '3.0'),
         numberUniformData('brightnessX', '1.0'),
         numberUniformData('permutations', '10'),

@@ -1401,7 +1401,7 @@ const Editor: React.FC = () => {
               ? `(${activeShader.name} - 
             ${
               'stage' in activeShader ? activeShader.stage : activeShader.type
-            })}`
+            })`
               : null}
           </Tab>
           <Tab

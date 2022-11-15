@@ -42,6 +42,7 @@ import {
   computeContextForNodes,
   isDataInput,
   filterGraphNodes,
+  CompileGraphResult,
 } from '../../core/graph';
 import { Edge as GraphEdge, EdgeType } from '../../core/nodes/edge';
 import {
@@ -1136,15 +1137,28 @@ const Editor: React.FC = () => {
 
       setContexting(true);
 
+      // Expand uniforms on new nodes automatically
+      const originalNodes = new Set<string>(newGns.map((n) => n.id));
+      const expanded = expandUniformDataNodes({ nodes: newGns, edges: newGEs });
+
       setFlowElements((fe) => ({
-        edges: [...fe.edges, ...newGEs.map(graphEdgeToFlowEdge)],
+        edges: [...fe.edges, ...expanded.edges.map(graphEdgeToFlowEdge)],
         nodes: [
           ...fe.nodes,
-          ...newGns.map((newGn, index) =>
-            graphNodeToFlowNode(newGn, onInputBakedToggle, {
-              x: position.x - 200 + index * 20,
-              y: position.y - 50 + index * 20,
-            })
+          ...expanded.nodes.map((newGn, index) =>
+            graphNodeToFlowNode(
+              newGn,
+              onInputBakedToggle,
+              // We only want to position the originally created nodes, to
+              // separate vertex/fragment. The auto-expanded uniforms get placed
+              // by the expand fn
+              originalNodes.has(newGn.id)
+                ? {
+                    x: position.x + index * 20,
+                    y: position.y + index * 40,
+                  }
+                : newGn.position
+            )
           ),
         ],
       }));
@@ -1154,12 +1168,12 @@ const Editor: React.FC = () => {
         setGraph((graph) => {
           const updatedGraph = {
             ...graph,
-            edges: [...graph.edges, ...newGEs],
-            nodes: [...graph.nodes, ...newGns],
+            edges: [...graph.edges, ...expanded.edges],
+            nodes: [...graph.nodes, ...expanded.nodes],
           };
           // Create new inputs for new nodes added to the graph
           computeContextForNodes(ctx as EngineContext, engine, updatedGraph, [
-            ...newGns,
+            ...expanded.nodes,
             ...(newEdgeData ? [findNode(updatedGraph, newEdgeData.to)] : []),
           ]);
           return updatedGraph;

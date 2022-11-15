@@ -272,17 +272,16 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
  *
  * Polish / Improvements
  * - UX
- *   - Store graph zoom / pan position between tab switches
- *   - fix default placement of nodes so they don't overlap and stack better,
+ *   - ✅ Store graph zoom / pan position between tab switches
+ *   - ✅ fix default placement of nodes so they don't overlap and stack better,
  *     and/or save node positions for examples?
  *   - Add more syntax highlighting to the GLSL editor, look at vscode
  *     plugin? https://github.com/stef-levesque/vscode-shader/tree/master/syntaxes
- *   - Allow dragging uniform edge out backwards to create a data node for it
- *   - Auto rename the data inputs to uniforms to be that uniform name
- *   - Uniform strategy should be added as default ot all shaders
- *   - If the source code tab is focused in three.js, recompilation doesn't happen
+ *   - ✅ Allow dragging uniform edge out backwards to create a data node for it
+ *   - ✅ Auto rename the data inputs to uniforms to be that uniform name
+ *   - Uniform strategy should be added as default to all shaders
  *   - Add three.js ability to switch lighting megashader
- *   - Sort node inputs into engine, uniforms, properties
+ *   - ✅ Sort node inputs into engine, uniforms, properties
  *   - Show input type by the input
  *   - "Compiling" doesn't show up when (at least) changing number input nodes,
  *     and the compiling indicator could be more obvious
@@ -308,7 +307,7 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
  * - Add types to the connections (like vec3/float), and show the types on
  *   the inputs/ouputs, and prevent wrong types from being connected
  * - Re-add the three > babylon conversion
- * - Add image data nodes to the graph
+ * - ✅ Add image data nodes to the graph
  * - Add persistable shaders to a db!
  * - Shader node editor specific undo history
  *
@@ -355,10 +354,6 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
  *   - Nodes not plugged into the graph don't get their contex computed (like
  *     new inputs)
  *   - Move engine nodes into engine specific constructors
- *
- * I don't remember what this is
- * - Here we hardcode "out" for the inputs which needs to line up with
- *   the custom handles.
  */
 
 // Default node setup
@@ -485,6 +480,7 @@ const Editor: React.FC = () => {
   const [guiError, setGuiError] = useState<string>('');
   const [guiMsg, setGuiMsg] = useState<string>('');
   const [lights, setLights] = useState<PreviewLight>('point');
+  const [showHelpers, setShowHelpers] = useState<boolean>(false);
   const [previewObject, setPreviewObject] = useState(() => {
     const query = new URLSearchParams(window.location.search);
     const example = query.get('example') || Example.DEFAULT;
@@ -1581,6 +1577,8 @@ const Editor: React.FC = () => {
             setCtx={setCtx}
             graph={graph}
             lights={lights}
+            setShowHelpers={setShowHelpers}
+            showHelpers={showHelpers}
             setLights={setLights}
             previewObject={previewObject}
             setPreviewObject={setPreviewObject}

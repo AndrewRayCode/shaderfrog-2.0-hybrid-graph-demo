@@ -41,6 +41,8 @@ type ThreeSceneProps = {
   setLights: AnyFn;
   setPreviewObject: AnyFn;
   setBg: AnyFn;
+  showHelpers: boolean;
+  setShowHelpers: AnyFn;
   width: number;
   height: number;
 };
@@ -61,6 +63,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   initialCtx,
   setGlResult,
   setLights,
+  showHelpers,
+  setShowHelpers,
   setPreviewObject,
   bg,
   setBg,
@@ -91,8 +95,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     []
   );
 
-  const { sceneData, scene, camera, threeDomElement, threeDomCbRef, renderer } =
-    useThree((time) => {
+  const { sceneData, scene, camera, threeDomCbRef, renderer } = useThree(
+    (time) => {
       const { mesh } = sceneData;
       if (!mesh) {
         return;
@@ -196,7 +200,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
                 const name = mangleVar(input.displayName, threngine, node);
 
                 // @ts-ignore
-                if (name in mesh.material.uniforms) {
+                if (name in (mesh.material.uniforms || {})) {
                   // @ts-ignore
                   mesh.material.uniforms[name].value = newValue;
                 } else {
@@ -213,7 +217,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         // @ts-ignore
         mesh.material.uniforms.time.value = time * 0.001;
       }
-    });
+    }
+  );
 
   const previousPreviewObject = usePrevious(previewObject);
   useEffect(() => {
@@ -410,12 +415,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
               // THIS DUPLICATES OTHER LINE
               newValue = images[(fromNode as TextureNode).value];
             }
-            console.log('value, evalauted', {
-              fromNode,
-              input,
-              value,
-              newValue,
-            });
+
             // TODO: This doesn't work for engine variables because
             // those aren't suffixed
             const name = mangleVar(input.displayName, threngine, node);
@@ -511,10 +511,11 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   }, [compileResult, ctx.runtime, images]);
 
   const prevLights = usePrevious(lights);
+  const previousShowHelpers = usePrevious(showHelpers);
   useEffect(() => {
     if (
       // If the lights are unchanged
-      prevLights === lights ||
+      (prevLights === lights && previousShowHelpers === showHelpers) ||
       // Or if there were no previous lights, but we already have them in the
       // persisted sceneData, we already have three data in memory
       (prevLights === undefined && sceneData.lights.length)
@@ -525,66 +526,74 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       scene.remove(light);
     });
 
+    let helpers: three.Object3D[] = [];
     if (lights === 'point') {
       const pointLight = new three.PointLight(0xffffff, 1);
       pointLight.position.set(0, 0, 2);
       scene.add(pointLight);
 
-      const helper = new three.PointLightHelper(pointLight, 0.1);
-      scene.add(helper);
-      sceneData.lights = [pointLight, helper];
+      helpers = [new three.PointLightHelper(pointLight, 0.1)];
+      sceneData.lights = [pointLight, ...helpers];
     } else if (lights === '3point') {
       const light1 = new three.PointLight(0xffffff, 1, 0);
       light1.position.set(2, 2, 5);
       scene.add(light1);
-      const helper1 = new three.PointLightHelper(light1, 0.1);
-      scene.add(helper1);
 
       const light2 = new three.PointLight(0xffffff, 1, 0);
       light2.position.set(-2, 5, -5);
       scene.add(light2);
-      const helper2 = new three.PointLightHelper(light2, 0.1);
-      scene.add(helper2);
 
       const light3 = new three.PointLight(0xffffff, 1, 0);
       light3.position.set(5, -5, -5);
       scene.add(light3);
-      const helper3 = new three.PointLightHelper(light3, 0.1);
-      scene.add(helper3);
 
-      sceneData.lights = [light1, helper1, light2, helper2, light3, helper3];
+      helpers = [
+        new three.PointLightHelper(light1, 0.1),
+        new three.PointLightHelper(light2, 0.1),
+        new three.PointLightHelper(light3, 0.1),
+      ];
+
+      sceneData.lights = [light1, light2, ...helpers];
     } else if (lights === 'spot') {
       const light = new three.SpotLight(0x00ff00, 1, 3, 0.4, 1);
       light.position.set(0, 0, 2);
       scene.add(light);
 
-      const helper = new three.SpotLightHelper(
-        light,
-        new three.Color(0x00ff00)
-      );
-      scene.add(helper);
-
       const light2 = new three.SpotLight(0xff0000, 1, 4, 0.4, 1);
       light2.position.set(0, 0, 2);
       scene.add(light2);
 
-      const helper2 = new three.SpotLightHelper(
-        light2,
-        new three.Color(0xff0000)
-      );
-      scene.add(helper2);
+      helpers = [
+        new three.SpotLightHelper(light, new three.Color(0x00ff00)),
+        new three.SpotLightHelper(light2, new three.Color(0xff0000)),
+      ];
 
-      sceneData.lights = [light, light2, helper, helper2];
+      sceneData.lights = [light, light2, ...helpers];
     }
 
-    if (sceneData.mesh) {
-      sceneData.mesh.material = loadingMaterial;
+    if (showHelpers) {
+      helpers.forEach((helper) => {
+        scene.add(helper);
+      });
     }
 
-    if (prevLights) {
+    if (prevLights && prevLights !== undefined && prevLights !== lights) {
+      if (sceneData.mesh) {
+        sceneData.mesh.material = loadingMaterial;
+      }
+
       compile(ctx);
     }
-  }, [sceneData, lights, scene, compile, ctx, prevLights]);
+  }, [
+    sceneData,
+    lights,
+    scene,
+    compile,
+    ctx,
+    prevLights,
+    previousShowHelpers,
+    showHelpers,
+  ]);
 
   useEffect(() => {
     if (ctx.runtime?.camera && size) {
@@ -616,6 +625,16 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
               <option value="point">Animated Point Light</option>
               <option value="spot">Spot Lights</option>
             </select>
+            <label>
+              <span>
+                <input
+                  type="checkbox"
+                  checked={showHelpers}
+                  onChange={(event) => setShowHelpers(event?.target.checked)}
+                />
+                Show Lighting Helpers
+              </span>
+            </label>
           </div>
         </div>
         <div className={styles.control}>

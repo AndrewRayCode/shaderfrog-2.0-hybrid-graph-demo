@@ -7,6 +7,7 @@ import { useHoisty } from '../../site/hoistedRefContext';
 type Callback = (time: number) => void;
 
 type SceneData = {
+  helpers: three.Object3D[];
   lights: three.Object3D[];
   mesh?: three.Mesh;
   bg?: three.Mesh;
@@ -26,6 +27,7 @@ export const useThree = (callback: Callback) => {
       return {
         sceneData: {
           lights: [],
+          helpers: [],
         },
         scene: new three.Scene(),
         camera: new three.PerspectiveCamera(75, 1 / 1, 0.1, 1000),

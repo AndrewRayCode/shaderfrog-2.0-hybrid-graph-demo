@@ -16,14 +16,19 @@ type ScenePersistence = {
   sceneData: SceneData;
   scene: three.Scene;
   camera: three.Camera;
+  cubeCamera: three.CubeCamera;
+  cubeRenderTarget: three.WebGLCubeRenderTarget;
   renderer: three.WebGLRenderer;
 };
 
 export const useThree = (callback: Callback) => {
   const { getRefData } = useHoisty();
-  const { sceneData, scene, camera, renderer } = getRefData<ScenePersistence>(
-    'three',
-    () => {
+  const { sceneData, scene, cubeCamera, camera, renderer } =
+    getRefData<ScenePersistence>('three', () => {
+      const cubeRenderTarget = new three.WebGLCubeRenderTarget(128, {
+        generateMipmaps: true,
+        minFilter: three.LinearMipmapLinearFilter,
+      });
       return {
         sceneData: {
           lights: [],
@@ -31,6 +36,8 @@ export const useThree = (callback: Callback) => {
         },
         scene: new three.Scene(),
         camera: new three.PerspectiveCamera(75, 1 / 1, 0.1, 1000),
+        cubeCamera: new three.CubeCamera(0.1, 1000, cubeRenderTarget),
+        cubeRenderTarget,
         renderer: new three.WebGLRenderer(),
         destroy: (data: ScenePersistence) => {
           console.log('👋🏻 Bye Bye Three.js!');
@@ -39,8 +46,7 @@ export const useThree = (callback: Callback) => {
           data.renderer.domElement = null;
         },
       };
-    }
-  );
+    });
 
   const [threeDomElement, setThreeDom] = useState<HTMLDivElement | null>(null);
   // We use a callback ref to handle re-attaching scene controls when the
@@ -55,8 +61,9 @@ export const useThree = (callback: Callback) => {
       camera.position.set(0, 0, 2);
       camera.lookAt(0, 0, 0);
       scene.add(camera);
+      scene.add(cubeCamera);
     }
-  }, [scene, camera]);
+  }, [scene, camera, cubeCamera]);
 
   const savedCallback = useRef<Callback>(callback);
   // Remember the latest callback.

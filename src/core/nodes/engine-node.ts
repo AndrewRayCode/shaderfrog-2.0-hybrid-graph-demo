@@ -232,7 +232,9 @@ export const physicalNode = (
           'filler_roughnessMap'
         ),
         property('Displacement Map', 'displacementMap', 'texture'),
-        property('Env Map', 'envMap', 'samplerCube'),
+        // MeshPhysicalMaterial gets envMap from the scene. MeshStandardMaterial
+        // gets it from the material
+        // property('Env Map', 'envMap', 'samplerCube'),
         property('Transmission', 'transmission', 'number'),
         property(
           'Transmission Map',

@@ -219,6 +219,7 @@ const ctxNodes: Menu = [
     [
       ['Number', 'number'],
       ['Texture', 'texture'],
+      ['Sampler Cube', 'samplerCube'],
       ['Vector2', 'vector2'],
       ['Vector3', 'vector3'],
       ['Vector4', 'vector4'],
@@ -236,6 +237,7 @@ const ctxNodes: Menu = [
   [
     'Example Shader',
     [
+      ['Cube Map Reflection', 'cubemapReflection'],
       ['Phong', 'phong'],
       ['Toon', 'toon'],
       ['Fireball', 'fireNode'],

@@ -19,7 +19,6 @@ export type ThreeRuntime = {
   three: any;
   sceneData: any;
   engineMaterial: any;
-  envMapTexture: any;
   index: number;
   cache: {
     data: {

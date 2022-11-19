@@ -279,7 +279,10 @@ const textures: Record<'texture' | 'samplerCube', [string, string][]> = {
     ['threeTone', 'Three Tone'],
     ['explosion', 'Yellow Gradient'],
   ],
-  samplerCube: [['warehouse', 'Warehouse Env Map']],
+  samplerCube: [
+    ['pondCubeMap', 'Pond Cube Map'],
+    ['cubeCamera', 'Cube Camera'],
+  ],
 };
 
 const TextureEditor = ({

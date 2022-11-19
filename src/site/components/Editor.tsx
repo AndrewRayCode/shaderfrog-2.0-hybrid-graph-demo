@@ -134,6 +134,7 @@ import purpleNoiseNode from '../../shaders/purpleNoiseNode';
 import solidColorNode from '../../shaders/solidColorNode';
 import staticShaderNode from '../../shaders/staticShaderNode';
 import { checkerboardF, checkerboardV } from '../../shaders/checkboardNode';
+import { cubemapReflectionF, cubemapReflectionV } from '../../shaders/cubemapReflectionNode';
 import normalMapify from '../../shaders/normalmapifyNode';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
@@ -1071,6 +1072,11 @@ const Editor: React.FC = () => {
         newGns = [
           checkerboardF(id, position),
           checkerboardV(makeId(), id, position),
+        ];
+      } else if (nodeDataType === 'cubemapReflection') {
+        newGns = [
+          cubemapReflectionF(id, position),
+          cubemapReflectionV(makeId(), id, position),
         ];
       } else if (nodeDataType === 'fluidCirclesNode') {
         newGns = [fluidCirclesNode(id, position)];

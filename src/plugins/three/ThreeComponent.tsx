@@ -13,7 +13,7 @@ import { usePrevious } from '../../site/hooks/usePrevious';
 import { UICompileGraphResult } from '../../site/uICompileGraphResult';
 import { PreviewLight } from '../../site/components/Editor';
 import { ensure } from '../../util/ensure';
-import { TextureNode } from '../../core/nodes/data-nodes';
+import { SamplerCubeNode, TextureNode } from '../../core/nodes/data-nodes';
 import { useSize } from '../../site/hooks/useSize';
 
 const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
@@ -74,26 +74,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   const shadersUpdated = useRef<boolean>(false);
   const sceneWrapper = useRef<HTMLDivElement>(null);
   const size = useSize(sceneWrapper);
-
-  const images = useMemo<Record<string, any>>(
-    () => ({
-      explosion: new three.TextureLoader().load('/explosion.png'),
-      'grayscale-noise': new three.TextureLoader().load('/grayscale-noise.png'),
-      threeTone: (() => {
-        const image = new three.TextureLoader().load('/3tone.jpg');
-        image.minFilter = three.NearestFilter;
-        image.magFilter = three.NearestFilter;
-        return image;
-      })(),
-      brick: repeat(new three.TextureLoader().load('/bricks.jpeg'), 3, 3),
-      brickNormal: repeat(
-        new three.TextureLoader().load('/bricknormal.jpeg'),
-        3,
-        3
-      ),
-    }),
-    []
-  );
 
   const { sceneData, scene, camera, threeDomCbRef, renderer } = useThree(
     (time) => {
@@ -187,8 +167,11 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
               }
               let newValue = value;
               if (fromNode.type === 'texture') {
-                // THIS DUPLICATES OTHER LINE
+                // THIS DUPLICATES OTHER LINE, used for runtime uniform setting
                 newValue = images[(fromNode as TextureNode).value];
+              }
+              // TODO RENDER TARGET
+              if (fromNode.type === 'samplerCube') {
               }
 
               if (input.type === 'property') {
@@ -219,6 +202,55 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       }
     }
   );
+
+  const images = useMemo<Record<string, any>>(
+    () => ({
+      explosion: new three.TextureLoader().load('/explosion.png'),
+      'grayscale-noise': new three.TextureLoader().load('/grayscale-noise.png'),
+      threeTone: (() => {
+        const image = new three.TextureLoader().load('/3tone.jpg');
+        image.minFilter = three.NearestFilter;
+        image.magFilter = three.NearestFilter;
+        return image;
+      })(),
+      brick: repeat(new three.TextureLoader().load('/bricks.jpeg'), 3, 3),
+      brickNormal: repeat(
+        new three.TextureLoader().load('/bricknormal.jpeg'),
+        3,
+        3
+      ),
+      pondCubeMap: new three.CubeTextureLoader()
+        .setPath('/envmaps/pond/')
+        .load([
+          'posx.jpg',
+          'negx.jpg',
+          'posy.jpg',
+          'negy.jpg',
+          'posz.jpg',
+          'negz.jpg',
+        ]),
+      warehouseEnvTexture: null,
+    }),
+    []
+  );
+
+  const [warehouseImage, setWarehouseImage] = useState<{
+    texture: three.DataTexture;
+    envMap: three.Texture;
+  }>();
+  useEffect(() => {
+    if (warehouseImage) {
+      return;
+    }
+    new RGBELoader().load('envmaps/empty_warehouse_01_2k.hdr', (texture) => {
+      const pmremGenerator = new three.PMREMGenerator(renderer);
+      pmremGenerator.compileEquirectangularShader();
+      const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+      pmremGenerator.dispose();
+      images.warehouseEnvTexture = envMap;
+      setWarehouseImage({ texture, envMap });
+    });
+  }, [renderer, setWarehouseImage, warehouseImage, images]);
 
   const previousPreviewObject = usePrevious(previewObject);
   useEffect(() => {
@@ -251,24 +283,15 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   }, [previousPreviewObject, sceneData, previewObject, scene]);
 
   const previousBg = usePrevious(bg);
+  const previousWarehouseImage = usePrevious(warehouseImage);
   useEffect(() => {
-    if (bg === previousBg) {
+    if (bg === previousBg && warehouseImage === previousWarehouseImage) {
       return;
     }
+
     if (bg) {
-      const pmremGenerator = new three.PMREMGenerator(renderer);
-      pmremGenerator.compileEquirectangularShader();
-
-      // yolo https://stackoverflow.com/a/65817213/743464
-      new RGBELoader().load('envmaps/empty_warehouse_01_2k.hdr', (texture) => {
-        const envMap = pmremGenerator.fromEquirectangular(texture).texture;
-
-        scene.background = envMap;
-        scene.environment = envMap;
-
-        texture.dispose();
-        pmremGenerator.dispose();
-      });
+      scene.background = images[bg];
+      scene.environment = images[bg];
     } else {
       scene.environment = null;
       scene.background = null;
@@ -295,6 +318,9 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     sceneData,
     previewObject,
     scene,
+    previousWarehouseImage,
+    warehouseImage,
+    images,
   ]);
 
   const [ctx] = useState<EngineContext>(
@@ -313,7 +339,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         sceneData,
         scene,
         camera,
-        envMapTexture: null,
         index: 0,
         cache: { data: {}, nodes: {} },
       },
@@ -323,23 +348,16 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   );
 
   useEffect(() => {
-    if (!ctx.runtime.envMapTexture) {
-      console.log('loading envmap texture');
-      new RGBELoader().load(
-        'envmaps/empty_warehouse_01_2k.hdr',
-        (textureCb) => {
-          const pmremGenerator = new three.PMREMGenerator(renderer);
-          const renderTarget = pmremGenerator.fromCubemap(textureCb as any);
-          const { texture } = renderTarget;
-
-          ctx.runtime.envMapTexture = texture;
-
-          // Inform parent our context is created
-          setCtx(ctx);
-        }
-      );
+    // I originally had this to let the three child scene load images, which I
+    // thought was a blocking requirement fo creating envMap textures. Now I
+    // see this can be done synchrounously. Not sure if this is needed, but
+    // it sends context to parent, so keeping for now
+    if (!ctx?.runtime?.loaded) {
+      ctx.runtime.loaded = true;
+      // Inform parent our context is created
+      setCtx(ctx);
     }
-  }, [ctx, setCtx, renderer]);
+  }, [ctx, setCtx]);
 
   useEffect(() => {
     if (!compileResult?.fragmentResult) {
@@ -348,35 +366,9 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     const { graph } = compileResult;
     const {
       sceneData: { mesh },
-      envMapTexture,
       engineMaterial,
     } = ctx.runtime as ThreeRuntime;
     console.log('oh hai birfday boi boi boiiiii');
-
-    // const envMap = new RGBELoader().load(
-    //   '/envmaps/empty_warehouse_01_2k.hdr',
-    //   (textureCb) => {
-    //     textureCb.mapping = three.CubeUVReflectionMapping;
-
-    //     const pmremGenerator = new three.PMREMGenerator(renderer);
-    //     // const isEquirectMap =
-    //     //   textureCb.mapping === three.EquirectangularReflectionMapping ||
-    //     //   textureCb.mapping === three.EquirectangularRefractionMapping;
-    //     // const renderTarget = isEquirectMap
-    //     //   ? pmremGenerator.fromEquirectangular(textureCb)
-    //     //   : pmremGenerator.fromCubemap(textureCb as any);
-    //     const renderTarget = pmremGenerator.fromCubemap(textureCb as any);
-    //     const { texture } = renderTarget;
-
-    //     console.log('loaded envmap', { envMap, texture, textureCb });
-    //     newMat.uniforms.blenvMap.value = texture;
-    //     // todo try putting defines in shader too?
-    //     // newMat.uniforms.envMap.value = texture;
-    //     newMat.needsUpdate = true;
-    //   }
-    // );
-    // scene.background = envMap;
-    // console.log('created envmap', { envMap });
 
     // Note this is setting the uniforms of the shader at creation time. The
     // uniforms are also updated every frame in the useThree() loop
@@ -413,9 +405,11 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
             let newValue = value;
             if (fromNode.type === 'texture') {
               // THIS DUPLICATES OTHER LINE
+              // This is instantiation of initial shader
               newValue = images[(fromNode as TextureNode).value];
+            } else if (fromNode.type === 'samplerCube') {
+              newValue = images[(fromNode as SamplerCubeNode).value];
             }
-
             // TODO: This doesn't work for engine variables because
             // those aren't suffixed
             const name = mangleVar(input.displayName, threngine, node);
@@ -445,9 +439,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       ...three.ShaderLib.physical.uniforms,
       ...uniforms,
       time: { value: 0 },
-      envMap: {
-        value: envMapTexture,
-      },
     };
 
     const initialProperties = {
@@ -668,7 +659,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
               value={bg ? bg : 'none'}
             >
               <option value="none">None</option>
-              <option value="warehouse">Warehouse</option>
+              <option value="warehouseEnvTexture">Warehouse</option>
+              <option value="pondCubeMap">Pond Cube Map</option>
             </select>
           </div>
         </div>

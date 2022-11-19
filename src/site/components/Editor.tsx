@@ -91,6 +91,7 @@ import {
   colorNode,
   numberNode,
   numberUniformData,
+  samplerCubeNode,
   textureNode,
   Vector2,
   Vector3,
@@ -194,6 +195,15 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
                 uniform.name,
                 position,
                 uniform.value as Vector3
+              );
+              break;
+            }
+            case 'samplerCube': {
+              n = samplerCubeNode(
+                makeId(),
+                uniform.name,
+                position,
+                uniform.value as string
               );
               break;
             }
@@ -1089,6 +1099,10 @@ const Editor: React.FC = () => {
         newGns = [staticShaderNode(id, position)];
       } else if (nodeDataType === 'normalMapify') {
         newGns = [normalMapify(id, position)];
+      } else if (nodeDataType === 'samplerCube') {
+        newGns = [
+          samplerCubeNode(id, makeName('samplerCue'), position, 'warehouse'),
+        ];
       } else if (nodeDataType === 'fragment' || nodeDataType === 'vertex') {
         newGns = [
           sourceNode(

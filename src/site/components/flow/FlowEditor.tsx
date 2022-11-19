@@ -81,6 +81,7 @@ const nodeTypes: Record<NodeType | GraphDataType | EngineNodeType, any> = {
   mat4x3: DataNodeComponent,
   mat4x4: DataNodeComponent,
   texture: DataNodeComponent,
+  samplerCube: DataNodeComponent,
   number: DataNodeComponent,
   array: DataNodeComponent,
 };

@@ -177,7 +177,7 @@ export const phongNode = (
           'filler_specularMap'
         ),
         property('Displacement Map', 'displacementMap', 'texture'),
-        property('Env Map', 'envMap', 'texture'),
+        property('Env Map', 'envMap', 'samplerCube'),
       ],
       strategies: [
         uniformStrategy(),
@@ -232,7 +232,7 @@ export const physicalNode = (
           'filler_roughnessMap'
         ),
         property('Displacement Map', 'displacementMap', 'texture'),
-        property('Env Map', 'envMap', 'texture'),
+        property('Env Map', 'envMap', 'samplerCube'),
         property('Transmission', 'transmission', 'number'),
         property(
           'Transmission Map',
@@ -302,7 +302,7 @@ export const toonNode = (
         property('Normal Map', 'normalMap', 'texture', 'filler_normalMap'),
         property('Normal Scale', 'normalScale', 'vector2'),
         property('Displacement Map', 'displacementMap', 'texture'),
-        property('Env Map', 'envMap', 'texture'),
+        property('Env Map', 'envMap', 'samplerCube'),
       ],
       strategies: [
         uniformStrategy(),

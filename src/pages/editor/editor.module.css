@@ -244,6 +244,7 @@ textarea.error {
   z-index: 2;
 }
 .control label span {
+  user-select: none;
   display: block;
   font-size: 12px;
   margin: 0 0 5px;

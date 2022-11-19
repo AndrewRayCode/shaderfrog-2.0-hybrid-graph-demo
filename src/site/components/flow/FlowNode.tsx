@@ -271,12 +271,25 @@ const NumberEditor = ({
   </>
 );
 
+const textures: Record<'texture' | 'samplerCube', [string, string][]> = {
+  texture: [
+    ['grayscale-noise', 'Grayscale Noise'],
+    ['brick', 'Bricks'],
+    ['brickNormal', 'Brick Normal Map'],
+    ['threeTone', 'Three Tone'],
+    ['explosion', 'Yellow Gradient'],
+  ],
+  samplerCube: [['warehouse', 'Warehouse Env Map']],
+};
+
 const TextureEditor = ({
   id,
   data,
+  tex,
   onChange,
 }: {
   id: string;
+  tex: typeof textures['texture'];
   data: FlowNodeDataData;
   onChange: ChangeHandler;
 }) => (
@@ -286,11 +299,11 @@ const TextureEditor = ({
       onChange={(e) => onChange(id, e.currentTarget.value)}
       value={data.value}
     >
-      <option value="grayscale-noise">Grayscale Noise</option>
-      <option value="brick">Bricks</option>
-      <option value="brickNormal">Brick Normal Map</option>
-      <option value="threeTone">Three Tone</option>
-      <option value="explosion">Yellow Gradient</option>
+      {tex.map((t) => (
+        <option key={t[0]} value={t[0]}>
+          {t[1]}
+        </option>
+      ))}
     </select>
   </>
 );
@@ -336,7 +349,19 @@ const DataNodeComponent = memo(
           ) : data.type === 'rgb' || data.type === 'rgba' ? (
             <ColorEditor id={id} data={data} onChange={onChange} />
           ) : data.type === 'texture' ? (
-            <TextureEditor id={id} data={data} onChange={onChange} />
+            <TextureEditor
+              id={id}
+              data={data}
+              onChange={onChange}
+              tex={textures.texture}
+            />
+          ) : data.type === 'samplerCube' ? (
+            <TextureEditor
+              id={id}
+              data={data}
+              onChange={onChange}
+              tex={textures.samplerCube}
+            />
           ) : (
             <div>NOOOOOO FlowNode for {data.type}</div>
           )}

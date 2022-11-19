@@ -21,6 +21,7 @@ export type GraphDataType =
   | Color
   | Mat
   | 'texture'
+  | 'samplerCube'
   | 'number'
   | 'array';
 
@@ -111,6 +112,41 @@ export const textureUniformData = (
   name: string,
   value: string
 ): TextureDataUniform => ({ type: 'texture', name, value });
+
+export interface SamplerCubeNode extends CoreNode {
+  type: 'samplerCube';
+  value: string;
+}
+export const samplerCubeNode = (
+  id: string,
+  name: string,
+  position: NodePosition,
+  value: string
+): SamplerCubeNode => ({
+  type: 'samplerCube',
+  id,
+  name,
+  position,
+  value,
+  inputs: [],
+  outputs: [
+    {
+      name: 'out',
+      id: '1',
+      category: 'data',
+    },
+  ],
+});
+
+export type SamplerCubeDataUniform = Omit<
+  SamplerCubeNode,
+  'id' | 'inputs' | 'outputs' | 'position'
+>;
+
+export const samplerCubeUniformData = (
+  name: string,
+  value: string
+): SamplerCubeDataUniform => ({ type: 'samplerCube', name, value });
 
 export type Vector2 = [string, string];
 export type Vector3 = [string, string, string];
@@ -240,6 +276,7 @@ export const colorUniformData = (
 // When defining nodes, these are the types allowed in uniforms
 export type UniformDataType =
   | TextureDataUniform
+  | SamplerCubeDataUniform
   | NumberDataUniform
   | Vector2DataUniform
   | Vector3DataUniform
@@ -249,6 +286,7 @@ export type UniformDataType =
 
 export type DataNode =
   | TextureNode
+  | SamplerCubeNode
   | NumberNode
   | Vector2Node
   | Vector3Node

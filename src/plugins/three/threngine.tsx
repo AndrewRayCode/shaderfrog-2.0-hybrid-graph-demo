@@ -1,7 +1,6 @@
 import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
 import { Graph, NodeParser, NodeType } from '../../core/graph';
 import importers from './importers';
-import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 
 import { Engine, EngineContext, EngineNodeType } from '../../core/engine';
 import { GraphNode, doesLinkThruShader, nodeName } from '../../core/graph';
@@ -11,7 +10,6 @@ import {
   returnGlPositionVec3Right,
 } from '../../ast/manipulate';
 import { NodeProperty, SourceNode } from '../../core/nodes/code-nodes';
-import { Edge } from '../../core/nodes/edge';
 import { NodeInput } from '../../core/nodes/core-node';
 
 export type ThreeRuntime = {
@@ -20,8 +18,8 @@ export type ThreeRuntime = {
   renderer: any;
   three: any;
   sceneData: any;
-  envMapTexture: any;
   engineMaterial: any;
+  envMapTexture: any;
   index: number;
   cache: {
     data: {
@@ -322,31 +320,12 @@ export const threngine: Engine = {
     },
     [EngineNodeType.physical]: {
       onBeforeCompile: (graph, engineContext, node, sibling) => {
-        // const { three, envMapTexture } = engineContext.runtime;
         const { three } = engineContext.runtime;
-
-        // const envMap = new three.CubeTextureLoader().load([
-        //   '/envmaps/pond/posx.jpg',
-        //   '/envmaps/pond/negx.jpg',
-        //   '/envmaps/pond/posy.jpg',
-        //   '/envmaps/pond/negy.jpg',
-        //   '/envmaps/pond/posy.jpg',
-        //   '/envmaps/pond/negy.jpg',
-        // ]);
-        // const envMap = new RGBELoader().load(
-        //   '/envmaps/empty_warehouse_01_2k.hdr',
-        //   () => {
-        //     envMap.mapping = three.EquirectangularReflectionMapping;
-        //   }
-        // );
-        // const texture = new three.Texture();
-        // texture.mapping = three.CubeUVReflectionMapping;
 
         cacher(engineContext, graph, node, sibling as SourceNode, () =>
           onBeforeCompileMegaShader(
             engineContext,
             new three.MeshPhysicalMaterial({
-              // envMap: envMapTexture,
               // These properties are copied onto the runtime RawShaderMaterial.
               // These exist on the MeshPhysicalMaterial but only in the
               // prototype. We have to hard code them for Object.keys() to work

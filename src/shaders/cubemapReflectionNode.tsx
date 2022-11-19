@@ -12,7 +12,7 @@ const cubemapReflectionF = (id: string, position: NodePosition) =>
       version: 2,
       preprocess: true,
       strategies: [uniformStrategy()],
-      uniforms: [samplerCubeUniformData('Sampler Cube', 'pondCubeMap')],
+      uniforms: [samplerCubeUniformData('reflectionSampler', 'pondCubeMap')],
     },
     `
 precision highp float;

@@ -172,6 +172,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
               }
               // TODO RENDER TARGET
               if (fromNode.type === 'samplerCube') {
+                return;
               }
 
               if (input.type === 'property') {

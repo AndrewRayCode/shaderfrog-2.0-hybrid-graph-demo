@@ -33,7 +33,6 @@ BABYLON.Logger.Error = (...args) => {
 type AnyFn = (...args: any) => any;
 type BabylonComponentProps = {
   compile: AnyFn;
-  guiMsg: string;
   compileResult: UICompileGraphResult | undefined;
   graph: Graph;
   lights: PreviewLight;
@@ -47,7 +46,6 @@ type BabylonComponentProps = {
 };
 const BabylonComponent: React.FC<BabylonComponentProps> = ({
   compile,
-  guiMsg,
   compileResult,
   graph,
   lights,
@@ -546,12 +544,6 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
         }}
         ref={babylonDomRef}
       ></div>
-      <div className={styles.sceneLabel}>
-        {guiMsg}
-        {!guiMsg &&
-          compileResult?.compileMs &&
-          `Complile took ${compileResult?.compileMs}ms`}
-      </div>
       <div className={styles.sceneControls}>
         <button
           className={styles.button}

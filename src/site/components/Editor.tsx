@@ -519,7 +519,6 @@ const Editor: React.FC = () => {
   const [contexting, setContexting] = useState<boolean>(false);
   const [compiling, setCompiling] = useState<boolean>(false);
   const [guiError, setGuiError] = useState<string>('');
-  const [guiMsg, setGuiMsg] = useState<string>('');
   const [lights, setLights] = useState<PreviewLight>('point');
   const [showHelpers, setShowHelpers] = useState<boolean>(false);
 
@@ -1608,8 +1607,6 @@ const Editor: React.FC = () => {
         <div className={styles.guiError}>
           <b>Compilation Error!</b> {guiError}
         </div>
-      ) : guiMsg ? (
-        <div className={styles.guiMsg}>{guiMsg}</div>
       ) : compileResult?.compileMs ? (
         <div className={styles.guiMsg}>
           Complile took {compileResult?.compileMs}ms
@@ -1649,7 +1646,6 @@ const Editor: React.FC = () => {
             previewObject={previewObject}
             setPreviewObject={setPreviewObject}
             compile={childCompile}
-            guiMsg={guiMsg}
             compileResult={compileResult}
             setGlResult={setGlResult}
             width={state.sceneWidth}

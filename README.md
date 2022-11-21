@@ -23,34 +23,17 @@
    different when I set isMeshPhysicalMaterial = true, it started overwriting
    that uniform every render.
 
-## Data Flow: Frog Core Graph -> React Flow Graph
+# Data Flow
 
-On load, we call initializeGraph -> initializeFlowElementsFromGraph, so data
-flow is: graph is source of truth -> flow elements, and in there we set the
-positions of elements haphazardly. This sets the source of truth as the frog
-graph, which makes sense. Except for the positions. so the flow graph contains
-some data that needs to be saved that's not in the nodes themselves.
+## Initial Page Load
 
-Adding edge to graph: addConnection() creates a flow edge, then sets needcompile
-to true, which calls compile(), which updates the graph using fromFlowToGraph(),
-which copies flow edges into the graph, and copies "baked" and "value" onto the
-graph node. So in this sense, any unsynced changes from the flow graph are
-"committed" to the main graph.
-
-From the core graph -> flow graph:
-- New inputs from strategies
-- Which nodes are "active" based on sibling IDs
-- Which nodes are "data" but calculated in Editor not graph.ts (the core graph
-  skips these to avoid filling data into properties/uniforms, and then Editor *
-  recalculates *all* dataInputs from the core graph for colorizing and not
-  recompiling on dragging sliders around.)
-
-From the flow graph -> core graph:
-- On baked toggle, sets the *flow* baked, then calls setDebouncedNeedsCompile()
-- On data value change, which sets the flow elements with the new data to make
-  controlled inputs, *and* updates the graph (why? probably doesn't need to)
-  then calls setDebouncedNeedsCompile()
-- onEdgesDelete updates flow elements, *and* removes the element from the core
-  graph (and *doesn't* trigger a recompile, maybe should)
-- Adding an edge calls addConnection(), which removes duplicate edges, then
-  updates the *flow* graph, then calls setNeedsCompile()
+- On page load, the Graph is intialized from the URL param in Editor.tsx in
+  `makeExampleGraph`
+- Then the three scene mounts, which passes newly created context up to
+  Editor.tsx
+- This first generates the Flow Elements from the Graph using `graphToFlowGraph()`
+- Then Editor.tsx calls `initializeGraph()`, which:
+  - First computes context for the graph
+  - Calls compileGraphAsync() which calls `compileGraph()` which processes the
+    Graph
+  - Graph elements are re-copied into Flow Elements using `setFlowElements()`

@@ -5,7 +5,6 @@ import FlowEditor, { MouseData, useEditorStore } from './flow/FlowEditor';
 
 import { SplitPane } from 'react-multi-split-pane';
 import cx from 'classnames';
-import { generate } from '@shaderfrog/glsl-parser';
 import React, {
   useCallback,
   useEffect,
@@ -28,38 +27,22 @@ import {
   useReactFlow,
   XYPosition,
   OnConnectStartParams,
-  EdgeText,
-  // FlowElement,
 } from 'reactflow';
 
 import {
   Graph,
   GraphNode,
-  compileGraph,
   computeAllContexts,
-  collectConnectedNodes,
   findNode,
   computeContextForNodes,
-  isDataInput,
-  filterGraphNodes,
-  CompileGraphResult,
 } from '../../core/graph';
 import { Edge as GraphEdge, EdgeType } from '../../core/nodes/edge';
-import {
-  addNode,
-  sourceNode,
-  multiplyNode,
-  phongNode,
-  toonNode,
-} from '../../core/nodes/engine-node';
+
 import { Engine, EngineContext, convertToEngine } from '../../core/engine';
-import { shaderSectionsToAst } from '../../ast/shader-sections';
 
 import useThrottle from '../hooks/useThrottle';
 
-// import contrastNoise from '..';
 import { useAsyncExtendedState } from '../hooks/useAsyncExtendedState';
-// import { usePromise } from '../usePromise';
 
 import { FlowEdgeData } from './flow/FlowEdge';
 import { FlowNodeSourceData, FlowNodeDataData } from './flow/FlowNode';
@@ -79,27 +62,9 @@ import {
 import { Hoisty, useHoisty } from '../hoistedRefContext';
 import { UICompileGraphResult } from '../uICompileGraphResult';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import {
-  declarationOfStrategy,
-  Strategy,
-  StrategyType,
-  texture2DStrategy,
-  uniformStrategy,
-} from '../../core/strategy';
+import { Strategy, StrategyType } from '../../core/strategy';
 import { ensure } from '../../util/ensure';
-import {
-  colorNode,
-  numberNode,
-  numberUniformData,
-  samplerCubeNode,
-  textureNode,
-  Vector2,
-  Vector3,
-  Vector4,
-  vectorNode,
-  vectorUniformData,
-} from '../../core/nodes/data-nodes';
-import { makeEdge } from '../../core/nodes/edge';
+
 import { CodeNode, SourceNode } from '../../core/nodes/code-nodes';
 import { makeId } from '../../util/id';
 import { hasParent } from '../../util/hasParent';
@@ -121,132 +86,16 @@ import {
 } from './flow/helpers';
 import { Example, makeExampleGraph } from './examples';
 
-import { fireFrag, fireVert } from '../../shaders/fireNode';
-import fluidCirclesNode from '../../shaders/fluidCirclesNode';
-import {
-  heatShaderFragmentNode,
-  heatShaderVertexNode,
-} from '../../shaders/heatmapShaderNode';
-import perlinCloudsFNode from '../../shaders/perlinClouds';
-import { hellOnEarthFrag, hellOnEarthVert } from '../../shaders/hellOnEarth';
-import { outlineShaderF, outlineShaderV } from '../../shaders/outlineShader';
-import purpleNoiseNode from '../../shaders/purpleNoiseNode';
-import solidColorNode from '../../shaders/solidColorNode';
-import staticShaderNode from '../../shaders/staticShaderNode';
-import { checkerboardF, checkerboardV } from '../../shaders/checkboardNode';
-import {
-  cubemapReflectionF,
-  cubemapReflectionV,
-} from '../../shaders/cubemapReflectionNode';
-import normalMapify from '../../shaders/normalmapifyNode';
 import { usePrevious } from '../hooks/usePrevious';
+import {
+  compileGraphAsync,
+  createGraphNode,
+  expandUniformDataNodes,
+} from './useGraph';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
 const SMALL_SCREEN_WIDTH = 500;
-
-const expandUniformDataNodes = (graph: Graph): Graph =>
-  graph.nodes.reduce<Graph>((updated, node) => {
-    if ('config' in node && node.config.uniforms) {
-      const newNodes = node.config.uniforms.reduce<[GraphNode[], GraphEdge[]]>(
-        (acc, uniform, index) => {
-          const position = {
-            x: node.position.x - 250,
-            y: node.position.y - 200 + index * 100,
-          };
-          let n;
-          switch (uniform.type) {
-            case 'texture': {
-              n = textureNode(makeId(), uniform.name, position, uniform.value);
-              break;
-            }
-            case 'number': {
-              n = numberNode(makeId(), uniform.name, position, uniform.value, {
-                range: uniform.range,
-                stepper: uniform.stepper,
-              });
-              break;
-            }
-            case 'vector2': {
-              n = vectorNode(
-                makeId(),
-                uniform.name,
-                position,
-                uniform.value as Vector2
-              );
-              break;
-            }
-            case 'vector3': {
-              n = vectorNode(
-                makeId(),
-                uniform.name,
-                position,
-                uniform.value as Vector3
-              );
-              break;
-            }
-            case 'vector4': {
-              n = vectorNode(
-                makeId(),
-                uniform.name,
-                position,
-                uniform.value as Vector4
-              );
-              break;
-            }
-            case 'rgb': {
-              n = colorNode(
-                makeId(),
-                uniform.name,
-                position,
-                uniform.value as Vector3
-              );
-              break;
-            }
-            case 'samplerCube': {
-              n = samplerCubeNode(
-                makeId(),
-                uniform.name,
-                position,
-                uniform.value as string
-              );
-              break;
-            }
-            case 'rgba': {
-              n = colorNode(
-                makeId(),
-                uniform.name,
-                position,
-                uniform.value as Vector4
-              );
-              break;
-            }
-          }
-          return [
-            [...acc[0], n],
-            [
-              ...acc[1],
-              makeEdge(
-                makeId(),
-                n.id,
-                node.id,
-                'out',
-                `uniform_${uniform.name}`,
-                uniform.type
-              ),
-            ],
-          ];
-        },
-        [[], []]
-      );
-
-      return {
-        nodes: [...updated.nodes, ...newNodes[0]],
-        edges: [...updated.edges, ...newNodes[1]],
-      };
-    }
-    return updated;
-  }, graph);
 
 /**
  * Where was I?
@@ -372,112 +221,6 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
  *   - Move engine nodes into engine specific constructors
  */
 
-// const loadGraphFromUrl = (): [
-//   ...ReturnType<typeof makeExampleGraph>,
-//   string | null
-// ] => {
-//   const query = new URLSearchParams(window.location.search);
-//   const example = query.get('example');
-//   console.log('Loading example', example);
-//   const [graph, a, b] = makeExampleGraph(
-//     (example as Example) || Example.DEFAULT
-//   );
-//   return [expandUniformDataNodes(graph), a, b, example];
-// };
-
-const useGraphFromUrl = () => {
-  const [flowElements, setFlowElements, resetFlowElements] =
-    useLocalStorage<FlowElements>('flow', {
-      nodes: [],
-      edges: [],
-    });
-
-  const [initialGraph, initialPreviewObject, initialBg, initialExample] =
-    useMemo(() => {
-      const query = new URLSearchParams(window.location.search);
-      const example = query.get('example') || '';
-      const [graph, a, b] = makeExampleGraph(
-        (example as Example) || Example.DEFAULT
-      );
-      return [expandUniformDataNodes(graph), a, b, example];
-    }, []);
-
-  return {
-    flowElements,
-    setFlowElements,
-    resetFlowElements,
-    initialGraph,
-    initialPreviewObject,
-    initialBg,
-    initialExample,
-  };
-};
-
-const compileGraphAsync = async (
-  graph: Graph,
-  engine: Engine,
-  ctx: EngineContext
-): Promise<UICompileGraphResult> =>
-  new Promise((resolve, reject) => {
-    setTimeout(() => {
-      console.warn('Compiling!', graph, 'for nodes', ctx.nodes);
-
-      const allStart = performance.now();
-
-      let result;
-
-      try {
-        result = compileGraph(ctx, engine, graph);
-      } catch (err) {
-        return reject(err);
-      }
-      const fragmentResult = generate(
-        shaderSectionsToAst(result.fragment, engine.mergeOptions).program
-      );
-      const vertexResult = generate(
-        shaderSectionsToAst(result.vertex, engine.mergeOptions).program
-      );
-
-      const dataInputs = filterGraphNodes(
-        graph,
-        [result.outputFrag, result.outputVert],
-        { input: isDataInput }
-      ).inputs;
-
-      // Find which nodes flow up into uniform inputs, for colorizing and for
-      // not recompiling when their data changes
-      const dataNodes = Object.entries(dataInputs).reduce<
-        Record<string, GraphNode>
-      >((acc, [nodeId, inputs]) => {
-        return inputs.reduce((iAcc, input) => {
-          const fromEdge = graph.edges.find(
-            (edge) => edge.to === nodeId && edge.input === input.id
-          );
-          const fromNode =
-            fromEdge && graph.nodes.find((node) => node.id === fromEdge.from);
-          return fromNode
-            ? {
-                ...iAcc,
-                ...collectConnectedNodes(graph, fromNode),
-              }
-            : iAcc;
-        }, acc);
-      }, {});
-
-      const now = performance.now();
-      console.log(`Compilation too ${(now - allStart).toFixed(3)}ms`);
-      resolve({
-        compileMs: (now - allStart).toFixed(3),
-        result,
-        fragmentResult,
-        vertexResult,
-        dataNodes,
-        dataInputs,
-        graph,
-      });
-    }, 10);
-  });
-
 const Editor: React.FC = () => {
   const { getRefData } = useHoisty();
 
@@ -494,15 +237,23 @@ const Editor: React.FC = () => {
   // Store the engine context in state. There's a separate function for passing
   // to children to update the engine context, which has more side effects
   const [ctx, setCtxState] = useState<EngineContext>();
+  const [flowElements, setFlowElements] = useLocalStorage<FlowElements>(
+    'flow',
+    {
+      nodes: [],
+      edges: [],
+    }
+  );
 
-  const {
-    flowElements,
-    setFlowElements,
-    initialGraph,
-    initialPreviewObject,
-    initialBg,
-    initialExample,
-  } = useGraphFromUrl();
+  const [initialGraph, initialPreviewObject, initialBg, initialExample] =
+    useMemo(() => {
+      const query = new URLSearchParams(window.location.search);
+      const example = query.get('example') || '';
+      const [graph, a, b] = makeExampleGraph(
+        (example as Example) || Example.DEFAULT
+      );
+      return [expandUniformDataNodes(graph), a, b, example];
+    }, []);
 
   const [example, setExample] = useState<string | null>(initialExample);
   const [previewObject, setPreviewObject] = useState(initialPreviewObject);
@@ -567,7 +318,7 @@ const Editor: React.FC = () => {
     [setFragmentOverride]
   );
 
-  const [state, setState, extendState] = useAsyncExtendedState<{
+  const [uiState, , extendUiState] = useAsyncExtendedState<{
     fragError: string | null;
     vertError: string | null;
     programError: string | null;
@@ -589,9 +340,9 @@ const Editor: React.FC = () => {
       vertError: string;
       programError: string;
     }) => {
-      extendState(result);
+      extendUiState(result);
     },
-    [extendState]
+    [extendUiState]
   );
 
   // Compile function, meant to be called manually in places where we want to
@@ -613,7 +364,6 @@ const Editor: React.FC = () => {
           setGuiError('');
           setCompileResult(compileResult);
 
-          // const byId = updatedGraph.nodes.reduce<Record<string, GraphNode>>(
           const byId = graph.nodes.reduce<Record<string, GraphNode>>(
             (acc, node) => ({ ...acc, [node.id]: node }),
             {}
@@ -821,7 +571,7 @@ const Editor: React.FC = () => {
   const syncSceneSize = useThrottle(() => {
     if (sceneWrapRef.current) {
       const { width, height } = sceneWrapRef.current.getBoundingClientRect();
-      extendState({ sceneWidth: width, sceneHeight: height });
+      extendUiState({ sceneWidth: width, sceneHeight: height });
     }
   }, 100);
 
@@ -1075,139 +825,16 @@ const Editor: React.FC = () => {
       position: XYPosition,
       newEdgeData?: Omit<GraphEdge, 'id' | 'from'>
     ) => {
-      const makeName = (type: string) => name || type;
-      const id = makeId();
-      const groupId = makeId();
-      let newGns: GraphNode[];
-
-      if (nodeDataType === 'number') {
-        newGns = [numberNode(id, makeName('number'), position, '1')];
-      } else if (nodeDataType === 'texture') {
-        newGns = [
-          textureNode(id, makeName('texture'), position, 'grayscale-noise'),
-        ];
-      } else if (nodeDataType === 'vector2') {
-        newGns = [vectorNode(id, makeName('vec2'), position, ['1', '1'])];
-      } else if (nodeDataType === 'vector3') {
-        newGns = [vectorNode(id, makeName('vec3'), position, ['1', '1', '1'])];
-      } else if (nodeDataType === 'vector4') {
-        newGns = [
-          vectorNode(id, makeName('vec4'), position, ['1', '1', '1', '1']),
-        ];
-      } else if (nodeDataType === 'rgb') {
-        newGns = [colorNode(id, makeName('rgb'), position, ['1', '1', '1'])];
-      } else if (nodeDataType === 'rgba') {
-        newGns = [
-          colorNode(id, makeName('rgba'), position, ['1', '1', '1', '1']),
-        ];
-      } else if (nodeDataType === 'multiply') {
-        newGns = [multiplyNode(id, position)];
-      } else if (nodeDataType === 'add') {
-        newGns = [addNode(id, position)];
-      } else if (nodeDataType === 'phong') {
-        newGns = [
-          phongNode(id, 'Phong', groupId, position, 'fragment'),
-          phongNode(makeId(), 'Phong', groupId, position, 'vertex', id),
-        ];
-      } else if (nodeDataType === 'toon') {
-        newGns = [
-          toonNode(id, 'Toon', groupId, position, [], 'fragment'),
-          toonNode(makeId(), 'Toon', groupId, position, [], 'vertex', id),
-        ];
-      } else if (nodeDataType === 'fireNode') {
-        newGns = [fireFrag(id, position), fireVert(makeId(), id, position)];
-      } else if (nodeDataType === 'checkerboardF') {
-        newGns = [
-          checkerboardF(id, position),
-          checkerboardV(makeId(), id, position),
-        ];
-      } else if (nodeDataType === 'cubemapReflection') {
-        newGns = [
-          cubemapReflectionF(id, position),
-          cubemapReflectionV(makeId(), id, position),
-        ];
-      } else if (nodeDataType === 'fluidCirclesNode') {
-        newGns = [fluidCirclesNode(id, position)];
-      } else if (nodeDataType === 'heatmapShaderNode') {
-        newGns = [
-          heatShaderFragmentNode(id, position),
-          heatShaderVertexNode(makeId(), id, position),
-        ];
-      } else if (nodeDataType === 'hellOnEarth') {
-        newGns = [
-          hellOnEarthFrag(id, position),
-          hellOnEarthVert(makeId(), id, position),
-        ];
-      } else if (nodeDataType === 'outlineShader') {
-        newGns = [
-          outlineShaderF(id, position),
-          outlineShaderV(makeId(), id, position),
-        ];
-      } else if (nodeDataType === 'perlinClouds') {
-        newGns = [perlinCloudsFNode(id, position)];
-      } else if (nodeDataType === 'purpleNoiseNode') {
-        newGns = [purpleNoiseNode(id, position)];
-      } else if (nodeDataType === 'solidColorNode') {
-        newGns = [solidColorNode(id, position)];
-      } else if (nodeDataType === 'staticShaderNode') {
-        newGns = [staticShaderNode(id, position)];
-      } else if (nodeDataType === 'normalMapify') {
-        newGns = [normalMapify(id, position)];
-      } else if (nodeDataType === 'samplerCube') {
-        newGns = [
-          samplerCubeNode(id, makeName('samplerCube'), position, 'warehouse'),
-        ];
-      } else if (nodeDataType === 'fragment' || nodeDataType === 'vertex') {
-        newGns = [
-          sourceNode(
-            makeId(),
-            'Source Code ' + id,
-            position,
-            {
-              version: 2,
-              preprocess: true,
-              strategies: [
-                uniformStrategy(),
-                texture2DStrategy(),
-                declarationOfStrategy('replaceMe'),
-              ],
-            },
-            nodeDataType === 'fragment'
-              ? `void main() {
-  gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
-}`
-              : `void main() {
-  gl_Position = vec4(1.0);
-}`,
-            nodeDataType,
-            ctx?.engine
-          ),
-        ];
-      } else {
-        console.warn(
-          `Could not create node: Unknown node type "${nodeDataType}'"`
-        );
-        return;
-      }
-
-      let newGEs: GraphEdge[] = newEdgeData
-        ? [
-            makeEdge(
-              makeId(),
-              id,
-              newEdgeData.to,
-              newEdgeData.output,
-              newEdgeData.input,
-              newEdgeData.type
-            ),
-          ]
-        : [];
-
       setContexting(true);
 
       // Expand uniforms on new nodes automatically
-      const originalNodes = new Set<string>(newGns.map((n) => n.id));
-      const expanded = expandUniformDataNodes({ nodes: newGns, edges: newGEs });
+      const [originalNodes, expanded] = createGraphNode(
+        nodeDataType,
+        name,
+        position,
+        ctx?.engine,
+        newEdgeData
+      );
 
       setFlowElements((fe) => ({
         edges: [...fe.edges, ...expanded.edges.map(graphEdgeToFlowEdge)],
@@ -1453,7 +1080,7 @@ const Editor: React.FC = () => {
           </Tab>
           <Tab
             className={{
-              [styles.errored]: state.fragError || state.vertError,
+              [styles.errored]: uiState.fragError || uiState.vertError,
             }}
           >
             Compiled Source
@@ -1547,19 +1174,19 @@ const Editor: React.FC = () => {
           <TabPanel style={{ height: '100%' }}>
             <Tabs onSelect={setSceneTabIndex} selected={sceneTabIndex}>
               <TabGroup className={styles.secondary}>
-                <Tab className={{ [styles.errored]: state.fragError }}>
+                <Tab className={{ [styles.errored]: uiState.fragError }}>
                   Fragment
                 </Tab>
-                <Tab className={{ [styles.errored]: state.vertError }}>
+                <Tab className={{ [styles.errored]: uiState.vertError }}>
                   Vertex
                 </Tab>
               </TabGroup>
               <TabPanels>
                 {/* final fragment shader subtab */}
                 <TabPanel style={{ height: '100%' }}>
-                  {state.fragError && (
-                    <div className={styles.codeError} title={state.fragError}>
-                      {(state.fragError || '').substring(0, 500)}
+                  {uiState.fragError && (
+                    <div className={styles.codeError} title={uiState.fragError}>
+                      {(uiState.fragError || '').substring(0, 500)}
                     </div>
                   )}
                   <CodeEditor
@@ -1572,9 +1199,9 @@ const Editor: React.FC = () => {
                 </TabPanel>
                 {/* final vertex shader subtab */}
                 <TabPanel style={{ height: '100%' }}>
-                  {state.vertError && (
-                    <div className={styles.codeError} title={state.vertError}>
-                      {(state.vertError || '').substring(0, 500)}
+                  {uiState.vertError && (
+                    <div className={styles.codeError} title={uiState.vertError}>
+                      {(uiState.vertError || '').substring(0, 500)}
                     </div>
                   )}
                   <CodeEditor
@@ -1634,8 +1261,8 @@ const Editor: React.FC = () => {
             compile={childCompile}
             compileResult={compileResult}
             setGlResult={setGlResult}
-            width={state.sceneWidth}
-            height={state.sceneHeight}
+            width={uiState.sceneWidth}
+            height={uiState.sceneHeight}
           />
         ) : (
           <BabylonComponent
@@ -1648,8 +1275,8 @@ const Editor: React.FC = () => {
             compile={childCompile}
             compileResult={compileResult}
             setGlResult={setGlResult}
-            width={state.sceneWidth}
-            height={state.sceneHeight}
+            width={uiState.sceneWidth}
+            height={uiState.sceneHeight}
           />
         )}
       </div>

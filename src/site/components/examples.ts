@@ -42,9 +42,11 @@ export enum Example {
   DEFAULT = 'Mesh Physical Material',
 }
 
-export const makeExampleGraph = (example: Example): [Graph, string] => {
+export const makeExampleGraph = (example: Example): [Graph, string, string] => {
+  console.log('🌈 Making new graph!!');
   let newGraph: Graph;
   let previewObject: string;
+  let bg: string = '';
   if (example === Example.GEMSTONE) {
     const outputF = outputNode(
       makeId(),
@@ -235,6 +237,7 @@ export const makeExampleGraph = (example: Example): [Graph, string] => {
       ],
     };
     previewObject = 'icosahedron';
+    bg = 'warehouseEnvTexture';
   } else if (example === Example.TOON) {
     const outputF = outputNode(
       makeId(),
@@ -320,6 +323,7 @@ export const makeExampleGraph = (example: Example): [Graph, string] => {
       ],
     };
     previewObject = 'torusknot';
+    bg = '';
   } else if (example === Example.DEFAULT) {
     const outputF = outputNode(
       makeId(),
@@ -397,6 +401,7 @@ export const makeExampleGraph = (example: Example): [Graph, string] => {
       ],
     };
     previewObject = 'sphere';
+    bg = '';
   } else if (example === Example.DIAMOND) {
     const outputF = outputNode(
       makeId(),
@@ -512,6 +517,7 @@ export const makeExampleGraph = (example: Example): [Graph, string] => {
       ],
     };
     previewObject = 'icosahedron';
+    bg = 'warehouseEnvTexture';
   } else if (example === Example.GLASS_FIRE_BALL) {
     const outputF = outputNode(
       makeId(),
@@ -683,6 +689,7 @@ export const makeExampleGraph = (example: Example): [Graph, string] => {
       ],
     };
     previewObject = 'sphere';
+    bg = 'warehouseEnvTexture';
   } else {
     const outputF = outputNode(
       makeId(),
@@ -750,5 +757,5 @@ export const makeExampleGraph = (example: Example): [Graph, string] => {
     };
     previewObject = 'torusknot';
   }
-  return [newGraph, previewObject];
+  return [newGraph, previewObject, bg];
 };

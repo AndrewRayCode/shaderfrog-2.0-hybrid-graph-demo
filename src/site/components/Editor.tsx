@@ -134,8 +134,12 @@ import purpleNoiseNode from '../../shaders/purpleNoiseNode';
 import solidColorNode from '../../shaders/solidColorNode';
 import staticShaderNode from '../../shaders/staticShaderNode';
 import { checkerboardF, checkerboardV } from '../../shaders/checkboardNode';
-import { cubemapReflectionF, cubemapReflectionV } from '../../shaders/cubemapReflectionNode';
+import {
+  cubemapReflectionF,
+  cubemapReflectionV,
+} from '../../shaders/cubemapReflectionNode';
 import normalMapify from '../../shaders/normalmapifyNode';
+import { usePrevious } from '../hooks/usePrevious';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
@@ -368,27 +372,44 @@ const expandUniformDataNodes = (graph: Graph): Graph =>
  *   - Move engine nodes into engine specific constructors
  */
 
-// Default node setup
-const useTestingNodeSetup = () => {
+// const loadGraphFromUrl = (): [
+//   ...ReturnType<typeof makeExampleGraph>,
+//   string | null
+// ] => {
+//   const query = new URLSearchParams(window.location.search);
+//   const example = query.get('example');
+//   console.log('Loading example', example);
+//   const [graph, a, b] = makeExampleGraph(
+//     (example as Example) || Example.DEFAULT
+//   );
+//   return [expandUniformDataNodes(graph), a, b, example];
+// };
+
+const useGraphFromUrl = () => {
   const [flowElements, setFlowElements, resetFlowElements] =
     useLocalStorage<FlowElements>('flow', {
       nodes: [],
       edges: [],
     });
 
-  const [graph, setGraph, resetGraph] = useLocalStorage<Graph>('graph', () => {
-    const query = new URLSearchParams(window.location.search);
-    const example = query.get('example') || Example.DEFAULT;
-    return expandUniformDataNodes(makeExampleGraph(example as Example)[0]);
-  });
+  const [initialGraph, initialPreviewObject, initialBg, initialExample] =
+    useMemo(() => {
+      const query = new URLSearchParams(window.location.search);
+      const example = query.get('example') || '';
+      const [graph, a, b] = makeExampleGraph(
+        (example as Example) || Example.DEFAULT
+      );
+      return [expandUniformDataNodes(graph), a, b, example];
+    }, []);
 
   return {
     flowElements,
     setFlowElements,
-    graph,
-    setGraph,
     resetFlowElements,
-    resetGraph,
+    initialGraph,
+    initialPreviewObject,
+    initialBg,
+    initialExample,
   };
 };
 
@@ -422,7 +443,6 @@ const compileGraphAsync = async (
         [result.outputFrag, result.outputVert],
         { input: isDataInput }
       ).inputs;
-      console.log('dataInputs', dataInputs);
 
       // Find which nodes flow up into uniform inputs, for colorizing and for
       // not recompiling when their data changes
@@ -471,14 +491,23 @@ const Editor: React.FC = () => {
     engine: threngine,
   });
 
+  // Store the engine context in state. There's a separate function for passing
+  // to children to update the engine context, which has more side effects
+  const [ctx, setCtxState] = useState<EngineContext>();
+
   const {
-    graph,
-    setGraph,
     flowElements,
     setFlowElements,
-    resetFlowElements,
-    resetGraph,
-  } = useTestingNodeSetup();
+    initialGraph,
+    initialPreviewObject,
+    initialBg,
+    initialExample,
+  } = useGraphFromUrl();
+
+  const [example, setExample] = useState<string | null>(initialExample);
+  const [previewObject, setPreviewObject] = useState(initialPreviewObject);
+  const [bg, setBg] = useState<string>(initialBg);
+  const [graph, setGraph] = useLocalStorage<Graph>('graph', initialGraph);
 
   const sceneWrapRef = useRef<HTMLDivElement>(null);
 
@@ -493,12 +522,6 @@ const Editor: React.FC = () => {
   const [guiMsg, setGuiMsg] = useState<string>('');
   const [lights, setLights] = useState<PreviewLight>('point');
   const [showHelpers, setShowHelpers] = useState<boolean>(false);
-  const [previewObject, setPreviewObject] = useState(() => {
-    const query = new URLSearchParams(window.location.search);
-    const example = query.get('example') || Example.DEFAULT;
-    return makeExampleGraph(example as Example)[1];
-  });
-  const [bg, setBg] = useState('warehouse');
 
   const [activeShader, setActiveShader] = useState<SourceNode>(
     (graph.nodes.find((n) => n.type === 'source') ||
@@ -571,10 +594,6 @@ const Editor: React.FC = () => {
     },
     [extendState]
   );
-
-  // Store the engine context in state. There's a separate function for passing
-  // to children to update the engine context, which has more side effects
-  const [ctx, setCtxState] = useState<EngineContext>();
 
   // Compile function, meant to be called manually in places where we want to
   // trigger a compile. I tried making this a useEffect, however this function
@@ -697,6 +716,37 @@ const Editor: React.FC = () => {
     [compile, engine]
   );
 
+  const previousExample = usePrevious(example);
+  useEffect(() => {
+    if (example !== previousExample && previousExample !== undefined) {
+      console.log('🧶 Loading new example!', example);
+      const [graph, previewObject, bg] = makeExampleGraph(
+        (example as Example) || Example.DEFAULT
+      );
+      const newGraph = expandUniformDataNodes(graph);
+      setGraph(newGraph);
+      setPreviewObject(previewObject);
+      setBg(bg);
+      setActiveShader(newGraph.nodes[0] as SourceNode);
+
+      if (ctx) {
+        const initFlowElements = graphToFlowGraph(newGraph, onInputBakedToggle);
+        initializeGraph(initFlowElements, ctx, newGraph);
+      } else {
+        console.log('NOT Running initializeGraph from example change!');
+      }
+    }
+  }, [
+    example,
+    previousExample,
+    setGraph,
+    setPreviewObject,
+    setBg,
+    ctx,
+    initializeGraph,
+    onInputBakedToggle,
+  ]);
+
   // Once we receive a new engine context, re-initialize the graph. This method
   // is passed to engine specific editor components
   const setCtx = useCallback(
@@ -721,7 +771,6 @@ const Editor: React.FC = () => {
             }
           }
         }
-        // setGuiMsg(`🥸 Initializing ${engine.name}...`);
         initializeGraph(
           graphToFlowGraph(newGraph, onInputBakedToggle),
           newCtx,
@@ -1107,7 +1156,7 @@ const Editor: React.FC = () => {
         newGns = [normalMapify(id, position)];
       } else if (nodeDataType === 'samplerCube') {
         newGns = [
-          samplerCubeNode(id, makeName('samplerCue'), position, 'warehouse'),
+          samplerCubeNode(id, makeName('samplerCube'), position, 'warehouse'),
         ];
       } else if (nodeDataType === 'fragment' || nodeDataType === 'vertex') {
         newGns = [
@@ -1333,39 +1382,21 @@ const Editor: React.FC = () => {
     [setFlowElements, setGraph]
   );
 
-  const loadExample = useCallback(
-    (example: Example) => {
-      if (!ctx) {
-        throw new Error('what');
-      }
-      const urlParams = new URLSearchParams(window.location.search);
-      urlParams.set('example', example);
-      window.history.replaceState(
-        {},
-        example,
-        `${window.location.pathname}?${urlParams.toString()}`
-      );
-
-      const [graph, previewObject] = makeExampleGraph(example);
-      let newGraph = expandUniformDataNodes(graph);
-      setGraph(newGraph);
-      setPreviewObject(previewObject);
-      setActiveShader(newGraph.nodes[0] as SourceNode);
-
-      const initFlowElements = graphToFlowGraph(newGraph, onInputBakedToggle);
-
-      initializeGraph(initFlowElements, ctx, newGraph);
-    },
-    [ctx, initializeGraph, setGraph, onInputBakedToggle]
-  );
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const value = example || '';
+    urlParams.set('example', value);
+    window.history.replaceState(
+      {},
+      value,
+      `${window.location.pathname}?${urlParams.toString()}`
+    );
+  }, [example]);
 
   const exampleSelectorElement = (
     <select
-      onChange={(e) => {
-        if (e.currentTarget.value) {
-          loadExample(e.currentTarget.value as Example);
-        }
-      }}
+      onChange={(e) => setExample(e.currentTarget.value || null)}
+      value={example || undefined}
     >
       <option value="">Select an Example!</option>
       {Object.entries(Example).map(([key, name]) => (
@@ -1404,19 +1435,6 @@ const Editor: React.FC = () => {
                 {engine === babylengine
                   ? 'Switch to Three.js'
                   : 'Switch to Babylon.js'}
-              </button>
-              <button
-                className={styles.formButton}
-                onClick={() => {
-                  localStorage.clear();
-                  if (ctx) {
-                    const rGraph = resetGraph();
-                    const rElements = resetFlowElements();
-                    initializeGraph(rElements, ctx, rGraph);
-                  }
-                }}
-              >
-                Reset
               </button>
             </>
           ) : null}

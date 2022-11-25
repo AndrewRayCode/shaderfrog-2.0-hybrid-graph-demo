@@ -1020,31 +1020,42 @@ const Editor: React.FC = () => {
   }, [example]);
 
   const exampleSelectorElement = (
-    <select
-      onChange={(e) => setExample(e.currentTarget.value || null)}
-      value={example || undefined}
-    >
-      <option value="">Select an Example!</option>
-      {Object.entries(Example).map(([key, name]) => (
-        <option key={key} value={name}>
-          {name}
-        </option>
-      ))}
-    </select>
+    <div className="inlinecontrol">
+      <div>
+        <label className="label">Select an example!</label>
+      </div>
+      <div>
+        <select
+          className="select"
+          onChange={(e) => setExample(e.currentTarget.value || null)}
+          value={example || undefined}
+        >
+          <option value="">None</option>
+          {Object.entries(Example).map(([key, name]) => (
+            <option key={key} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
   );
 
+  const isLocal = window.location.href.indexOf('localhost') > 111;
   const editorElements = (
     <>
       {smallScreen ? null : (
-        <div className={styles.tabControls}>
-          <div className={styles.activeEngine}>
-            {engine === babylengine ? 'Babylon.js' : 'Three.js'}
-          </div>
+        <div className={cx(styles.tabControls, { [styles.col3]: isLocal })}>
+          {isLocal ? (
+            <div className={styles.activeEngine}>
+              {engine === babylengine ? 'Babylon.js' : 'Three.js'}
+            </div>
+          ) : null}
           {exampleSelectorElement}
-          {window.location.href.indexOf('localhost') > -1 ? (
+          {isLocal ? (
             <>
               <button
-                className={styles.formButton}
+                className="buttonauto button"
                 onClick={() => {
                   if (!ctx) {
                     return;
@@ -1067,7 +1078,7 @@ const Editor: React.FC = () => {
         </div>
       )}
       <Tabs onSelect={setEditorTabIndex} selected={editorTabIndex}>
-        <TabGroup>
+        <TabGroup className={styles.tabBar}>
           <Tab>Graph</Tab>
           <Tab>
             Editor
@@ -1119,7 +1130,7 @@ const Editor: React.FC = () => {
                 <div className={styles.splitInner}>
                   <div className={styles.editorControls}>
                     <button
-                      className={styles.button}
+                      className="buttonauto button"
                       onClick={() =>
                         compile(
                           engine,
@@ -1332,41 +1343,36 @@ const StrategyEditor = ({
   return (
     <>
       <div className={styles.uiGroup}>
-        <h2 className={styles.uiHeader}>Expression only?</h2>
-        <input
-          type="checkbox"
-          checked={node.expressionOnly}
-          onChange={(event) => {
-            node.expressionOnly = event.currentTarget.checked;
-            onSave();
-          }}
-        />
-      </div>
-      <div className={styles.uiGroup}>
         <h2 className={styles.uiHeader}>Node Strategies</h2>
-        {node.config.strategies.map((strategy, index) => (
-          <div key={strategy.type}>
-            {strategy.type}
-            <input
-              className={styles.uiInput}
-              type="text"
-              readOnly
-              value={JSON.stringify(strategy.config)}
-            ></input>
-            <button
-              className={styles.formButton}
-              onClick={() => {
-                node.config.strategies = [
-                  ...node.config.strategies.slice(0, index),
-                  ...node.config.strategies.slice(index + 1),
-                ];
-                onSave();
-              }}
-            >
-              &times;
-            </button>
-          </div>
-        ))}
+        <div className={styles.autocolmax}>
+          {node.config.strategies.map((strategy, index) => (
+            <React.Fragment key={strategy.type}>
+              <div>{strategy.type}</div>
+              <div>
+                <input
+                  className="textinput"
+                  type="text"
+                  readOnly
+                  value={JSON.stringify(strategy.config)}
+                ></input>
+              </div>
+              <div>
+                <button
+                  className="buttonauto button"
+                  onClick={() => {
+                    node.config.strategies = [
+                      ...node.config.strategies.slice(0, index),
+                      ...node.config.strategies.slice(index + 1),
+                    ];
+                    onSave();
+                  }}
+                >
+                  &times; Remove Strategy
+                </button>
+              </div>
+            </React.Fragment>
+          ))}
+        </div>
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -1384,23 +1390,52 @@ const StrategyEditor = ({
           }}
         >
           <h2 className={cx(styles.uiHeader, 'mTop1')}>Add Strategy</h2>
-          <select name="strategy" className={styles.uiInput}>
-            {Object.entries(StrategyType).map(([name, value]) => (
-              <option key={name} value={value}>
-                {name}
-              </option>
-            ))}
-          </select>
-          <input
-            className={styles.uiInput}
-            type="text"
-            name="config"
-            defaultValue="{}"
-          ></input>
-          <button className={styles.formButton} type="submit">
-            Add
-          </button>
+          <div className={styles.colcolauto}>
+            <div>
+              <select name="strategy" className="select">
+                {Object.entries(StrategyType).map(([name, value]) => (
+                  <option key={name} value={value}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <input
+                className="textinput"
+                type="text"
+                name="config"
+                defaultValue="{}"
+              ></input>
+            </div>
+            <div>
+              <button className="buttonauto button" type="submit">
+                Add
+              </button>
+            </div>
+          </div>
         </form>
+      </div>
+      <div className={styles.uiGroup}>
+        <div className="inlinecontrol">
+          <div>
+            <label className="label" htmlFor="epo">
+              Expression only?
+            </label>
+          </div>
+          <div>
+            <input
+              id="epo"
+              className="checkbox"
+              type="checkbox"
+              checked={node.expressionOnly}
+              onChange={(event) => {
+                node.expressionOnly = event.currentTarget.checked;
+                onSave();
+              }}
+            />
+          </div>
+        </div>
       </div>
       <div className={styles.uiGroup}>
         <h2 className={styles.uiHeader}>Node Inputs</h2>

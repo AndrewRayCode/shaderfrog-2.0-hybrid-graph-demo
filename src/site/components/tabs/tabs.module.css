@@ -1,22 +1,21 @@
 .tab_tabs {
   display: grid;
-  background: linear-gradient(#3f3f3f, #333);
-  box-shadow: inset 0 1px 0px #555;
+  background: linear-gradient(#222, #111);
   grid-auto-flow: column;
   color: #fff;
   grid-auto-columns: max-content;
   border-bottom: 1px solid #000;
 }
-
 .tab_tab {
-  background: linear-gradient(#444, #333);
-  border-radius: 4px 4px 0 0;
-  box-shadow: inset 0 1px #444, inset 0 2px #555;
+  max-height: 28px;
+  border-radius: 6px 6px 0 0;
   border-right: 1px solid #000;
   padding: 5px 10px;
   font-size: 14px;
   cursor: pointer;
-  text-shadow: 0 0 1px #000;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.9), inset 0 1px rgba(255, 255, 255, 0.15);
+  text-shadow: -1px -1px 0 #000;
+  background: linear-gradient(rgba(63, 63, 63, 1), rgba(46, 46, 46, 1));
 }
 
 .tab_tab:hover {

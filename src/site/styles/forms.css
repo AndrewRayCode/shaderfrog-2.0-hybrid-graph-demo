@@ -1,0 +1,135 @@
+.inlinecontrol {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px;
+}
+
+.label {
+  line-height: 25px;
+  color: #ccc;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+.label:not([for='']) {
+  cursor: pointer;
+}
+
+.select,
+.input,
+.checkbox,
+.textinput,
+.button {
+  line-height: 18px;
+  box-sizing: border-box;
+  color: #eee;
+  font-size: 14px;
+  padding: 4px;
+  border-radius: 4px;
+  border: 0 none;
+}
+
+.button {
+  cursor: pointer;
+  width: 100%;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.9), inset 0 1px rgba(255, 255, 255, 0.15);
+  text-shadow: -1px -1px 0 #000;
+  background: linear-gradient(rgba(60, 70, 60, 1), rgba(42, 50, 42, 1));
+}
+.button:hover {
+  background: linear-gradient(rgba(40, 80, 40, 1), rgba(45, 60, 45, 1));
+}
+.buttonauto {
+  width: auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+.select {
+  cursor: pointer;
+  width: 100%;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.9), inset 0 1px rgba(255, 255, 255, 0.15);
+  text-shadow: -1px -1px 0 #000;
+  background: linear-gradient(rgba(63, 63, 63, 1), rgba(46, 46, 46, 1));
+}
+.select:hover {
+  background: linear-gradient(rgba(70, 70, 70, 1), rgba(51, 51, 51, 1));
+}
+
+.select,
+.input,
+.textinput {
+  width: 100%;
+}
+
+.textinput {
+  background: linear-gradient(rgba(46, 46, 46, 1), rgba(68, 68, 68, 1));
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.9), inset 0 1px rgba(255, 255, 255, 0.15);
+  appearance: none;
+}
+.textinput[readonly] {
+  color: #ccc;
+  background: linear-gradient(rgba(60, 60, 60, 1), rgba(62, 62, 62, 1));
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.9), inset 0 1px rgba(255, 255, 255, 0.15);
+}
+
+.checkbox {
+  margin: 0;
+  cursor: pointer;
+  position: relative;
+  top: 4px;
+  background: linear-gradient(rgba(46, 46, 46, 1), rgba(68, 68, 68, 1));
+
+  /* Add if not using autoprefixer */
+  -webkit-appearance: none;
+  /* Remove most all native input styles */
+  appearance: none;
+  /* For iOS < 15 */
+  background-color: var(--form-background);
+  /* Not removed via appearance */
+  margin: 0;
+
+  font: inherit;
+  color: currentColor;
+  width: 1.15em;
+  height: 1.15em;
+  border: 0 none;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.9), inset 0 1px rgba(255, 255, 255, 0.15);
+
+  display: grid;
+  place-content: center;
+}
+
+.checkbox:hover {
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.9), inset 0 1px rgba(255, 255, 255, 0.15),
+    inset 0 0 10px rgba(255, 255, 255, 0.1);
+}
+
+/* Checkmark (hidden by default) */
+.checkbox::before {
+  content: '';
+  width: 0.65em;
+  height: 0.65em;
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+  transform: scale(0);
+  transform-origin: center center;
+  transition: 40ms transform ease-in-out;
+  box-shadow: inset 1px 1px 5px rgba(0, 0, 0, 0.8);
+  /* Windows High Contrast Mode */
+  background-color: rgb(47, 255, 0);
+}
+
+.checkbox:checked::before {
+  transform: scale(1);
+}
+
+.checkbox:focus {
+  outline: none;
+  outline-offset: max(2px, 0.15em);
+}
+
+.checkbox:disabled {
+  --form-control-color: var(--form-control-disabled);
+
+  color: var(--form-control-disabled);
+  cursor: not-allowed;
+}

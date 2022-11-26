@@ -54,6 +54,7 @@ import {
   texture2DStrategy,
   uniformStrategy,
 } from '../../core/strategy';
+import { serpentF, serpentV } from '../../shaders/serpentNode';
 
 const compileGraphAsync = async (
   graph: Graph,
@@ -272,6 +273,8 @@ const createGraphNode = (
       checkerboardF(id, position),
       checkerboardV(makeId(), id, position),
     ];
+  } else if (nodeDataType === 'serpent') {
+    newGns = [serpentF(id, position), serpentV(makeId(), id, position)];
   } else if (nodeDataType === 'cubemapReflection') {
     newGns = [
       cubemapReflectionF(id, position),

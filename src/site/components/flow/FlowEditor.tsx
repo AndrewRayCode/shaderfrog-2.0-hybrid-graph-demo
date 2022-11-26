@@ -240,6 +240,7 @@ const ctxNodes: Menu = [
       ['Cube Map Reflection', 'cubemapReflection'],
       ['Phong', 'phong'],
       ['Toon', 'toon'],
+      ['Serpent', 'serpent'],
       ['Fireball', 'fireNode'],
       ['Checkerboard', 'checkerboardF'],
       ['Fluid Circles', 'fluidCirclesNode'],

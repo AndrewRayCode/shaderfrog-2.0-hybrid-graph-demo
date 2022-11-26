@@ -221,6 +221,21 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         3,
         3
       ),
+      pebbles: repeat(
+        new three.TextureLoader().load('/Big_pebbles_pxr128.jpeg'),
+        3,
+        3
+      ),
+      pebblesNormal: repeat(
+        new three.TextureLoader().load('/Big_pebbles_pxr128_normal.jpeg'),
+        3,
+        3
+      ),
+      pebblesBump: repeat(
+        new three.TextureLoader().load('/Big_pebbles_pxr128_bmp.jpeg'),
+        3,
+        3
+      ),
       pondCubeMap: new three.CubeTextureLoader()
         .setPath('/envmaps/pond/')
         .load([

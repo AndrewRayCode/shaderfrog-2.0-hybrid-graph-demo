@@ -1055,7 +1055,7 @@ const Editor: React.FC = () => {
           {isLocal ? (
             <>
               <button
-                className="buttonauto button"
+                className="buttonauto formbutton"
                 onClick={() => {
                   if (!ctx) {
                     return;
@@ -1130,7 +1130,7 @@ const Editor: React.FC = () => {
                 <div className={styles.splitInner}>
                   <div className={styles.editorControls}>
                     <button
-                      className="buttonauto button"
+                      className="buttonauto formbutton"
                       onClick={() =>
                         compile(
                           engine,
@@ -1358,7 +1358,7 @@ const StrategyEditor = ({
               </div>
               <div>
                 <button
-                  className="buttonauto button"
+                  className="buttonauto formbutton"
                   onClick={() => {
                     node.config.strategies = [
                       ...node.config.strategies.slice(0, index),
@@ -1409,7 +1409,7 @@ const StrategyEditor = ({
               ></input>
             </div>
             <div>
-              <button className="buttonauto button" type="submit">
+              <button className="buttonauto formbutton" type="submit">
                 Add
               </button>
             </div>

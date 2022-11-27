@@ -18,7 +18,7 @@
 .input,
 .checkbox,
 .textinput,
-.button {
+.formbutton {
   line-height: 18px;
   box-sizing: border-box;
   color: #eee;
@@ -28,14 +28,16 @@
   border: 0 none;
 }
 
-.button {
+/* "button" is a default css class of monaco/vscode editor and causes conflicts,
+   which is why this is instead 'formbutton' */
+.formbutton {
   cursor: pointer;
   width: 100%;
   box-shadow: 0 0 2px rgba(0, 0, 0, 0.9), inset 0 1px rgba(255, 255, 255, 0.15);
   text-shadow: -1px -1px 0 #000;
   background: linear-gradient(rgba(60, 70, 60, 1), rgba(42, 50, 42, 1));
 }
-.button:hover {
+.formbutton:hover {
   background: linear-gradient(rgba(40, 80, 40, 1), rgba(45, 60, 45, 1));
 }
 .buttonauto {

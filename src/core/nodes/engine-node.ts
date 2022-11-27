@@ -52,8 +52,7 @@ export const outputNode = (
   id: string,
   name: string,
   position: NodePosition,
-  stage: ShaderStage,
-  nextStageNodeId?: string
+  stage: ShaderStage
 ): CodeNode => ({
   id,
   name,
@@ -100,7 +99,6 @@ void main() {
 }
 `,
   stage,
-  nextStageNodeId,
 });
 
 export const expressionNode = (

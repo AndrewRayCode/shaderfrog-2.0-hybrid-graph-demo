@@ -8,11 +8,18 @@ import {
   applyStrategy,
   strategyRunners,
   StrategyType,
+  texture2DStrategy,
 } from './src/core/strategy';
 import * as graphModule from './src/core/graph';
-import { Graph, evaluateNode } from './src/core/graph';
+import {
+  Graph,
+  evaluateNode,
+  ShaderStage,
+  compileGraph,
+  computeAllContexts,
+} from './src/core/graph';
 import { shaderSectionsToAst } from './src/ast/shader-sections';
-import { addNode } from './src/core/nodes/engine-node';
+import { addNode, outputNode, sourceNode } from './src/core/nodes/engine-node';
 import {
   makeExpression,
   returnGlPositionVec3Right,
@@ -26,6 +33,8 @@ import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
 import { numberNode } from './src/core/nodes/data-nodes';
 import { makeEdge } from './src/core/nodes/edge';
 import { SourceNode } from './src/core/nodes/code-nodes';
+import { threngine } from './src/plugins/three/threngine';
+import { EngineContext } from './src/core/engine';
 
 const inspect = (thing: any): void =>
   console.log(util.inspect(thing, false, null, true));
@@ -51,15 +60,83 @@ const dedupe = (code: string) =>
   );
 
 let counter = 0;
+const p = { x: 0, y: 0 };
 const id = () => '' + counter++;
+
+it('helo', () => {
+  const graph: Graph = {
+    nodes: [
+      outputNode('0', 'Output v', p, 'vertex'),
+      outputNode('1', 'Output f', p, 'fragment'),
+      makeSourceNode(
+        '2',
+        `uniform sampler2D image1;
+uniform sampler2D image2;
+void main() {
+  vec3 col = texture2D(image1, posTurn - 0.4 * time).rgb + 1.0;
+  vec3 col = texture2D(image2, negTurn - 0.4 * time).rgb + 2.0;
+}
+`,
+        'fragment'
+      ),
+      makeSourceNode(
+        '3',
+        `void main() {
+    return vec4(0.0);
+}
+`,
+        'fragment'
+      ),
+      makeSourceNode(
+        '4',
+        `void main() {
+    return vec4(1.0);
+}
+`,
+        'fragment'
+      ),
+    ],
+    edges: [
+      makeEdge(id(), '2', '1', 'out', 'filler_frogFragOut', 'fragment'),
+      makeEdge(id(), '3', '2', 'out', 'filler_image1', 'fragment'),
+      makeEdge(id(), '4', '2', 'out', 'filler_image2', 'fragment'),
+    ],
+  };
+  const engine = {
+    name: 'three',
+    mergeOptions: {
+      includePrecisions: true,
+      includeVersion: true,
+    },
+    importers: {},
+    preserve: new Set<string>(),
+    parsers: {},
+  };
+  const engineContext: EngineContext = {
+    engine: 'three',
+    compileCount: 0,
+    nodes: {},
+    runtime: {},
+    debuggingNonsense: {},
+  };
+
+  const result = compileGraph(engineContext, engine, graph);
+  const built = generate(
+    shaderSectionsToAst(result.fragment, {
+      includePrecisions: true,
+      includeVersion: true,
+    }).program
+  );
+  expect(built).toBe('hi');
+});
 
 describe('evaluateNode()', () => {
   it('should do the thing', () => {
-    const finalAdd = addNode(id());
-    const add2 = addNode(id());
-    const num1 = numberNode(id(), 'number', '3');
-    const num2 = numberNode(id(), 'number', '5');
-    const num3 = numberNode(id(), 'number', '7');
+    const finalAdd = addNode(id(), p);
+    const add2 = addNode(id(), p);
+    const num1 = numberNode(id(), 'number', p, '3');
+    const num2 = numberNode(id(), 'number', p, '5');
+    const num3 = numberNode(id(), 'number', p, '7');
     const graph: Graph = {
       nodes: [num1, num2, num3, finalAdd, add2],
       edges: [
@@ -153,6 +230,7 @@ void main() {
 
     // It should find uniforms with simple types, excluding sampler2D
     expect(fillers.map(([{ displayName: name }]) => name)).toEqual([
+      'image',
       'input',
       'output',
       'other',
@@ -215,6 +293,7 @@ void main() {
     ).toEqual(['noiseImage_0', 'noiseImage_1']);
   });
 });
+
 // const sourceToGraphWithOutputHelper = (fragment: string): Graph => ({
 //   nodes: [
 //     outputNode('1', 'Output f', {}, 'fragment'),
@@ -591,3 +670,22 @@ test('previous attempt to use reduceGraph', () => {
   expect(built).toEqual('xxx');
 });
 */
+
+const makeSourceNode = (
+  id: string,
+  source: string,
+  stage: ShaderStage,
+  strategies = [texture2DStrategy()]
+) =>
+  sourceNode(
+    id,
+    'Shader',
+    p,
+    {
+      version: 2,
+      preprocess: false,
+      strategies,
+    },
+    source,
+    stage
+  );

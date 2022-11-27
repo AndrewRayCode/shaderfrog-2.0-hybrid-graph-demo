@@ -259,7 +259,7 @@ export const coreParsers: CoreParser = {
               .body.statements.unshift(makeFnStatement(generate(fillerAst)));
             return ast;
           },
-        ],
+        ] as ComputedInput,
       ];
     },
     produceFiller: (node, ast) => {
@@ -463,7 +463,10 @@ export const prepopulatePropertyInputs = (node: CodeNode): CodeNode => ({
  * Recursively filter the graph, starting from a specific node, looking for
  * nodes and edges that match predicates. This function returns the inputs for
  * matched edges, not the edges themselves, as a convenience for the only
- * consumer of this function, which is finding input names to use as uniforms
+ * consumer of this function, which is finding input names to use as uniforms.
+ *
+ * Inputs can only be filtered if the graph context has been computed, since
+ * inputs aren't created until then.
  */
 export const filterGraphFromNode = (
   graph: Graph,
@@ -480,18 +483,17 @@ export const filterGraphFromNode = (
       : {}),
   };
 
-  return inputs.reduce<SearchResult>(
-    (acc, input) => {
-      const inputEdge = inputEdges.find(
-        (inputEdge) => inputEdge.input == input.id
-      );
+  return inputEdges.reduce<SearchResult>(
+    (acc, inputEdge) => {
+      const input = inputs.find((i) => i.id === inputEdge.input);
       const fromNode = inputEdge
         ? ensure(graph.nodes.find(({ id }) => id === inputEdge.from))
         : undefined;
 
       const inputAcc = {
         ...acc.inputs,
-        ...(predicates.input &&
+        ...(input &&
+        predicates.input &&
         predicates.input(input, node, inputEdge, fromNode)
           ? { [node.id]: [...(acc.inputs[node.id] || []), input] }
           : {}),

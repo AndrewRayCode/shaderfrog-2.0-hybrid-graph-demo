@@ -5,7 +5,7 @@ import {
   UniformDataType,
 } from '../core/nodes/data-nodes';
 import { sourceNode } from '../core/nodes/engine-node';
-import { uniformStrategy } from '../core/strategy';
+import { texture2DStrategy, uniformStrategy } from '../core/strategy';
 
 const serpentF = (id: string, position: NodePosition) =>
   sourceNode(
@@ -15,7 +15,7 @@ const serpentF = (id: string, position: NodePosition) =>
     {
       version: 2,
       preprocess: true,
-      strategies: [uniformStrategy()],
+      strategies: [uniformStrategy(), texture2DStrategy()],
       uniforms: [
         numberUniformData('lineWidth', '0.5'),
         numberUniformData('tiling', '4.9'),

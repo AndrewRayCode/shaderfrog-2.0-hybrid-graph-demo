@@ -371,7 +371,7 @@ export const strategyRunners: Strategies = {
           ) {
             if (!path.parent) {
               throw new Error(
-                'This is impossible a function call always has a parent'
+                'This error is impossible. A function call always has a parent.'
               );
             }
 

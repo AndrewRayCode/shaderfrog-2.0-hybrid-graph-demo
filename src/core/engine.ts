@@ -1,8 +1,8 @@
-import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
-import { AstNode } from '@shaderfrog/glsl-parser/dist/ast';
+import { Program } from '@shaderfrog/glsl-parser/ast';
+import { AstNode } from '@shaderfrog/glsl-parser/ast';
 import { MergeOptions } from '../ast/shader-sections';
 import { Graph, NodeParser } from './graph';
-import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor';
+import preprocess from '@shaderfrog/glsl-parser/preprocessor';
 import { generate, parser } from '@shaderfrog/glsl-parser';
 import { ShaderStage, GraphNode, NodeType } from './graph';
 import { NodeInput } from './nodes/core-node';
@@ -27,7 +27,7 @@ export interface Engine {
 }
 
 export type NodeContext = {
-  ast: AstNode | ParserProgram;
+  ast: AstNode | Program;
   source?: string;
   // Inputs are determined at parse time and should probably be in the graph,
   // not here on the runtime context for the node
@@ -52,7 +52,7 @@ export type EngineContext = {
 };
 
 export type EngineImporter = {
-  convertAst(ast: ParserProgram, type?: ShaderStage): void;
+  convertAst(ast: Program, type?: ShaderStage): void;
   edgeMap: { [oldInput: string]: string };
 };
 export type EngineImporters = {

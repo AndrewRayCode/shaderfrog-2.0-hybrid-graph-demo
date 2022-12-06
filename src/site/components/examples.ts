@@ -5,32 +5,23 @@ import {
   numberNode,
   numberUniformData,
   textureNode,
-  textureUniformData,
-  vectorNode,
   vectorUniformData,
 } from '../../core/nodes/data-nodes';
 import { makeEdge } from '../../core/nodes/edge';
 import {
   outputNode,
   physicalNode,
-  sourceNode,
   toonNode,
 } from '../../core/nodes/engine-node';
 import { fireFrag, fireVert } from '../../shaders/fireNode';
-import fluidCirclesNode from '../../shaders/fluidCirclesNode';
 import {
   heatShaderFragmentNode,
   heatShaderVertexNode,
   variation1 as heatmapV1,
 } from '../../shaders/heatmapShaderNode';
-import perlinCloudsFNode from '../../shaders/perlinClouds';
-import { hellOnEarthFrag, hellOnEarthVert } from '../../shaders/hellOnEarth';
-import { outlineShaderF, outlineShaderV } from '../../shaders/outlineShader';
 import purpleNoiseNode from '../../shaders/purpleNoiseNode';
-import solidColorNode from '../../shaders/solidColorNode';
 import staticShaderNode, { variation1 } from '../../shaders/staticShaderNode';
 import { makeId } from '../../util/id';
-import { texture2DStrategy, uniformStrategy } from '../../core/strategy';
 import { checkerboardF, checkerboardV } from '../../shaders/checkboardNode';
 import normalMapify from '../../shaders/normalmapifyNode';
 
@@ -54,13 +45,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
       { x: 434, y: -97 },
       'fragment'
     );
-    const outputV = outputNode(
-      makeId(),
-      'Output',
-      { x: 434, y: 20 },
-      'vertex',
-      outputF.id
-    );
+    const outputV = outputNode(makeId(), 'Output', { x: 434, y: 20 }, 'vertex');
 
     const physicalGroupId = makeId();
     const physicalF = physicalNode(
@@ -245,13 +230,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
       { x: 434, y: -97 },
       'fragment'
     );
-    const outputV = outputNode(
-      makeId(),
-      'Output',
-      { x: 434, y: 16 },
-      'vertex',
-      outputF.id
-    );
+    const outputV = outputNode(makeId(), 'Output', { x: 434, y: 16 }, 'vertex');
 
     const toonGroupId = makeId();
     const toonF = toonNode(
@@ -331,13 +310,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
       { x: 434, y: -97 },
       'fragment'
     );
-    const outputV = outputNode(
-      makeId(),
-      'Output',
-      { x: 434, y: 16 },
-      'vertex',
-      outputF.id
-    );
+    const outputV = outputNode(makeId(), 'Output', { x: 434, y: 16 }, 'vertex');
 
     const physicalGroupId = makeId();
     const physicalF = physicalNode(
@@ -409,13 +382,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
       { x: 434, y: -97 },
       'fragment'
     );
-    const outputV = outputNode(
-      makeId(),
-      'Output',
-      { x: 434, y: 16 },
-      'vertex',
-      outputF.id
-    );
+    const outputV = outputNode(makeId(), 'Output', { x: 434, y: 16 }, 'vertex');
 
     const nMap = normalMapify(makeId(), { x: -185, y: 507 });
 
@@ -525,13 +492,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
       { x: 434, y: -97 },
       'fragment'
     );
-    const outputV = outputNode(
-      makeId(),
-      'Output',
-      { x: 434, y: 20 },
-      'vertex',
-      outputF.id
-    );
+    const outputV = outputNode(makeId(), 'Output', { x: 434, y: 20 }, 'vertex');
 
     const physicalGroupId = makeId();
     const physicalF = physicalNode(
@@ -697,13 +658,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
       { x: 434, y: -97 },
       'fragment'
     );
-    const outputV = outputNode(
-      makeId(),
-      'Output',
-      { x: 434, y: 20 },
-      'vertex',
-      outputF.id
-    );
+    const outputV = outputNode(makeId(), 'Output', { x: 434, y: 20 }, 'vertex');
 
     const physicalGroupId = makeId();
     const physicalF = physicalNode(

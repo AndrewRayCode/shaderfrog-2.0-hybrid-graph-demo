@@ -1,4 +1,4 @@
-import { renameBindings } from '@shaderfrog/glsl-parser/dist/parser/utils';
+import { renameBindings } from '@shaderfrog/glsl-parser/parser/utils';
 import { EngineImporters } from '../../core/engine';
 
 const importers: EngineImporters = {

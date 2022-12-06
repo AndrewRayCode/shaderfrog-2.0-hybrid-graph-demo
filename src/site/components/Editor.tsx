@@ -163,6 +163,8 @@ const SMALL_SCREEN_WIDTH = 500;
  *     set a different value in the fragment vs vertex uniform...
  *   - Make properties "shadow" the uniforms the control to hide the uniforms
  *     on the node inputs
+ *   - Add Graph Index data type to avoid re-indexing nodes by ID, filtering
+ *     nodes everywhere
  *
  * Features
  * - Ability to export shaders + use in engine

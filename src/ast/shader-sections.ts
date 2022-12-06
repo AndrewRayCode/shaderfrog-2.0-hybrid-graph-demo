@@ -1,19 +1,22 @@
 /**
  * Categorizing / deduping parts of shaders to help merge them together
  */
-import { AstNode } from '@shaderfrog/glsl-parser/dist/ast';
+import {
+  AstNode,
+  DeclarationStatementNode,
+  PreprocessorNode,
+} from '@shaderfrog/glsl-parser/ast';
 import { generate } from '@shaderfrog/glsl-parser';
 import { makeStatement } from './manipulate';
-import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
-
+import { Program } from '@shaderfrog/glsl-parser/ast';
 export interface ShaderSections {
-  precision: AstNode[];
+  precision: DeclarationStatementNode[];
   version: AstNode[];
-  preprocessor: AstNode[];
+  preprocessor: PreprocessorNode[];
   structs: AstNode[];
-  inStatements: AstNode[];
-  outStatements: AstNode[];
-  uniforms: AstNode[];
+  inStatements: DeclarationStatementNode[];
+  outStatements: DeclarationStatementNode[];
+  uniforms: DeclarationStatementNode[];
   program: AstNode[];
 }
 
@@ -38,7 +41,9 @@ export const higherPrecision = (p1: Precision, p2: Precision): Precision =>
   Precision[p1] > Precision[p2] ? p1 : p2;
 
 export const dedupeVersions = (nodes: AstNode[]): AstNode => nodes[0];
-export const highestPrecisions = (nodes: AstNode[]): AstNode[] =>
+export const highestPrecisions = (
+  nodes: DeclarationStatementNode[]
+): DeclarationStatementNode[] =>
   Object.entries(
     nodes.reduce(
       (precisions, stmt) => ({
@@ -51,12 +56,15 @@ export const highestPrecisions = (nodes: AstNode[]): AstNode[] =>
       }),
       {} as { [type: string]: Precision }
     )
-  ).map(([typeName, precision]) =>
-    makeStatement(`precision ${precision} ${typeName}`)
+  ).map(
+    ([typeName, precision]) =>
+      makeStatement(
+        `precision ${precision} ${typeName}`
+      ) as DeclarationStatementNode
   );
 
 export const dedupeQualifiedStatements = (
-  statements: AstNode[],
+  statements: DeclarationStatementNode[],
   qualifier: string
 ): any =>
   Object.entries(
@@ -69,7 +77,7 @@ export const dedupeQualifiedStatements = (
             stmt.declaration.specified_type.specifier.specifier.token
           ] || {}),
           ...stmt.declaration.declarations.reduce(
-            (types: { [typeName: string]: string }, decl: AstNode) => ({
+            (types: { [typeName: string]: string }, decl: any) => ({
               ...types,
               [decl.identifier.identifier]: true,
             }),
@@ -95,7 +103,7 @@ type UniformGroup = Record<string, UniformName>;
  * This function consumes uniforms as found by findShaderSections, so the
  * definitions must line up
  */
-export const dedupeUniforms = (statements: AstNode[]): any => {
+export const dedupeUniforms = (statements: DeclarationStatementNode[]): any => {
   const groupedByTypeName = Object.entries(
     statements.reduce<UniformGroup>((stmts, stmt) => {
       const { specified_type } = stmt.declaration;
@@ -111,7 +119,7 @@ export const dedupeUniforms = (statements: AstNode[]): any => {
         // uniform names into an object where the keys determine uniqueness
         // "vec2": { x: x[1] }
         const grouped = (
-          stmt.declaration.declarations as AstNode[]
+          stmt.declaration.declarations as any[]
         ).reduce<UniformName>(
           (types, decl) => ({
             ...types,
@@ -155,6 +163,8 @@ export const dedupeUniforms = (statements: AstNode[]): any => {
                 type: 'interface_declarator',
                 lp: stmt.declaration.lp,
                 declarations: stmt.declaration.declarations,
+                qualifiers: null,
+                interface_type: null,
                 rp: stmt.declaration.rp,
               })}${interfaceDeclaredUniform}`,
               hasInterface: true,
@@ -200,31 +210,24 @@ export type MergeOptions = {
   includeVersion: boolean;
 };
 
-export const shaderSectionsToAst = (
+export const shaderSectionsToProgram = (
   sections: ShaderSections,
   mergeOptions: MergeOptions
-): ParserProgram => ({
+): Program => ({
   type: 'program',
   scopes: [],
   program: [
-    {
-      type: 'program',
-      program: [
-        ...(mergeOptions.includeVersion
-          ? [dedupeVersions(sections.version)]
-          : []),
-        ...(mergeOptions.includePrecisions
-          ? highestPrecisions(sections.precision)
-          : []),
-        ...sections.preprocessor,
-        // Structs before ins and uniforms as they can reference structs
-        ...sections.structs,
-        ...dedupeQualifiedStatements(sections.inStatements, 'in'),
-        ...dedupeQualifiedStatements(sections.outStatements, 'out'),
-        ...dedupeUniforms(sections.uniforms),
-        ...sections.program,
-      ],
-    },
+    ...(mergeOptions.includeVersion ? [dedupeVersions(sections.version)] : []),
+    ...(mergeOptions.includePrecisions
+      ? highestPrecisions(sections.precision)
+      : []),
+    ...sections.preprocessor,
+    // Structs before ins and uniforms as they can reference structs
+    ...sections.structs,
+    ...dedupeQualifiedStatements(sections.inStatements, 'in'),
+    ...dedupeQualifiedStatements(sections.outStatements, 'out'),
+    ...dedupeUniforms(sections.uniforms),
+    ...sections.program,
   ],
 });
 
@@ -232,7 +235,7 @@ export const shaderSectionsToAst = (
  * Group an AST into logical sections. The output of this funciton is consumed
  * by the dedupe methods, namely dedupeUniforms, so the data shapes are coupled
  */
-export const findShaderSections = (ast: ParserProgram): ShaderSections => {
+export const findShaderSections = (ast: Program): ShaderSections => {
   const initialValue: ShaderSections = {
     precision: [],
     preprocessor: [],
@@ -277,16 +280,14 @@ export const findShaderSections = (ast: ParserProgram): ShaderSections => {
       node.type === 'declaration_statement' &&
       // Ignore lines like "layout(std140,column_major) uniform;"
       !node.declaration?.qualifiers?.find(
-        (q: AstNode) => q.layout?.token === 'layout'
+        (q: any) => q.layout?.token === 'layout'
       ) &&
       // One of these checks is for a uniform with an interface block, and the
       // other is for vanilla uniforms. I don't remember which is which
       (node.declaration?.specified_type?.qualifiers?.find(
-        (n: AstNode) => n.token === 'uniform'
+        (n: any) => n.token === 'uniform'
       ) ||
-        node.declaration?.qualifiers?.find(
-          (n: AstNode) => n.token === 'uniform'
-        ))
+        node.declaration?.qualifiers?.find((n: any) => n.token === 'uniform'))
     ) {
       return {
         ...sections,
@@ -295,7 +296,7 @@ export const findShaderSections = (ast: ParserProgram): ShaderSections => {
     } else if (
       node.type === 'declaration_statement' &&
       node.declaration?.specified_type?.qualifiers?.find(
-        (n: AstNode) => n.token === 'in'
+        (n: any) => n.token === 'in'
       )
     ) {
       return {
@@ -305,7 +306,7 @@ export const findShaderSections = (ast: ParserProgram): ShaderSections => {
     } else if (
       node.type === 'declaration_statement' &&
       node.declaration?.specified_type?.qualifiers?.find(
-        (n: AstNode) => n.token === 'out'
+        (n: any) => n.token === 'out'
       )
     ) {
       return {

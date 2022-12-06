@@ -10,7 +10,7 @@ import { Edge as GraphEdge, EdgeType, makeEdge } from '../../core/nodes/edge';
 import { Engine, EngineContext, convertToEngine } from '../../core/engine';
 import { UICompileGraphResult } from '../uICompileGraphResult';
 import { generate } from '@shaderfrog/glsl-parser';
-import { shaderSectionsToAst } from '../../ast/shader-sections';
+import { shaderSectionsToProgram } from '../../ast/shader-sections';
 
 import {
   colorNode,
@@ -55,6 +55,8 @@ import {
   uniformStrategy,
 } from '../../core/strategy';
 import { serpentF, serpentV } from '../../shaders/serpentNode';
+import { badTvFrag } from '../../shaders/badTvNode';
+import whiteNoiseNode from '../../shaders/whiteNoiseNode';
 
 const compileGraphAsync = async (
   graph: Graph,
@@ -75,10 +77,10 @@ const compileGraphAsync = async (
         return reject(err);
       }
       const fragmentResult = generate(
-        shaderSectionsToAst(result.fragment, engine.mergeOptions).program
+        shaderSectionsToProgram(result.fragment, engine.mergeOptions).program
       );
       const vertexResult = generate(
-        shaderSectionsToAst(result.vertex, engine.mergeOptions).program
+        shaderSectionsToProgram(result.vertex, engine.mergeOptions).program
       );
 
       const dataInputs = filterGraphNodes(
@@ -268,6 +270,10 @@ const createGraphNode = (
     ];
   } else if (nodeDataType === 'fireNode') {
     newGns = [fireFrag(id, position), fireVert(makeId(), id, position)];
+  } else if (nodeDataType === 'badTv') {
+    newGns = [badTvFrag(id, position)];
+  } else if (nodeDataType === 'whiteNoiseNode') {
+    newGns = [whiteNoiseNode(id, position)];
   } else if (nodeDataType === 'checkerboardF') {
     newGns = [
       checkerboardF(id, position),

@@ -1,4 +1,4 @@
-import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
+import { Program } from '@shaderfrog/glsl-parser/ast';
 import { Graph, NodeParser, NodeType } from '../../core/graph';
 import importers from './importers';
 
@@ -113,7 +113,7 @@ const megaShaderMainpulateAst: NodeParser['manipulateAst'] = (
   ast,
   inputEdges
 ) => {
-  const programAst = ast as ParserProgram;
+  const programAst = ast as Program;
   const mainName = 'main' || nodeName(node);
   if (node.stage === 'vertex') {
     if (doesLinkThruShader(graph, node)) {
@@ -288,7 +288,7 @@ export const threngine: Engine = {
   parsers: {
     [NodeType.SOURCE]: {
       manipulateAst: (engineContext, engine, graph, node, ast, inputEdges) => {
-        const programAst = ast as ParserProgram;
+        const programAst = ast as Program;
         const mainName = 'main' || nodeName(node);
 
         // This hinges on the vertex shader calling vec3(p)

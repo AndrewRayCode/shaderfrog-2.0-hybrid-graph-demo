@@ -1,6 +1,11 @@
 import { generate } from '@shaderfrog/glsl-parser';
-import { visit, AstNode, NodeVisitors } from '@shaderfrog/glsl-parser/dist/ast';
-import { Scope, ScopeIndex } from '@shaderfrog/glsl-parser/dist/parser/parser';
+import {
+  visit,
+  AstNode,
+  NodeVisitors,
+  Program,
+} from '@shaderfrog/glsl-parser/ast';
+import { Scope, ScopeIndex } from '@shaderfrog/glsl-parser/parser/parser';
 import { findAssignmentTo, findDeclarationOf } from '../ast/manipulate';
 import { ComputedInput, GraphNode, mangleName } from './graph';
 import { SourceNode } from './nodes/code-nodes';
@@ -105,7 +110,7 @@ export type Strategy =
 
 type StrategyImpl = (
   node: SourceNode,
-  ast: AstNode,
+  ast: AstNode | Program,
   strategy: Strategy
 ) => ComputedInput[];
 
@@ -219,7 +224,7 @@ const mapUniformType = (type: string): GraphDataType | undefined => {
 export const applyStrategy = (
   strategy: Strategy,
   node: SourceNode,
-  ast: AstNode
+  ast: AstNode | Program
 ) => strategyRunners[strategy.type](node, ast, strategy);
 
 export const strategyRunners: Strategies = {
@@ -352,13 +357,12 @@ export const strategyRunners: Strategies = {
         ]
       : [];
   },
-  // todo: refactoring inputs out here
   [StrategyType.TEXTURE_2D]: (
     node: GraphNode,
     ast: AstNode,
     strategy: Strategy
   ) => {
-    let texture2Dcalls: [string, AstNode, string][] = [];
+    let texture2Dcalls: [string, AstNode, string, AstNode][] = [];
     const seen: { [key: string]: number } = {};
     const visitors: NodeVisitors = {
       function_call: {
@@ -375,11 +379,15 @@ export const strategyRunners: Strategies = {
               );
             }
 
-            // This function can get called after names are mangled, so remove
-            // any trailing shaderfrog suffix
             const name = generate(path.node.args[0]);
             seen[name] = (seen[name] || 0) + 1;
-            texture2Dcalls.push([name, path.parent, path.key]);
+            texture2Dcalls.push([
+              name,
+              path.parent,
+              path.key,
+              // Remove the first argument and comma
+              path.node.args.slice(2),
+            ]);
           }
         },
       },
@@ -392,16 +400,15 @@ export const strategyRunners: Strategies = {
       )
     );
     const inputs = texture2Dcalls.map<ComputedInput>(
-      ([name, parent, key], index) => {
+      ([name, parent, key, texture2dArgs], index) => {
+        // Suffix input name if it's used more than once
         const iName = names.has(name) ? `${name}_${index}` : name;
         return [
           nodeInput(
-            // Suffix a texture2d input name with its index if it's used more than
-            // once
             iName,
             `filler_${iName}`,
             'filler',
-            undefined, // Data type for what plugs into this filler
+            'vector4', // Data type for what plugs into this filler
             new Set<InputCategory>(['code', 'data']),
             false
           ),
@@ -409,6 +416,7 @@ export const strategyRunners: Strategies = {
             parent[key] = fillerAst;
             return ast;
           },
+          texture2dArgs,
         ];
       }
     );

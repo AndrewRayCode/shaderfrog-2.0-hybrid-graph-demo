@@ -13,9 +13,7 @@ varying vec2 vUv;
 varying vec2 vUv2;
 
 void main() {
-    // Fragment shaders set the gl_FragColor, which is a vector4 of
-    // ( red, green, blue, alpha ).
-    gl_FragColor = vec4( tan(vNormal*time*time), 1.0 );
+    gl_FragColor = vec4( clamp(tan(vNormal*time*time), vec3(0.0), vec3(1.0)), 1.0 );
 }
 `;
 

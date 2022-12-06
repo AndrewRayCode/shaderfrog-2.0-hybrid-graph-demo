@@ -2,8 +2,8 @@
  * Utility functions to work with ASTs
  */
 import { parser, generate } from '@shaderfrog/glsl-parser';
-import { visit, AstNode, NodeVisitors } from '@shaderfrog/glsl-parser/dist/ast';
-import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
+import { visit, AstNode, NodeVisitors } from '@shaderfrog/glsl-parser/ast';
+import { Program } from '@shaderfrog/glsl-parser/ast';
 import { ShaderStage } from '../core/graph';
 
 export const findVec4Constructor = (ast: AstNode): AstNode | undefined => {
@@ -63,7 +63,7 @@ export const findDeclarationOf = (
   return declaration;
 };
 
-export const from2To3 = (ast: ParserProgram, stage: ShaderStage) => {
+export const from2To3 = (ast: Program, stage: ShaderStage) => {
   const glOut = 'fragmentColor';
   // TODO: add this back in when there's only one after the merge
   // ast.program.unshift({
@@ -217,8 +217,8 @@ export const makeExpression = (expr: string): AstNode => {
   return ast.program[0].body.statements[0].expression.right;
 };
 
-export const makeExpressionWithScopes = (expr: string): ParserProgram => {
-  let ast: ParserProgram;
+export const makeExpressionWithScopes = (expr: string): Program => {
+  let ast: Program;
   try {
     ast = parser.parse(
       `void main() {
@@ -240,18 +240,18 @@ export const makeExpressionWithScopes = (expr: string): ParserProgram => {
   };
 };
 
-const findFn = (ast: ParserProgram, name: string): AstNode | undefined =>
+const findFn = (ast: Program, name: string): AstNode | undefined =>
   ast.program.find(
     (line) =>
       line.type === 'function' && line.prototype.header.name.identifier === name
   );
 
-export const returnGlPosition = (fnName: string, ast: ParserProgram): void =>
+export const returnGlPosition = (fnName: string, ast: Program): void =>
   convertVertexMain(fnName, ast, 'vec4', (assign) => assign.expression.right);
 
 export const returnGlPositionHardCoded = (
   fnName: string,
-  ast: ParserProgram,
+  ast: Program,
   returnType: string,
   hardCodedReturn: string
 ): void =>
@@ -259,10 +259,7 @@ export const returnGlPositionHardCoded = (
     makeExpression(hardCodedReturn)
   );
 
-export const returnGlPositionVec3Right = (
-  fnName: string,
-  ast: ParserProgram
-): void =>
+export const returnGlPositionVec3Right = (fnName: string, ast: Program): void =>
   convertVertexMain(fnName, ast, 'vec3', (assign) => {
     let found: AstNode | undefined;
     visit(assign, {
@@ -289,7 +286,7 @@ export const returnGlPositionVec3Right = (
 
 const convertVertexMain = (
   fnName: string,
-  ast: ParserProgram,
+  ast: Program,
   returnType: string,
   generateRight: (positionAssign: AstNode) => AstNode
 ) => {
@@ -320,10 +317,7 @@ const convertVertexMain = (
   main.body.statements.push(makeFnStatement(`return ${mainReturnVar}`));
 };
 
-export const convert300MainToReturn = (
-  fnName: string,
-  ast: ParserProgram
-): void => {
+export const convert300MainToReturn = (fnName: string, ast: Program): void => {
   const mainReturnVar = `frogOut`;
 
   // Find the output variable, as in "pc_fragColor" from  "out highp vec4 pc_fragColor;"

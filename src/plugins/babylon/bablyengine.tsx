@@ -8,7 +8,7 @@ import {
   returnGlPosition,
 } from '../../ast/manipulate';
 
-import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
+import { Program } from '@shaderfrog/glsl-parser/ast';
 import { SourceNode } from '../../core/nodes/code-nodes';
 
 export type RuntimeContext = {
@@ -149,7 +149,7 @@ const megaShaderMainpulateAst: NodeParser['manipulateAst'] = (
   // engineContext.debuggingNonsense.vertexSource = vertex;
   // engineContext.debuggingNonsense.vertexPreprocessed = vertexPreprocessed;
 
-  const programAst = ast as ParserProgram;
+  const programAst = ast as Program;
   const mainName = 'main' || nodeName(node);
 
   if (node.stage === 'vertex') {

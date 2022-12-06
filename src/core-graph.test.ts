@@ -1,7 +1,7 @@
 import util from 'util';
 
 import { parser } from '@shaderfrog/glsl-parser';
-import { visit, AstNode } from '@shaderfrog/glsl-parser/dist/ast';
+import { visit, AstNode } from '@shaderfrog/glsl-parser/ast';
 import { generate } from '@shaderfrog/glsl-parser';
 
 import {
@@ -9,42 +9,36 @@ import {
   strategyRunners,
   StrategyType,
   texture2DStrategy,
-} from './src/core/strategy';
-import * as graphModule from './src/core/graph';
+} from './core/strategy';
+import * as graphModule from './core/graph';
 import {
   Graph,
   evaluateNode,
   ShaderStage,
   compileGraph,
   computeAllContexts,
-} from './src/core/graph';
-import { shaderSectionsToAst } from './src/ast/shader-sections';
-import { addNode, outputNode, sourceNode } from './src/core/nodes/engine-node';
-import {
-  makeExpression,
-  returnGlPositionVec3Right,
-} from './src/ast/manipulate';
+} from './core/graph';
+import { shaderSectionsToProgram } from './ast/shader-sections';
+import { addNode, outputNode, sourceNode } from './core/nodes/engine-node';
+import { makeExpression, returnGlPositionVec3Right } from './ast/manipulate';
 
-import {
-  mergeShaderSections,
-  findShaderSections,
-} from './src/ast/shader-sections';
-import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
-import { numberNode } from './src/core/nodes/data-nodes';
-import { makeEdge } from './src/core/nodes/edge';
-import { SourceNode } from './src/core/nodes/code-nodes';
-import { threngine } from './src/plugins/three/threngine';
-import { EngineContext } from './src/core/engine';
+import { mergeShaderSections, findShaderSections } from './ast/shader-sections';
+import { Program } from '@shaderfrog/glsl-parser/ast';
+import { numberNode } from './core/nodes/data-nodes';
+import { makeEdge } from './core/nodes/edge';
+import { SourceNode } from './core/nodes/code-nodes';
+import { threngine } from './plugins/three/threngine';
+import { EngineContext } from './core/engine';
 
 const inspect = (thing: any): void =>
   console.log(util.inspect(thing, false, null, true));
 
-const mergeBlocks = (ast1: ParserProgram, ast2: ParserProgram): string => {
+const mergeBlocks = (ast1: Program, ast2: Program): string => {
   const s1 = findShaderSections(ast1);
   const s2 = findShaderSections(ast2);
   const merged = mergeShaderSections(s1, s2);
   return generate(
-    shaderSectionsToAst(merged, {
+    shaderSectionsToProgram(merged, {
       includePrecisions: true,
       includeVersion: true,
     })
@@ -53,7 +47,7 @@ const mergeBlocks = (ast1: ParserProgram, ast2: ParserProgram): string => {
 
 const dedupe = (code: string) =>
   generate(
-    shaderSectionsToAst(findShaderSections(parser.parse(code)), {
+    shaderSectionsToProgram(findShaderSections(parser.parse(code)), {
       includePrecisions: true,
       includeVersion: true,
     })
@@ -122,7 +116,7 @@ void main() {
 
   const result = compileGraph(engineContext, engine, graph);
   const built = generate(
-    shaderSectionsToAst(result.fragment, {
+    shaderSectionsToProgram(result.fragment, {
       includePrecisions: true,
       includeVersion: true,
     }).program
@@ -679,7 +673,7 @@ const makeSourceNode = (
 ) =>
   sourceNode(
     id,
-    'Shader',
+    `Shader ${id}`,
     p,
     {
       version: 2,

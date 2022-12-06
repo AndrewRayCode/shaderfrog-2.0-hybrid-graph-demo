@@ -1,17 +1,18 @@
 import { parser, generate } from '@shaderfrog/glsl-parser';
-import { ParserProgram } from '@shaderfrog/glsl-parser/dist/parser/parser';
 import groupBy from 'lodash.groupby';
 
 import {
   renameBindings,
   renameFunctions,
-} from '@shaderfrog/glsl-parser/dist/parser/utils';
+} from '@shaderfrog/glsl-parser/parser/utils';
 import {
   visit,
   AstNode,
   NodeVisitors,
   Path,
-} from '@shaderfrog/glsl-parser/dist/ast';
+  Program,
+  FunctionNode,
+} from '@shaderfrog/glsl-parser/ast';
 import { Engine, EngineContext } from './engine';
 import {
   emptyShaderSections,
@@ -19,7 +20,7 @@ import {
   mergeShaderSections,
   ShaderSections,
 } from '../ast/shader-sections';
-import preprocess from '@shaderfrog/glsl-parser/dist/preprocessor';
+import preprocess from '@shaderfrog/glsl-parser/preprocessor';
 import {
   convert300MainToReturn,
   from2To3,
@@ -59,7 +60,10 @@ export interface Graph {
 
 export const alphabet = 'abcdefghijklmnopqrstuvwxyz';
 
-export type NodeFiller = (node: SourceNode, ast: AstNode) => AstNode | void;
+export type NodeFiller = (
+  node: SourceNode,
+  ast: Program | AstNode
+) => AstNode | void;
 export const emptyFiller: NodeFiller = () => {};
 
 export const isDataNode = (node: GraphNode): node is DataNode =>
@@ -70,22 +74,27 @@ export const isSourceNode = (node: GraphNode): node is SourceNode =>
 
 export const MAGIC_OUTPUT_STMTS = 'mainStmts';
 
-export type InputFiller = (a: AstNode) => AstNode;
-export type InputFillers = Record<string, InputFiller>;
+export type InputFiller = (a: AstNode | Program) => AstNode | Program;
+export type InputFillerGroup = {
+  filler: InputFiller;
+  args?: AstNode;
+};
+export type InputFillers = Record<string, InputFillerGroup>;
 export type NodeContext = {
-  ast: AstNode | ParserProgram;
+  ast: AstNode | Program;
   source?: string;
   id: string;
   inputFillers: InputFillers;
   errors?: NodeErrors;
 };
 
-export type ComputedInput = [NodeInput, InputFiller];
+type FillerArguments = AstNode;
+export type ComputedInput = [NodeInput, InputFiller, FillerArguments?];
 
 export type FindInputs = (
   engineContext: EngineContext,
   node: SourceNode,
-  ast: AstNode,
+  ast: Program | AstNode,
   inputEdges: Edge[]
 ) => ComputedInput[];
 
@@ -102,7 +111,7 @@ export type ProduceAst = (
   graph: Graph,
   node: SourceNode,
   inputEdges: Edge[]
-) => AstNode | ParserProgram;
+) => AstNode | Program;
 
 export type Evaluator = (node: GraphNode) => any;
 export type Evaluate = (
@@ -124,9 +133,9 @@ export type ManipulateAst = (
   engine: Engine,
   graph: Graph,
   node: SourceNode,
-  ast: AstNode | ParserProgram,
+  ast: AstNode | Program,
   inputEdges: Edge[]
-) => AstNode | ParserProgram;
+) => AstNode | Program;
 
 export type NodeParser = {
   // cacheKey?: (graph: Graph, node: GraphNode, sibling?: GraphNode) => string;
@@ -176,12 +185,11 @@ export const mangleName = (name: string, node: GraphNode) => {
 export const mangleVar = (name: string, engine: Engine, node: GraphNode) =>
   engine.preserve.has(name) ? name : mangleName(name, node);
 
-export const mangle = (
-  ast: ParserProgram,
-  node: SourceNode,
-  engine: Engine
-) => {
-  renameBindings(ast.scopes[0], (name) => mangleVar(name, engine, node));
+export const mangle = (ast: Program, node: SourceNode, engine: Engine) => {
+  renameBindings(ast.scopes[0], (name, n) =>
+    // @ts-ignore
+    n.doNotDescope ? name : mangleVar(name, engine, node)
+  );
   renameFunctions(ast.scopes[0], (name) =>
     name === 'main' ? nodeName(node) : mangleName(name, node)
   );
@@ -229,7 +237,7 @@ export const coreParsers: CoreParser = {
     },
     produceFiller: (node, ast) => {
       return node.expressionOnly
-        ? ast.program
+        ? (ast as Program).program[0]
         : makeExpression(`${nodeName(node)}()`);
     },
   },
@@ -253,10 +261,11 @@ export const coreParsers: CoreParser = {
             new Set<InputCategory>(['code']),
             false
           ),
-          (fillerAst: AstNode) => {
-            ast.program
-              .find((stmt: AstNode) => stmt.type === 'function')
-              .body.statements.unshift(makeFnStatement(generate(fillerAst)));
+          (fillerAst) => {
+            const fn = (ast as Program).program.find(
+              (stmt): stmt is FunctionNode => stmt.type === 'function'
+            );
+            fn?.body.statements.unshift(makeFnStatement(generate(fillerAst)));
             return ast;
           },
         ] as ComputedInput,
@@ -269,7 +278,7 @@ export const coreParsers: CoreParser = {
   [NodeType.BINARY]: {
     produceAst: (engineContext, engine, graph, iNode, inputEdges) => {
       const node = iNode as BinaryNode;
-      const fragmentAst: AstNode = {
+      const fragmentAst: Program = {
         type: 'program',
         program: [
           makeExpression(
@@ -300,8 +309,8 @@ export const coreParsers: CoreParser = {
               new Set<InputCategory>(['data', 'code']),
               false
             ),
-            (fillerAst: AstNode) => {
-              let foundPath: Path | undefined;
+            (fillerAst) => {
+              let foundPath: Path<any> | undefined;
               const visitors: NodeVisitors = {
                 identifier: {
                   enter: (path) => {
@@ -319,17 +328,18 @@ export const coreParsers: CoreParser = {
               }
 
               if (foundPath.parent && foundPath.key) {
+                // @ts-ignore
                 foundPath.parent[foundPath.key] = fillerAst;
                 return ast;
               } else {
                 return fillerAst;
               }
             },
-          ];
+          ] as ComputedInput;
         });
     },
     produceFiller: (node, ast) => {
-      return ast.program;
+      return (ast as Program).program[0];
     },
     evaluate: (node, inputEdges, inputNodes, evaluateNode) => {
       const operator = (node as BinaryNode).operator;
@@ -645,7 +655,8 @@ export const compileNode = (
         continuation = mergeShaderSections(continuation, inputSections);
         compiledIds = { ...compiledIds, ...childIds };
 
-        let filler, fillerName;
+        let filler: InputFillerGroup;
+        let fillerName: string | undefined;
         if (nodeContext) {
           if (input.property) {
             fillerName = ensure(
@@ -669,7 +680,49 @@ export const compileNode = (
               `Node "${node.name}" has no filler for input "${input.displayName}" named ${fillerName}`
             );
           }
-          nodeContext.ast = filler(fillerAst);
+
+          /**
+           *      +------+    +------+
+           * a -- o add  o -- o tex  |
+           * b -- o      |    +------+
+           *      +------+
+           *
+           * This could produce:
+           *     main_a(v1) + main_b(v2)
+           * I guess it has to? or it could produce
+           *     function add(v1) { return main_a(v1) + main_b(v2); }
+           * It can't replace the arg _expression_ in the from shaders, because
+           * the expression isn't available there.
+          // TODO: This is a hard coded hack for vUv backfilling. It works in
+          // the simple case. Doesn't work for hell (based on world position).
+          if (filler.args && fillerAst.type === 'function_call') {
+            // Object.values(filterGraphFromNode(graph, node, {
+            //   node: (n) => n.type === 'source'
+            // }).nodes).forEach(sourceNode => {
+            if (fromNode.type === 'source') {
+              // @ts-ignore
+              fillerAst.args = filler.args;
+              // const fc = engineContext.nodes[sourceNode.id];
+              const fc = engineContext.nodes[fromNode.id];
+              // @ts-ignore
+              fc.ast.scopes[0].functions.main.references[0].prototype.parameters =
+                ['vec2 vv'];
+              // @ts-ignore
+              const scope = fc.ast.scopes[0];
+              renameBindings(scope, (name, node) => {
+                console.log('renaming binding', name);
+                return node.type !== 'declaration' && name === 'vUv'
+                  ? 'vv'
+                  : name;
+              });
+            }
+            // })
+          }
+          */
+
+          // Fill in the input! The return value is the new AST of the filled in
+          // fromNode.
+          nodeContext.ast = filler.filler(fillerAst);
         }
         // console.log(generate(ast.program));
       });
@@ -680,7 +733,7 @@ export const compileNode = (
       continuation,
       isDataNode(node) || (node as SourceNode).expressionOnly
         ? emptyShaderSections()
-        : findShaderSections(ast as ParserProgram)
+        : findShaderSections(ast as Program)
     );
 
     const filler = isDataNode(node)
@@ -695,7 +748,7 @@ export const compileNode = (
     const sections =
       isDataNode(node) || (node as SourceNode).expressionOnly
         ? emptyShaderSections()
-        : findShaderSections(ast as ParserProgram);
+        : findShaderSections(ast as Program);
 
     const filler = isDataNode(node)
       ? makeExpression(toGlsl(node))
@@ -805,7 +858,13 @@ const computeNodeContext = (
     ast,
     id: node.id,
     inputFillers: computedInputs.reduce<InputFillers>(
-      (acc, [input, filler]) => ({ ...acc, [input.id]: filler }),
+      (acc, [input, filler, args]) => ({
+        ...acc,
+        [input.id]: {
+          filler,
+          args,
+        },
+      }),
       {}
     ),
   };
@@ -818,7 +877,7 @@ const computeNodeContext = (
     node.type !== NodeType.BINARY &&
     node.type !== NodeType.OUTPUT
   ) {
-    mangle(ast as ParserProgram, node, engine);
+    mangle(ast as Program, node, engine);
   }
 
   return nodeContext;

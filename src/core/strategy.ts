@@ -4,8 +4,12 @@ import {
   AstNode,
   NodeVisitors,
   Program,
+  Scope,
+  ScopeIndex,
+  DeclarationNode,
+  DeclarationStatementNode,
+  KeywordNode,
 } from '@shaderfrog/glsl-parser/ast';
-import { Scope, ScopeIndex } from '@shaderfrog/glsl-parser/parser/parser';
 import { findAssignmentTo, findDeclarationOf } from '../ast/manipulate';
 import { ComputedInput, GraphNode, mangleName } from './graph';
 import { SourceNode } from './nodes/code-nodes';
@@ -231,21 +235,22 @@ export const strategyRunners: Strategies = {
   [StrategyType.HARD_CODE]: (graphNode, ast, strategy) => {
     return (strategy as HardCodeStrategy).config.inputs.map((input) => [
       input,
-      (filler: AstNode) => filler,
+      (filler) => filler,
     ]);
   },
   [StrategyType.UNIFORM]: (graphNode, ast, strategy) => {
-    return (ast.program as AstNode[]).flatMap<ComputedInput>((node) => {
+    const program = ast as Program;
+    return program.program.flatMap<ComputedInput>((node) => {
       // The uniform declration type, like vec4
-      const uniformType =
-        node.declaration?.specified_type?.specifier?.specifier?.token;
+      const uniformType = (node as DeclarationStatementNode).declaration
+        ?.specified_type?.specifier?.specifier?.token;
       const graphDataType = mapUniformType(uniformType);
 
       // If this is a uniform declaration line
       if (
         node.type === 'declaration_statement' &&
         node.declaration?.specified_type?.qualifiers?.find(
-          (n: AstNode) => n.token === 'uniform'
+          (n: KeywordNode) => n.token === 'uniform'
         )
         // commented this out to allow for sampler2D uniforms to appear as inputs
         // && uniformType !== 'sampler2D'
@@ -272,11 +277,11 @@ export const strategyRunners: Strategies = {
             new Set<InputCategory>(['code', 'data']),
             true
           ),
-          (filler: AstNode) => {
+          (filler) => {
             const mangledName = mangleName(name, graphNode);
             // Remove the declaration line, or the declared uniform
             if (declarations.length === 1) {
-              ast.program.splice(ast.program.indexOf(node), 1);
+              program.program.splice(program.program.indexOf(node), 1);
             } else {
               node.declaration.declarations =
                 node.declaration.declarations.filter(
@@ -284,15 +289,16 @@ export const strategyRunners: Strategies = {
                 );
             }
             // And rename all the references to said uniform
-            ast.scopes[0].bindings[name].references.forEach((ref: AstNode) => {
+            program.scopes[0].bindings[name].references.forEach((ref) => {
               if (ref.type === 'identifier' && ref.identifier === mangledName) {
                 ref.identifier = generate(filler);
               } else if (
                 ref.type === 'parameter_declaration' &&
+                'identifier' in ref.declaration &&
                 ref.declaration.identifier.identifier === mangledName
               ) {
                 ref.declaration.identifier.identifier = generate(filler);
-              } else if (ref.identifier) {
+              } else if ('identifier' in ref) {
                 ref.identifier = generate(filler);
               } else {
                 console.warn(
@@ -326,7 +332,7 @@ export const strategyRunners: Strategies = {
               new Set<InputCategory>(['code', 'data']),
               false
             ),
-            (fillerAst: AstNode) => {
+            (fillerAst) => {
               assignNode.expression.right = fillerAst;
               return ast;
             },
@@ -349,7 +355,7 @@ export const strategyRunners: Strategies = {
               new Set<InputCategory>(['code', 'data']),
               false
             ),
-            (fillerAst: AstNode) => {
+            (fillerAst) => {
               declaration.initializer = fillerAst;
               return ast;
             },
@@ -357,19 +363,17 @@ export const strategyRunners: Strategies = {
         ]
       : [];
   },
-  [StrategyType.TEXTURE_2D]: (
-    node: GraphNode,
-    ast: AstNode,
-    strategy: Strategy
-  ) => {
-    let texture2Dcalls: [string, AstNode, string, AstNode][] = [];
+  [StrategyType.TEXTURE_2D]: (node, ast, strategy) => {
+    let texture2Dcalls: [string, AstNode, string, AstNode[]][] = [];
     const seen: { [key: string]: number } = {};
     const visitors: NodeVisitors = {
       function_call: {
         enter: (path) => {
           if (
             // TODO: 100 vs 300
+            // @ts-ignore
             (path.node.identifier?.specifier?.identifier === 'texture2D' ||
+              // @ts-ignore
               path.node.identifier?.specifier?.identifier === 'texture') &&
             path.key
           ) {
@@ -383,10 +387,10 @@ export const strategyRunners: Strategies = {
             seen[name] = (seen[name] || 0) + 1;
             texture2Dcalls.push([
               name,
-              path.parent,
+              path.parent as AstNode,
               path.key,
               // Remove the first argument and comma
-              path.node.args.slice(2),
+              (path.node.args as AstNode[]).slice(2),
             ]);
           }
         },
@@ -412,7 +416,8 @@ export const strategyRunners: Strategies = {
             new Set<InputCategory>(['code', 'data']),
             false
           ),
-          (fillerAst: AstNode) => {
+          (fillerAst) => {
+            // @ts-ignore
             parent[key] = fillerAst;
             return ast;
           },
@@ -424,6 +429,7 @@ export const strategyRunners: Strategies = {
     return inputs;
   },
   [StrategyType.NAMED_ATTRIBUTE]: (node, ast, strategy) => {
+    const program = ast as Program;
     const cast = strategy as NamedAttributeStrategy;
     const { attributeName } = cast.config;
     return [
@@ -436,8 +442,8 @@ export const strategyRunners: Strategies = {
           new Set<InputCategory>(['code', 'data']),
           true
         ),
-        (fillerAst: AstNode) => {
-          Object.entries(ast.scopes[0].bindings).forEach(
+        (fillerAst) => {
+          Object.entries(program.scopes[0].bindings).forEach(
             ([name, binding]: [string, any]) => {
               binding.references.forEach((ref: AstNode) => {
                 if (
@@ -447,6 +453,7 @@ export const strategyRunners: Strategies = {
                   ref.identifier = generate(fillerAst);
                 } else if (
                   ref.type === 'parameter_declaration' &&
+                  'identifier' in ref.declaration &&
                   ref.declaration.identifier.identifier === attributeName
                 ) {
                   ref.declaration.identifier.identifier = generate(fillerAst);
@@ -460,8 +467,9 @@ export const strategyRunners: Strategies = {
     ];
   },
   [StrategyType.VARIABLE]: (node, ast, strategy) => {
+    const program = ast as Program;
     return Object.values(
-      (ast.scopes as Scope[]).reduce<ScopeIndex>(
+      (program.scopes as Scope[]).reduce<ScopeIndex>(
         (acc, scope) => ({ ...acc, ...scope.bindings }),
         {}
       )
@@ -472,13 +480,13 @@ export const strategyRunners: Strategies = {
 
           if (ref.type === 'declaration') {
             identifier = ref.identifier.identifier;
-            replacer = (fillerAst: AstNode) => {
+            replacer = (fillerAst: AstNode | Program) => {
               ref.identifier.identifier = generate(fillerAst);
               return ast;
             };
           } else if (ref.type === 'identifier') {
             identifier = ref.identifier;
-            replacer = (fillerAst: AstNode) => {
+            replacer = (fillerAst: AstNode | Program) => {
               ref.identifier = generate(fillerAst);
               return ast;
             };

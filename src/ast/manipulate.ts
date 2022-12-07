@@ -2,7 +2,17 @@
  * Utility functions to work with ASTs
  */
 import { parser, generate } from '@shaderfrog/glsl-parser';
-import { visit, AstNode, NodeVisitors } from '@shaderfrog/glsl-parser/ast';
+import {
+  visit,
+  AstNode,
+  NodeVisitors,
+  ExpressionStatementNode,
+  FunctionNode,
+  AssignmentNode,
+  DeclarationStatementNode,
+  KeywordNode,
+  DeclarationNode,
+} from '@shaderfrog/glsl-parser/ast';
 import { Program } from '@shaderfrog/glsl-parser/ast';
 import { ShaderStage } from '../core/graph';
 
@@ -11,7 +21,10 @@ export const findVec4Constructor = (ast: AstNode): AstNode | undefined => {
   const visitors: NodeVisitors = {
     function_call: {
       enter: (path) => {
-        if (path.node.identifier?.specifier?.token === 'vec4') {
+        if (
+          'specifier' in path.node.identifier &&
+          path.node.identifier?.specifier?.token === 'vec4'
+        ) {
           parent = path.findParent((p) => 'right' in p.node)?.node;
           path.skip();
         }
@@ -23,10 +36,10 @@ export const findVec4Constructor = (ast: AstNode): AstNode | undefined => {
 };
 
 export const findAssignmentTo = (
-  ast: AstNode,
+  ast: AstNode | Program,
   assignTo: string
-): AstNode | undefined => {
-  let assign: AstNode | undefined;
+): ExpressionStatementNode | undefined => {
+  let assign: ExpressionStatementNode | undefined;
   const visitors: NodeVisitors = {
     expression_statement: {
       enter: (path) => {
@@ -42,10 +55,10 @@ export const findAssignmentTo = (
 };
 
 export const findDeclarationOf = (
-  ast: AstNode,
+  ast: AstNode | Program,
   declarationOf: string
-): AstNode | undefined => {
-  let declaration: AstNode | undefined;
+): DeclarationNode | undefined => {
+  let declaration: DeclarationNode | undefined;
   const visitors: NodeVisitors = {
     declaration_statement: {
       enter: (path) => {
@@ -106,8 +119,12 @@ export const from2To3 = (ast: Program, stage: ShaderStage) => {
   visit(ast, {
     function_call: {
       enter: (path) => {
-        if (path.node.identifier.specifier?.identifier === 'texture2D') {
-          path.node.identifier.specifier.identifier = 'texture';
+        const identifier = path.node.identifier;
+        if (
+          'specifier' in identifier &&
+          identifier.specifier?.identifier === 'texture2D'
+        ) {
+          identifier.specifier.identifier = 'texture';
         }
       },
     },
@@ -196,7 +213,7 @@ export const makeFnStatement = (fnStmt: string): AstNode => {
   }
 
   // console.log(util.inspect(ast, false, null, true));
-  return ast.program[0].body.statements[0];
+  return (ast.program[0] as FunctionNode).body.statements[0];
 };
 
 export const makeExpression = (expr: string): AstNode => {
@@ -214,7 +231,7 @@ export const makeExpression = (expr: string): AstNode => {
   }
 
   // console.log(util.inspect(ast, false, null, true));
-  return ast.program[0].body.statements[0].expression.right;
+  return (ast.program[0] as FunctionNode).body.statements[0].expression.right;
 };
 
 export const makeExpressionWithScopes = (expr: string): Program => {
@@ -236,14 +253,14 @@ export const makeExpressionWithScopes = (expr: string): Program => {
     type: 'program',
     // Set the main() fn body scope as the global one
     scopes: [ast.scopes[1]],
-    program: ast.program[0].body.statements[0].expression,
+    program: (ast.program[0] as FunctionNode).body.statements[0].expression,
   };
 };
 
-const findFn = (ast: Program, name: string): AstNode | undefined =>
+const findFn = (ast: Program, name: string): FunctionNode | undefined =>
   ast.program.find(
-    (line) =>
-      line.type === 'function' && line.prototype.header.name.identifier === name
+    (stmt): stmt is FunctionNode =>
+      stmt.type === 'function' && stmt.prototype.header.name.identifier === name
   );
 
 export const returnGlPosition = (fnName: string, ast: Program): void =>
@@ -267,6 +284,7 @@ export const returnGlPositionVec3Right = (fnName: string, ast: Program): void =>
         enter: (path) => {
           const { node } = path;
           if (
+            // @ts-ignore
             node?.identifier?.specifier?.token === 'vec4' &&
             node?.args?.[2]?.token?.includes('1.')
           ) {
@@ -288,7 +306,7 @@ const convertVertexMain = (
   fnName: string,
   ast: Program,
   returnType: string,
-  generateRight: (positionAssign: AstNode) => AstNode
+  generateRight: (positionAssign: ExpressionStatementNode) => AstNode
 ) => {
   const mainReturnVar = `frogOut`;
 
@@ -298,7 +316,8 @@ const convertVertexMain = (
   }
 
   // Convert the main function to one that returns
-  main.prototype.header.returnType.specifier.specifier.token = returnType;
+  (main.prototype.header.returnType.specifier.specifier as KeywordNode).token =
+    returnType;
 
   // Find the gl_position assignment line
   const assign = main.body.statements.find(
@@ -310,7 +329,9 @@ const convertVertexMain = (
     throw new Error(`No gl position assign found in main fn!`);
   }
 
-  const rtnStmt = makeFnStatement(`${returnType} ${mainReturnVar} = 1.0`);
+  const rtnStmt = makeFnStatement(
+    `${returnType} ${mainReturnVar} = 1.0`
+  ) as DeclarationStatementNode;
   rtnStmt.declaration.declarations[0].initializer = generateRight(assign);
 
   main.body.statements.splice(main.body.statements.indexOf(assign), 1, rtnStmt);
@@ -326,7 +347,7 @@ export const convert300MainToReturn = (fnName: string, ast: Program): void => {
     if (
       line.type === 'declaration_statement' &&
       line.declaration?.specified_type?.qualifiers?.find(
-        (n: AstNode) => n.token === 'out'
+        (n: KeywordNode) => n.token === 'out'
       ) &&
       line.declaration.specified_type.specifier.specifier.token === 'vec4'
     ) {
@@ -346,6 +367,7 @@ export const convert300MainToReturn = (fnName: string, ast: Program): void => {
       enter: (path) => {
         if (path.node.identifier === outName) {
           path.node.identifier = mainReturnVar;
+          // @ts-ignore
           path.node.doNotDescope = true; // hack because this var is in the scope which gets renamed later
         }
       },
@@ -353,8 +375,10 @@ export const convert300MainToReturn = (fnName: string, ast: Program): void => {
     function: {
       enter: (path) => {
         if (path.node.prototype.header.name.identifier === fnName) {
-          path.node.prototype.header.returnType.specifier.specifier.token =
-            'vec4';
+          (
+            path.node.prototype.header.returnType.specifier
+              .specifier as KeywordNode
+          ).token = 'vec4';
           path.node.body.statements.unshift(
             makeFnStatement(`vec4 ${mainReturnVar}`)
           );

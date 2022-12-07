@@ -77,7 +77,7 @@ export const MAGIC_OUTPUT_STMTS = 'mainStmts';
 export type InputFiller = (a: AstNode | Program) => AstNode | Program;
 export type InputFillerGroup = {
   filler: InputFiller;
-  args?: AstNode;
+  args?: AstNode[];
 };
 export type InputFillers = Record<string, InputFillerGroup>;
 export type NodeContext = {
@@ -88,7 +88,7 @@ export type NodeContext = {
   errors?: NodeErrors;
 };
 
-type FillerArguments = AstNode;
+type FillerArguments = AstNode[];
 export type ComputedInput = [NodeInput, InputFiller, FillerArguments?];
 
 export type FindInputs = (

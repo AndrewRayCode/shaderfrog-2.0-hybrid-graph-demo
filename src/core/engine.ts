@@ -5,7 +5,9 @@ import { Graph, NodeParser } from './graph';
 import preprocess from '@shaderfrog/glsl-parser/preprocessor';
 import { generate, parser } from '@shaderfrog/glsl-parser';
 import { ShaderStage, GraphNode, NodeType } from './graph';
-import { NodeInput } from './nodes/core-node';
+import { NodeInput, NodePosition } from './nodes/core-node';
+import { DataNode, UniformDataType } from './nodes/data-nodes';
+import { CodeNode, SourceNode } from './nodes/code-nodes';
 
 export enum EngineNodeType {
   output = 'output',
@@ -16,6 +18,16 @@ export enum EngineNodeType {
   binary = 'binary',
 }
 
+export type PhysicalNodeConstructor = (
+  id: string,
+  name: string,
+  groupId: string,
+  position: NodePosition,
+  uniforms: UniformDataType[],
+  stage: ShaderStage,
+  nextStageNodeId?: string
+) => CodeNode;
+
 export interface Engine {
   name: string;
   preserve: Set<string>;
@@ -24,6 +36,10 @@ export interface Engine {
   // nodes: NodeParsers;
   parsers: Record<string, NodeParser>;
   importers: EngineImporters;
+  evaluateNode: (node: DataNode) => any;
+  constructors: {
+    [EngineNodeType.physical]: PhysicalNodeConstructor;
+  };
 }
 
 export type NodeContext = {
@@ -61,6 +77,25 @@ export type EngineImporters = {
 
 type EdgeUpdates = { [edgeId: string]: { oldInput: string; newInput: string } };
 
+export const convertNode = (
+  node: SourceNode,
+  converter: EngineImporter
+): SourceNode => {
+  console.log(`Converting ${node.name} (${node.id})`);
+  const preprocessed = preprocess(node.source, {
+    preserveComments: true,
+    preserve: {
+      version: () => true,
+      define: () => true,
+    },
+  });
+  const ast = parser.parse(preprocessed);
+  converter.convertAst(ast, node.stage);
+  node.source = generate(ast);
+
+  return node;
+};
+
 export const convertToEngine = (
   oldEngine: Engine,
   newEngine: Engine,
@@ -81,17 +116,7 @@ export const convertToEngine = (
 
   graph.nodes.forEach((node) => {
     if (NodeType.SOURCE === node.type) {
-      console.log(`Converting ${node.name} (${node.id})`);
-      const preprocessed = preprocess(node.source, {
-        preserveComments: true,
-        preserve: {
-          version: () => true,
-          define: () => true,
-        },
-      });
-      const ast = parser.parse(preprocessed);
-      converter.convertAst(ast, node.stage);
-      node.source = generate(ast);
+      convertNode(node, converter);
     }
 
     graph.edges

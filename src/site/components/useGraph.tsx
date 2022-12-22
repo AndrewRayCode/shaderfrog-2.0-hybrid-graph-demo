@@ -7,7 +7,12 @@ import {
   isDataInput,
 } from '../../core/graph';
 import { Edge as GraphEdge, EdgeType, makeEdge } from '../../core/nodes/edge';
-import { Engine, EngineContext, convertToEngine } from '../../core/engine';
+import {
+  Engine,
+  EngineContext,
+  convertToEngine,
+  convertNode,
+} from '../../core/engine';
 import { UICompileGraphResult } from '../uICompileGraphResult';
 import { generate } from '@shaderfrog/glsl-parser';
 import { shaderSectionsToProgram } from '../../ast/shader-sections';
@@ -57,6 +62,7 @@ import {
 import { serpentF, serpentV } from '../../shaders/serpentNode';
 import { badTvFrag } from '../../shaders/badTvNode';
 import whiteNoiseNode from '../../shaders/whiteNoiseNode';
+import { babylengine } from '../../plugins/babylon/bablyengine';
 
 const compileGraphAsync = async (
   graph: Graph,
@@ -348,6 +354,13 @@ const createGraphNode = (
       `Could not create node: Unknown node type "${nodeDataType}'"`
     );
   }
+
+  // Hack: Auto-converting nodes to threejs for testing
+  newGns.forEach((gn) => {
+    if (gn.type === 'source' && engine === 'babylon') {
+      convertNode(gn, babylengine.importers.three);
+    }
+  });
 
   let newGEs: GraphEdge[] = newEdgeData
     ? [

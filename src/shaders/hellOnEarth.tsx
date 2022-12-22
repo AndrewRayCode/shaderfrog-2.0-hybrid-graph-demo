@@ -26,15 +26,10 @@ uniform mat4 viewMatrix;
 uniform mat3 normalMatrix;
 
 // Default uniforms provided by ShaderFrog.
-uniform vec3 cameraPosition;
 uniform float time;
 
 // Example varyings passed from the vertex shader
 varying vec3 vPosition;
-varying vec3 vNormal;
-varying vec2 vUv;
-varying vec2 vUv2;
-
 
 //
 //  Wombat
@@ -175,9 +170,6 @@ void main() {
     // This could also be done in the vertex shader
     vec3 worldPosition = ( modelMatrix * vec4( vPosition, 1.0 )).xyz;
 
-    // Calculate the normal including the model rotation and scale
-    vec3 worldNormal = normalize( vec3( modelMatrix * vec4( vNormal, 0.0 ) ) );
-
     // Fragment shaders set the gl_FragColor, which is a vector4 of
     // ( red, green, blue, alpha ).
     //gl_FragColor = vec4( color * brightness, 1.0 );
@@ -226,21 +218,10 @@ uniform mat4 viewMatrix;
 uniform mat3 normalMatrix;
 
 // Default uniforms provided by ShaderFrog.
-uniform vec3 cameraPosition;
 uniform float time;
-
-// Default attributes provided by THREE.js. Attributes are only available in the
-// vertex shader. You can pass them to the fragment shader using varyings
 attribute vec3 position;
 attribute vec3 normal;
-attribute vec2 uv;
-attribute vec2 uv2;
-
-// Examples of variables passed from vertex to fragment shader
 varying vec3 vPosition;
-varying vec3 vNormal;
-varying vec2 vUv;
-varying vec2 vUv2;
 
 float Perlin4D( vec4 P )
 {
@@ -332,9 +313,6 @@ void main() {
 
     // To pass variables to the fragment shader, you assign them here in the
     // main function. Traditionally you name the varying with vAttributeName
-    vNormal = normal;
-    vUv = uv;
-    vUv2 = uv2;
     
     vPosition = position;
     
@@ -348,16 +326,14 @@ void main() {
     r += noiseVal * 0.2;
     
     vPosition = vec3(
-            r * sin(theta) * cos(gamma),
-            r * sin(theta) * sin(gamma),
-            r * cos(theta)
-        );
-    
+        r * sin(theta) * cos(gamma),
+        r * sin(theta) * sin(gamma),
+        r * cos(theta)
+    );
 
     // This sets the position of the vertex in 3d space. The correct math is
     // provided below to take into account camera and object data.
     gl_Position = projectionMatrix * modelViewMatrix * vec4( vPosition, 1.0 );
-
 }
 `,
     'vertex',

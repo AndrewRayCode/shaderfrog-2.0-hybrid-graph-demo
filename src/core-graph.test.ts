@@ -28,7 +28,8 @@ import { numberNode } from './core/nodes/data-nodes';
 import { makeEdge } from './core/nodes/edge';
 import { SourceNode } from './core/nodes/code-nodes';
 import { threngine } from './plugins/three/threngine';
-import { EngineContext } from './core/engine';
+import { Engine, EngineContext } from './core/engine';
+import { outputs } from './site/components/flow/flownode.module.css';
 
 const inspect = (thing: any): void =>
   console.log(util.inspect(thing, false, null, true));
@@ -56,6 +57,34 @@ const dedupe = (code: string) =>
 let counter = 0;
 const p = { x: 0, y: 0 };
 const id = () => '' + counter++;
+
+const engine: Engine = {
+  name: 'three',
+  evaluateNode: () => {},
+  constructors: {
+    physical: () => ({
+      config: {
+        version: 3,
+        preprocess: false,
+        strategies: [],
+      },
+      id: '1',
+      name: '1',
+      type: '',
+      inputs: [],
+      outputs: [],
+      position: { x: 0, y: 0 },
+      source: '',
+    }),
+  },
+  mergeOptions: {
+    includePrecisions: true,
+    includeVersion: true,
+  },
+  importers: {},
+  preserve: new Set<string>(),
+  parsers: {},
+};
 
 it('helo', () => {
   const graph: Graph = {
@@ -96,16 +125,6 @@ void main() {
       makeEdge(id(), '4', '2', 'out', 'filler_image2', 'fragment'),
     ],
   };
-  const engine = {
-    name: 'three',
-    mergeOptions: {
-      includePrecisions: true,
-      includeVersion: true,
-    },
-    importers: {},
-    preserve: new Set<string>(),
-    parsers: {},
-  };
   const engineContext: EngineContext = {
     engine: 'three',
     compileCount: 0,
@@ -140,7 +159,7 @@ describe('evaluateNode()', () => {
         makeEdge(id(), num3.id, add2.id, 'out', 'b'),
       ],
     };
-    expect(evaluateNode(graph, finalAdd)).toBe(15);
+    expect(evaluateNode(engine, graph, finalAdd)).toBe(15);
   });
 });
 

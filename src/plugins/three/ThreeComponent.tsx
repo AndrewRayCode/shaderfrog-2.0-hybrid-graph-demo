@@ -36,12 +36,12 @@ type ThreeSceneProps = {
   lights: PreviewLight;
   previewObject: string;
   bg: string | undefined;
+  setBg: AnyFn;
   setCtx: (ctx: EngineContext) => void;
   initialCtx: any;
   setGlResult: AnyFn;
   setLights: AnyFn;
   setPreviewObject: AnyFn;
-  setBg: AnyFn;
   showHelpers: boolean;
   setShowHelpers: AnyFn;
   width: number;
@@ -69,8 +69,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   setPreviewObject,
   bg,
   setBg,
-  width,
-  height,
 }) => {
   const shadersUpdated = useRef<boolean>(false);
   const sceneWrapper = useRef<HTMLDivElement>(null);
@@ -159,7 +157,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
               // this happens, I'm not sure why yet. In fact, why is this branch
               // getting called at all in useThree() ?
               try {
-                value = evaluateNode(graph, fromNode);
+                value = evaluateNode(threngine, graph, fromNode);
               } catch (err) {
                 console.warn(
                   `Tried to evaluate a non-data node! ${input.displayName} on ${node.name}`
@@ -411,7 +409,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
             // THIS DUPLICATE OTHER LINE
             let value;
             try {
-              value = evaluateNode(graph, fromNode);
+              value = evaluateNode(threngine, graph, fromNode);
             } catch (err) {
               console.warn('Tried to evaluate a non-data node!', {
                 err,
@@ -535,55 +533,51 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     });
 
     let helpers: three.Object3D[] = [];
+    let newLights: three.Object3D[] = [];
     if (lights === 'point') {
       const pointLight = new three.PointLight(0xffffff, 1);
       pointLight.position.set(0, 0, 2);
-      scene.add(pointLight);
 
+      newLights = [pointLight];
       helpers = [new three.PointLightHelper(pointLight, 0.1)];
-      sceneData.lights = [pointLight, ...helpers];
     } else if (lights === '3point') {
       const light1 = new three.PointLight(0xffffff, 1, 0);
       light1.position.set(2, 2, 5);
-      scene.add(light1);
 
       const light2 = new three.PointLight(0xffffff, 1, 0);
       light2.position.set(-2, 5, -5);
-      scene.add(light2);
 
       const light3 = new three.PointLight(0xffffff, 1, 0);
       light3.position.set(5, -5, -5);
-      scene.add(light3);
 
+      newLights = [light1, light2, light3];
       helpers = [
         new three.PointLightHelper(light1, 0.1),
         new three.PointLightHelper(light2, 0.1),
         new three.PointLightHelper(light3, 0.1),
       ];
-
-      sceneData.lights = [light1, light2, ...helpers];
     } else if (lights === 'spot') {
-      const light = new three.SpotLight(0x00ff00, 1, 3, 0.4, 1);
-      light.position.set(0, 0, 2);
-      scene.add(light);
+      const light1 = new three.SpotLight(0x00ff00, 1, 3, 0.4, 1);
+      light1.position.set(0, 0, 2);
 
       const light2 = new three.SpotLight(0xff0000, 1, 4, 0.4, 1);
       light2.position.set(0, 0, 2);
-      scene.add(light2);
 
+      newLights = [light1, light2];
       helpers = [
-        new three.SpotLightHelper(light, new three.Color(0x00ff00)),
+        new three.SpotLightHelper(light1, new three.Color(0x00ff00)),
         new three.SpotLightHelper(light2, new three.Color(0xff0000)),
       ];
-
-      sceneData.lights = [light, light2, ...helpers];
     }
 
     if (showHelpers) {
-      helpers.forEach((helper) => {
-        scene.add(helper);
-      });
+      sceneData.lights = [...newLights, ...helpers];
+    } else {
+      sceneData.lights = newLights;
     }
+    sceneData.lights.forEach((obj) => {
+      scene.add(obj);
+    });
 
     if (prevLights && prevLights !== undefined && prevLights !== lights) {
       if (sceneData.mesh) {

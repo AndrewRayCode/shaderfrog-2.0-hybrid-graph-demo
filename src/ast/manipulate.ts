@@ -257,7 +257,7 @@ export const makeExpressionWithScopes = (expr: string): Program => {
   };
 };
 
-const findFn = (ast: Program, name: string): FunctionNode | undefined =>
+export const findFn = (ast: Program, name: string): FunctionNode | undefined =>
   ast.program.find(
     (stmt): stmt is FunctionNode =>
       stmt.type === 'function' && stmt.prototype.header.name.identifier === name

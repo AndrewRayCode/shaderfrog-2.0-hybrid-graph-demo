@@ -7,6 +7,7 @@
   border-bottom: 1px solid #000;
 }
 .tab_tab {
+  user-select: none;
   max-height: 28px;
   border-radius: 6px 6px 0 0;
   border-right: 1px solid #000;

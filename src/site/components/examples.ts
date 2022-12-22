@@ -8,11 +8,7 @@ import {
   vectorUniformData,
 } from '../../core/nodes/data-nodes';
 import { makeEdge } from '../../core/nodes/edge';
-import {
-  outputNode,
-  physicalNode,
-  toonNode,
-} from '../../core/nodes/engine-node';
+import { outputNode, toonNode } from '../../core/nodes/engine-node';
 import { fireFrag, fireVert } from '../../shaders/fireNode';
 import {
   heatShaderFragmentNode,
@@ -24,6 +20,7 @@ import staticShaderNode, { variation1 } from '../../shaders/staticShaderNode';
 import { makeId } from '../../util/id';
 import { checkerboardF, checkerboardV } from '../../shaders/checkboardNode';
 import normalMapify from '../../shaders/normalmapifyNode';
+import { Engine } from '../../core/engine';
 
 export enum Example {
   GLASS_FIRE_BALL = 'Glass Fireball',
@@ -33,7 +30,10 @@ export enum Example {
   DEFAULT = 'Mesh Physical Material',
 }
 
-export const makeExampleGraph = (example: Example): [Graph, string, string] => {
+export const makeExampleGraph = (
+  engine: Engine,
+  example: Example
+): [Graph, string, string] => {
   console.log('🌈 Making new graph!!');
   let newGraph: Graph;
   let previewObject: string;
@@ -48,7 +48,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
     const outputV = outputNode(makeId(), 'Output', { x: 434, y: 20 }, 'vertex');
 
     const physicalGroupId = makeId();
-    const physicalF = physicalNode(
+    const physicalF = engine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -56,7 +56,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
       [],
       'fragment'
     );
-    const physicalV = physicalNode(
+    const physicalV = engine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -313,7 +313,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
     const outputV = outputNode(makeId(), 'Output', { x: 434, y: 16 }, 'vertex');
 
     const physicalGroupId = makeId();
-    const physicalF = physicalNode(
+    const physicalF = engine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -321,7 +321,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
       [],
       'fragment'
     );
-    const physicalV = physicalNode(
+    const physicalV = engine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -343,8 +343,8 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
         outputV,
         physicalF,
         physicalV,
-        checkerboardf,
-        checkerboardv,
+        // checkerboardf,
+        // checkerboardv,
       ],
       edges: [
         makeEdge(
@@ -363,14 +363,14 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
           'filler_gl_Position',
           'vertex'
         ),
-        makeEdge(
-          makeId(),
-          checkerboardf.id,
-          physicalF.id,
-          'out',
-          'property_map',
-          'fragment'
-        ),
+        // makeEdge(
+        //   makeId(),
+        //   checkerboardf.id,
+        //   physicalF.id,
+        //   'out',
+        //   'property_map',
+        //   'fragment'
+        // ),
       ],
     };
     previewObject = 'sphere';
@@ -406,7 +406,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
     ];
 
     const physicalGroupId = makeId();
-    const physicalF = physicalNode(
+    const physicalF = engine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -414,7 +414,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
       [],
       'fragment'
     );
-    const physicalV = physicalNode(
+    const physicalV = engine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -495,7 +495,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
     const outputV = outputNode(makeId(), 'Output', { x: 434, y: 20 }, 'vertex');
 
     const physicalGroupId = makeId();
-    const physicalF = physicalNode(
+    const physicalF = engine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -503,7 +503,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
       [],
       'fragment'
     );
-    const physicalV = physicalNode(
+    const physicalV = engine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -661,7 +661,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
     const outputV = outputNode(makeId(), 'Output', { x: 434, y: 20 }, 'vertex');
 
     const physicalGroupId = makeId();
-    const physicalF = physicalNode(
+    const physicalF = engine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -669,7 +669,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
       [],
       'fragment'
     );
-    const physicalV = physicalNode(
+    const physicalV = engine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,

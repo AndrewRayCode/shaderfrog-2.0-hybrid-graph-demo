@@ -1,5 +1,12 @@
+import { Vector2, Vector3, Vector4, Color } from 'three';
 import { Program } from '@shaderfrog/glsl-parser/ast';
-import { Graph, NodeParser, NodeType } from '../../core/graph';
+import {
+  Graph,
+  NodeParser,
+  NodeType,
+  ShaderStage,
+  prepopulatePropertyInputs,
+} from '../../core/graph';
 import importers from './importers';
 
 import { Engine, EngineContext, EngineNodeType } from '../../core/engine';
@@ -9,31 +16,92 @@ import {
   returnGlPositionHardCoded,
   returnGlPositionVec3Right,
 } from '../../ast/manipulate';
-import { NodeProperty, SourceNode } from '../../core/nodes/code-nodes';
-import { NodeInput } from '../../core/nodes/core-node';
+import {
+  CodeNode,
+  NodeProperty,
+  property,
+  SourceNode,
+} from '../../core/nodes/code-nodes';
+import { NodeInput, NodePosition } from '../../core/nodes/core-node';
+import { DataNode, UniformDataType } from '../../core/nodes/data-nodes';
+import {
+  namedAttributeStrategy,
+  texture2DStrategy,
+  uniformStrategy,
+} from '../../core/strategy';
 
-export type ThreeRuntime = {
-  scene: any;
-  camera: any;
-  renderer: any;
-  three: any;
-  sceneData: any;
-  engineMaterial: any;
-  index: number;
-  cache: {
-    data: {
-      [key: string]: any;
-    };
-    nodes: {
-      [id: string]: {
-        fragmentRef: any;
-        vertexRef: any;
-        fragment: string;
-        vertex: string;
-      };
-    };
-  };
-};
+export const physicalNode = (
+  id: string,
+  name: string,
+  groupId: string,
+  position: NodePosition,
+  uniforms: UniformDataType[],
+  stage: ShaderStage,
+  nextStageNodeId?: string
+): CodeNode =>
+  prepopulatePropertyInputs({
+    id,
+    name,
+    groupId,
+    position,
+    type: EngineNodeType.physical,
+    config: {
+      uniforms,
+      version: 3,
+      preprocess: true,
+      properties: [
+        property('Color', 'color', 'rgb', 'uniform_diffuse'),
+        property('Texture', 'map', 'texture', 'filler_map'),
+        property('Normal Map', 'normalMap', 'texture', 'filler_normalMap'),
+        property('Normal Scale', 'normalScale', 'vector2'),
+        property('Metalness', 'metalness', 'number'),
+        property('Roughness', 'roughness', 'number'),
+        property(
+          'Roughness Map',
+          'roughnessMap',
+          'texture',
+          'filler_roughnessMap'
+        ),
+        property('Displacement Map', 'displacementMap', 'texture'),
+        // MeshPhysicalMaterial gets envMap from the scene. MeshStandardMaterial
+        // gets it from the material
+        // property('Env Map', 'envMap', 'samplerCube'),
+        property('Transmission', 'transmission', 'number'),
+        property(
+          'Transmission Map',
+          'transmissionMap',
+          'texture',
+          'filler_transmissionMap'
+        ),
+        property('Thickness', 'thickness', 'number'),
+        property('Index of Refraction', 'ior', 'number'),
+        property('Sheen', 'sheen', 'number'),
+        property('Reflectivity', 'reflectivity', 'number'),
+        property('Clearcoat', 'clearcoat', 'number'),
+      ],
+      hardCodedProperties: {
+        isMeshPhysicalMaterial: true,
+        isMeshStandardMaterial: true,
+      },
+      strategies: [
+        uniformStrategy(),
+        stage === 'fragment'
+          ? texture2DStrategy()
+          : namedAttributeStrategy('position'),
+      ],
+    },
+    inputs: [],
+    outputs: [
+      {
+        name: 'out',
+        category: 'data',
+        id: '1',
+      },
+    ],
+    source: '',
+    stage,
+    nextStageNodeId,
+  });
 
 const cacher = (
   engineContext: EngineContext,
@@ -206,12 +274,78 @@ const threeMaterialProperties = (
     }, {});
 };
 
+export type ThreeRuntime = {
+  scene: any;
+  camera: any;
+  renderer: any;
+  three: any;
+  sceneData: any;
+  engineMaterial: any;
+  index: number;
+  cache: {
+    data: {
+      [key: string]: any;
+    };
+    nodes: {
+      [id: string]: {
+        fragmentRef: any;
+        vertexRef: any;
+        fragment: string;
+        vertex: string;
+      };
+    };
+  };
+};
+
+const evaluateNode = (node: DataNode) => {
+  if (node.type === 'number') {
+    return parseFloat(node.value);
+  }
+
+  // HARD CODED THREE.JS HACK for testing meshpshysicalmaterial uniforms
+  if (node.type === 'vector2') {
+    return new Vector2(parseFloat(node.value[0]), parseFloat(node.value[1]));
+  } else if (node.type === 'vector3') {
+    return new Vector3(
+      parseFloat(node.value[0]),
+      parseFloat(node.value[1]),
+      parseFloat(node.value[2])
+    );
+  } else if (node.type === 'vector4') {
+    return new Vector4(
+      parseFloat(node.value[0]),
+      parseFloat(node.value[1]),
+      parseFloat(node.value[2]),
+      parseFloat(node.value[3])
+    );
+  } else if (node.type === 'rgb') {
+    return new Color(
+      parseFloat(node.value[0]),
+      parseFloat(node.value[1]),
+      parseFloat(node.value[2])
+    );
+  } else if (node.type === 'rgba') {
+    return new Vector4(
+      parseFloat(node.value[0]),
+      parseFloat(node.value[1]),
+      parseFloat(node.value[2]),
+      parseFloat(node.value[3])
+    );
+  } else {
+    return node.value;
+  }
+};
+
 export const threngine: Engine = {
   name: 'three',
   importers,
   mergeOptions: {
     includePrecisions: true,
     includeVersion: true,
+  },
+  evaluateNode,
+  constructors: {
+    [EngineNodeType.physical]: physicalNode,
   },
   // TODO: Get from uniform lib?
   preserve: new Set<string>([

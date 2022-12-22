@@ -202,11 +202,14 @@ export const coreParsers: CoreParser = {
       if (node.expressionOnly) {
         ast = makeExpressionWithScopes(node.source);
       } else {
-        const preprocessed = preprocess(node.source, {
-          preserve: {
-            version: () => true,
-          },
-        });
+        const preprocessed =
+          node.config.preprocess === false
+            ? node.source
+            : preprocess(node.source, {
+                preserve: {
+                  version: () => true,
+                },
+              });
 
         ast = parser.parse(preprocessed);
 
@@ -375,44 +378,14 @@ export const toGlsl = (node: DataNode): string => {
   throw new Error(`Unknown GLSL inline type: "${node.type}"`);
 };
 
-export const evaluateNode = (graph: Graph, node: GraphNode): any => {
+export const evaluateNode = (
+  engine: Engine,
+  graph: Graph,
+  node: GraphNode
+): any => {
   // TODO: Data nodes themselves should have evaluators
   if ('value' in node) {
-    if (node.type === 'number') {
-      return parseFloat(node.value);
-    }
-
-    // HARD CODED THREE.JS HACK for testing meshpshysicalmaterial uniforms
-    if (node.type === 'vector2') {
-      return new Vector2(parseFloat(node.value[0]), parseFloat(node.value[1]));
-    } else if (node.type === 'vector3') {
-      return new Vector3(
-        parseFloat(node.value[0]),
-        parseFloat(node.value[1]),
-        parseFloat(node.value[2])
-      );
-    } else if (node.type === 'vector4') {
-      return new Vector4(
-        parseFloat(node.value[0]),
-        parseFloat(node.value[1]),
-        parseFloat(node.value[2]),
-        parseFloat(node.value[3])
-      );
-    } else if (node.type === 'rgb') {
-      return new Color(
-        parseFloat(node.value[0]),
-        parseFloat(node.value[1]),
-        parseFloat(node.value[2])
-      );
-    } else if (node.type === 'rgba') {
-      return new Color(
-        parseFloat(node.value[0]),
-        parseFloat(node.value[1]),
-        parseFloat(node.value[2])
-      );
-    } else {
-      return node.value;
-    }
+    return engine.evaluateNode(node);
   }
 
   const { evaluate } = coreParsers[node.type];
@@ -428,7 +401,7 @@ export const evaluateNode = (graph: Graph, node: GraphNode): any => {
     node as SourceNode,
     inputEdges,
     inputNodes,
-    evaluateNode.bind(null, graph)
+    evaluateNode.bind(null, engine, graph)
   );
 };
 
@@ -813,6 +786,7 @@ const computeNodeContext = (
       ast = manipulateAst(engineContext, engine, graph, node, ast, inputEdges);
     }
   } catch (error) {
+    console.error('Error parsing source code!', error);
     return makeError(error);
   }
 

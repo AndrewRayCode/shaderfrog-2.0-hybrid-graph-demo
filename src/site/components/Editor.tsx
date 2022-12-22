@@ -107,8 +107,6 @@ const SMALL_SCREEN_WIDTH = 500;
  *      EXAMPLES
  *    - add auto-bake plugging code into data/uniform
  *    - make background toggle-able
- * - Adding empty toon shader and plugging in breaks at least on production
- *   - Can't reproduce
  * - Launch: Feedback, URL sharing, examples
  * - Caching contexts would be helpful
  * - Switching between threejs source code tab and runtime tab re-creates things
@@ -233,7 +231,8 @@ const Editor: React.FC = () => {
     engine: Engine;
   }>({
     lastEngine: null,
-    engine: threngine,
+    // engine: threngine,
+    engine: babylengine,
   });
 
   // Store the engine context in state. There's a separate function for passing
@@ -252,10 +251,11 @@ const Editor: React.FC = () => {
       const query = new URLSearchParams(window.location.search);
       const example = query.get('example') || '';
       const [graph, a, b] = makeExampleGraph(
+        engine,
         (example as Example) || Example.DEFAULT
       );
       return [expandUniformDataNodes(graph), a, b, example];
-    }, []);
+    }, [engine]);
 
   const [example, setExample] = useState<string | null>(initialExample);
   const [previewObject, setPreviewObject] = useState(initialPreviewObject);
@@ -472,6 +472,7 @@ const Editor: React.FC = () => {
     if (example !== previousExample && previousExample !== undefined) {
       console.log('🧶 Loading new example!', example);
       const [graph, previewObject, bg] = makeExampleGraph(
+        engine,
         (example as Example) || Example.DEFAULT
       );
       const newGraph = expandUniformDataNodes(graph);
@@ -488,6 +489,7 @@ const Editor: React.FC = () => {
       }
     }
   }, [
+    engine,
     example,
     previousExample,
     setGraph,
@@ -1281,6 +1283,10 @@ const Editor: React.FC = () => {
           <BabylonComponent
             setCtx={setCtx}
             graph={graph}
+            bg={bg}
+            setShowHelpers={setShowHelpers}
+            showHelpers={showHelpers}
+            setBg={setBg}
             lights={lights}
             setLights={setLights}
             previewObject={previewObject}

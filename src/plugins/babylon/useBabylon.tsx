@@ -12,6 +12,7 @@ type ScenePersistence = {
   engine: BABYLON.Engine;
   scene: BABYLON.Scene;
   camera: BABYLON.ArcRotateCamera;
+  loadingMaterial: BABYLON.Material;
 };
 
 type Callback = (time: number) => void;
@@ -19,7 +20,7 @@ type Callback = (time: number) => void;
 export const useBabylon = (callback: Callback) => {
   const { getRefData } = useHoisty();
 
-  const { engine, camera, sceneData, canvas, scene } =
+  const { loadingMaterial, engine, camera, sceneData, canvas, scene } =
     getRefData<ScenePersistence>('babylon', () => {
       const canvas = document.createElement('canvas');
       const engine = new BABYLON.Engine(canvas, true, {
@@ -27,6 +28,16 @@ export const useBabylon = (callback: Callback) => {
         stencil: true,
       });
       const scene = new BABYLON.Scene(engine);
+      const loadingMaterial = new BABYLON.StandardMaterial('mat2', scene);
+      loadingMaterial.emissiveColor = new BABYLON.Color3(0.8, 0.2, 0.5);
+      // scene.createDefaultEnvironment();
+      const hdrTexture = BABYLON.CubeTexture.CreateFromPrefilteredData(
+        '/envmaps/environmentSpecular.env',
+        scene
+      );
+      // This line makes the object disappear on page load - race condition?
+      // Bad shader compile?
+      // scene.environmentTexture = hdrTexture;
       return {
         sceneData: {
           lights: [],
@@ -34,10 +45,11 @@ export const useBabylon = (callback: Callback) => {
         canvas,
         engine,
         scene,
+        loadingMaterial,
         camera: new BABYLON.ArcRotateCamera(
           'camera1',
-          0,
-          Math.PI,
+          Math.PI / 2,
+          Math.PI / 2,
           5,
           new BABYLON.Vector3(0, 0, 0),
           scene
@@ -125,5 +137,13 @@ export const useBabylon = (callback: Callback) => {
     };
   }, [engine, animate, babylonDom]);
 
-  return { canvas, babylonDomRef, engine, scene, camera, sceneData };
+  return {
+    canvas,
+    babylonDomRef,
+    engine,
+    scene,
+    camera,
+    sceneData,
+    loadingMaterial,
+  };
 };

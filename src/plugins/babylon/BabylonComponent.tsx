@@ -33,6 +33,21 @@ BABYLON.Logger.Error = (...args) => {
   _err(...args);
 };
 
+const lightHelper = (scene: BABYLON.Scene, parent: BABYLON.Light) => {
+  const helper = BABYLON.MeshBuilder.CreatePolyhedron(
+    'oct',
+    { type: 1, size: 0.075 },
+    scene
+  );
+  const mat1 = new BABYLON.StandardMaterial('lighthelpermat' + id(), scene);
+  mat1.emissiveColor = new BABYLON.Color3(1, 1, 1);
+  mat1.wireframe = true;
+  helper.material = mat1;
+  helper.setParent(parent);
+
+  return helper;
+};
+
 type AnyFn = (...args: any) => any;
 type BabylonComponentProps = {
   compile: AnyFn;
@@ -468,18 +483,8 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       // https://forum.babylonjs.com/t/creating-a-mesh-without-adding-to-the-scene/12546/17
       // :(
       if (showHelpers) {
-        const sphere1 = BABYLON.MeshBuilder.CreateSphere(
-          'sphere',
-          { segments: 1, diameter: 0.2 },
-          scene
-        );
+        const sphere1 = lightHelper(scene, pointLight);
         sphere1.position = new BABYLON.Vector3(0, 0, 2);
-        const mat1 = new BABYLON.StandardMaterial('mat1', scene);
-        mat1.emissiveColor = new BABYLON.Color3(1, 1, 1);
-        mat1.wireframe = true;
-        sphere1.material = mat1;
-        sphere1.setParent(pointLight);
-
         sceneData.lights = sceneData.lights.concat(sphere1);
       }
     } else if (lights === '3point') {
@@ -504,38 +509,12 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       sceneData.lights = [light1, light2, light3];
 
       if (showHelpers) {
-        const sphere1 = BABYLON.MeshBuilder.CreateSphere(
-          'sphere',
-          { segments: 1, diameter: 0.2 },
-          scene
-        );
+        const sphere1 = lightHelper(scene, light1);
         sphere1.position = new BABYLON.Vector3(2, -2, 0);
-        const mat1 = new BABYLON.StandardMaterial('mat1', scene);
-        mat1.wireframe = true;
-        sphere1.material = mat1;
-        sphere1.setParent(light1);
-
-        const sphere2 = BABYLON.MeshBuilder.CreateSphere(
-          'sphere',
-          { segments: 1, diameter: 0.2 },
-          scene
-        );
+        const sphere2 = lightHelper(scene, light2);
         sphere2.position = new BABYLON.Vector3(-1, 2, 1);
-        const mat2 = new BABYLON.StandardMaterial('mat2', scene);
-        mat2.wireframe = true;
-        sphere2.material = mat2;
-        sphere2.setParent(light2);
-
-        const sphere3 = BABYLON.MeshBuilder.CreateSphere(
-          'sphere',
-          { segments: 1, diameter: 0.2 },
-          scene
-        );
+        const sphere3 = lightHelper(scene, light3);
         sphere3.position = new BABYLON.Vector3(-1, -2, -1);
-        const mat3 = new BABYLON.StandardMaterial('mat3', scene);
-        mat3.wireframe = true;
-        sphere3.material = mat3;
-        sphere3.setParent(light3);
 
         sceneData.lights = sceneData.lights.concat(sphere1, sphere2, sphere3);
       }
@@ -567,29 +546,11 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       sceneData.lights = [spot1, spot2];
 
       if (showHelpers) {
-        const sphere1 = BABYLON.MeshBuilder.CreateSphere(
-          'sphere',
-          { segments: 1, diameter: 0.2 },
-          scene
-        );
+        const sphere1 = lightHelper(scene, spot1);
         sphere1.position = new BABYLON.Vector3(0, 0, 2);
-        const mat1 = new BABYLON.StandardMaterial('mat1', scene);
-        mat1.emissiveColor = new BABYLON.Color3(0, 1, 0);
-        mat1.wireframe = true;
-        sphere1.material = mat1;
-        sphere1.setParent(spot1);
 
-        const sphere2 = BABYLON.MeshBuilder.CreateSphere(
-          'sphere',
-          { segments: 1, diameter: 0.2 },
-          scene
-        );
+        const sphere2 = lightHelper(scene, spot2);
         sphere2.position = new BABYLON.Vector3(0, 0, 2);
-        const mat2 = new BABYLON.StandardMaterial('mat2', scene);
-        mat2.emissiveColor = new BABYLON.Color3(1, 0, 0);
-        mat2.wireframe = true;
-        sphere2.material = mat2;
-        sphere2.setParent(spot2);
 
         sceneData.lights = sceneData.lights.concat(sphere1, sphere2);
       }
@@ -684,6 +645,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
           <select
             id="Backgroundsfs"
             className="select"
+            disabled
             onChange={(event) => {
               setBg(event.target.value === 'none' ? null : event.target.value);
             }}

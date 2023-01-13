@@ -3,7 +3,7 @@ import cx from 'classnames';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { evaluateNode, Graph, mangleVar } from '../../core/graph';
-import { EngineContext } from '../../core/engine';
+import { EngineContext, EngineNodeType } from '../../core/engine';
 import {
   babylengine,
   physicalDefaultProperties,
@@ -46,7 +46,7 @@ const useOnMeshDraw = (
 
   useEffect(() => {
     if (mesh && (lastMesh !== mesh || lastCallback !== callback)) {
-      console.log('setting new callback on mesh!');
+      console.log('Setting new onBeforeDrawObservable callback on mesh!');
       if (lastMesh) {
         lastMesh.onBeforeDrawObservable.clear();
       }
@@ -353,10 +353,39 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     // assumption there's a Physical material in the graph.
     const shaderMaterial = new BABYLON.PBRMaterial(pbrName, scene);
 
+    // Babylon has some internal uniforms like vAlbedoInfos that are only set
+    // if a property is set on the object. If a shader is plugged in to an image
+    // property, this code sets a placeholder image, to force Babylon to create
+    // the internal uniforms, even though they aren't used on the property image
+    const physicalFragmentNode = graph.nodes.find(
+      (n) =>
+        'stage' in n &&
+        n.stage === 'fragment' &&
+        n.type === EngineNodeType.physical
+    );
+    if (physicalFragmentNode) {
+      physicalFragmentNode.inputs.forEach((input) => {
+        const edge = graph.edges.find(
+          ({ to, input: i }) => to === physicalFragmentNode.id && i === input.id
+        );
+        if (edge) {
+          if (input?.dataType === 'texture') {
+            if (input.property === 'albedoTexture') {
+              shaderMaterial.albedoTexture =
+                images.brickNormal as BABYLON.Texture;
+            }
+            if (input.property === 'bumpTexture') {
+              shaderMaterial.bumpTexture =
+                images.brickNormal as BABYLON.Texture;
+            }
+          }
+        }
+      });
+    }
+
     // Possible PBRMaterial defaults
     // Ensures irradiance is computed per fragment to make the bump visible
     // shaderMaterial.forceIrradianceInFragment = true;
-    // shaderMaterial.albedoTexture = images.brick as BABYLON.Texture;
     // shaderMaterial.bumpTexture = images.brickNormal as BABYLON.Texture;
     shaderMaterial.albedoColor = new BABYLON.Color3(1.0, 1.0, 1.0);
     // shaderMaterial.metallic = 0.0;
@@ -373,8 +402,10 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     // makes a network call to try to find the shader. Setting these values
     // makes Babylon not perform a network call. Ironically these values are
     // completely discarded because of processFinalCode.
-    BABYLON.Effect.ShadersStore[pbrName + 'VertexShader'] = '';
-    BABYLON.Effect.ShadersStore[pbrName + 'FragmentShader'] = '';
+    BABYLON.Effect.ShadersStore[pbrName + 'VertexShader'] =
+      'Cant Be Empty Despite Being Unused';
+    BABYLON.Effect.ShadersStore[pbrName + 'FragmentShader'] =
+      'Cant Be Empty Despite Being Unused';
 
     shaderMaterial.customShaderNameResolve = (
       shaderName,

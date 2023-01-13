@@ -226,13 +226,15 @@ const Editor: React.FC = () => {
 
   const updateNodeInternals = useUpdateNodeInternals();
 
+  const query = new URLSearchParams(window.location.search);
+  const queryEngine = query.get('engine') || '';
+
   const [{ lastEngine, engine }, setEngine] = useState<{
     lastEngine: Engine | null;
     engine: Engine;
   }>({
     lastEngine: null,
-    engine: threngine,
-    // engine: babylengine,
+    engine: queryEngine === 'babylon' ? babylengine : threngine,
   });
 
   // Store the engine context in state. There's a separate function for passing
@@ -1022,13 +1024,43 @@ const Editor: React.FC = () => {
     );
   }, [example]);
 
-  const exampleSelectorElement = (
+  const engineSelectorElement = (
     <div className="inlinecontrol">
       <div>
-        <label className="label">Select an example!</label>
+        <label className="label" htmlFor="engineSelect">
+          Engine
+        </label>
       </div>
       <div>
         <select
+          id="engineSelect"
+          className="select"
+          onChange={(e) => {
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.set('engine', e.currentTarget.value);
+            window.location.href = `${
+              window.location.pathname
+            }?${urlParams.toString()}`;
+          }}
+          value={queryEngine}
+        >
+          <option value="three">Three.js</option>
+          <option value="babylon">Babylon</option>
+        </select>
+      </div>
+    </div>
+  );
+
+  const exampleSelectorElement = (
+    <div className="inlinecontrol">
+      <div>
+        <label className="label" htmlFor="exampleSelect">
+          Select an example!
+        </label>
+      </div>
+      <div>
+        <select
+          id="exampleSelect"
           className="select"
           onChange={(e) => setExample(e.currentTarget.value || null)}
           value={example || undefined}
@@ -1049,9 +1081,7 @@ const Editor: React.FC = () => {
     <>
       {smallScreen ? null : (
         <div className={cx(styles.tabControls, { [styles.col3]: isLocal })}>
-          <label className="label m-right-15">
-            Engine: {engine === babylengine ? 'Babylon.js' : 'Three.js'}
-          </label>
+          <div className="m-right-15">{engineSelectorElement}</div>
           {exampleSelectorElement}
           {isLocal ? (
             <>

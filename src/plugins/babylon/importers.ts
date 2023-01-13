@@ -15,7 +15,7 @@ const importers: EngineImporters = {
       // multiplication by normalMatrix?
       const seen: Record<string, boolean> = {};
       renameBindings(ast.scopes[0], (name) => {
-        console.log({ name }, 'seen:', seen[name]);
+        // console.log({ name }, 'seen:', seen[name]);
         const renamed =
           name === 'vUv'
             ? 'vMainUV1'

@@ -302,7 +302,6 @@ const evaluateNode = (node: DataNode) => {
     return parseFloat(node.value);
   }
 
-  // HARD CODED THREE.JS HACK for testing meshpshysicalmaterial uniforms
   if (node.type === 'vector2') {
     return new Vector2(parseFloat(node.value[0]), parseFloat(node.value[1]));
   } else if (node.type === 'vector3') {
@@ -437,7 +436,7 @@ export const threngine: Engine = {
       },
     },
     [EngineNodeType.phong]: {
-      onBeforeCompile: (graph, engineContext, node, sibling) => {
+      onBeforeCompile: async (graph, engineContext, node, sibling) => {
         const { three } = engineContext.runtime;
         cacher(engineContext, graph, node, sibling as SourceNode, () =>
           onBeforeCompileMegaShader(
@@ -452,7 +451,7 @@ export const threngine: Engine = {
       manipulateAst: megaShaderMainpulateAst,
     },
     [EngineNodeType.physical]: {
-      onBeforeCompile: (graph, engineContext, node, sibling) => {
+      onBeforeCompile: async (graph, engineContext, node, sibling) => {
         const { three } = engineContext.runtime;
 
         cacher(engineContext, graph, node, sibling as SourceNode, () =>
@@ -462,8 +461,7 @@ export const threngine: Engine = {
               // These properties are copied onto the runtime RawShaderMaterial.
               // These exist on the MeshPhysicalMaterial but only in the
               // prototype. We have to hard code them for Object.keys() to work
-              isMeshPhysicalMaterial: true,
-              isMeshStandardMaterial: true,
+              ...node.config.hardCodedProperties,
               ...threeMaterialProperties(three, graph, node, sibling),
             })
           )
@@ -472,7 +470,7 @@ export const threngine: Engine = {
       manipulateAst: megaShaderMainpulateAst,
     },
     [EngineNodeType.toon]: {
-      onBeforeCompile: (graph, engineContext, node, sibling) => {
+      onBeforeCompile: async (graph, engineContext, node, sibling) => {
         const { three } = engineContext.runtime;
 
         cacher(engineContext, graph, node, sibling as SourceNode, () =>

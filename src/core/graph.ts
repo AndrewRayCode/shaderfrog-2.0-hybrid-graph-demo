@@ -103,7 +103,7 @@ export type OnBeforeCompile = (
   engineContext: EngineContext,
   node: SourceNode,
   sibling?: SourceNode
-) => void;
+) => Promise<void>;
 
 export type ProduceAst = (
   engineContext: EngineContext,
@@ -554,24 +554,6 @@ export const compileNode = (
 
   const { inputs } = node;
 
-  // Removing this seems to prevent normal map shader source code updating from
-  // affecting the three.js shader. Why?
-  const { onBeforeCompile } = parser;
-  if (onBeforeCompile) {
-    const { groupId } = node as SourceNode;
-    const sibling = graph.nodes.find(
-      (n) => n !== node && (n as SourceNode).groupId === groupId
-    );
-    onBeforeCompile(
-      graph,
-      engineContext,
-      node as SourceNode,
-      sibling as SourceNode
-    );
-  }
-
-  // Will I one day get good enough at typescript to be able to remove this
-  // check? Or will I learn that I need it?
   if (!parser) {
     console.error(node);
     throw new Error(
@@ -750,12 +732,12 @@ const makeError = (...errors: any[]): NodeErrors => ({
 });
 const isError = (test: any): test is NodeErrors => test?.type === 'errors';
 
-const computeNodeContext = (
+const computeNodeContext = async (
   engineContext: EngineContext,
   engine: Engine,
   graph: Graph,
   node: SourceNode
-): NodeContext | NodeErrors => {
+): Promise<NodeContext | NodeErrors> => {
   // THIS DUPLICATES OTHER LINE
   const parser = {
     ...(coreParsers[node.type] || coreParsers[NodeType.SOURCE]),
@@ -769,7 +751,7 @@ const computeNodeContext = (
       (n) =>
         n !== node && 'groupId' in n && (n as SourceNode).groupId === groupId
     );
-    onBeforeCompile(
+    await onBeforeCompile(
       graph,
       engineContext,
       node as SourceNode,
@@ -857,19 +839,16 @@ const computeNodeContext = (
   return nodeContext;
 };
 
-export const computeContextForNodes = (
+export const computeContextForNodes = async (
   engineContext: EngineContext,
   engine: Engine,
   graph: Graph,
   nodes: GraphNode[]
 ) =>
-  nodes.filter(isSourceNode).reduce((context, node) => {
-    console.log(
-      'Computing context for',
-      `${node.name} (${node.id}, ${node.stage || node.type})`
-    );
+  nodes.filter(isSourceNode).reduce(async (ctx, node) => {
+    const context = await ctx;
 
-    let result = computeNodeContext(engineContext, engine, graph, node);
+    let result = await computeNodeContext(engineContext, engine, graph, node);
     let nodeContext = isError(result)
       ? {
           errors: result,
@@ -881,7 +860,7 @@ export const computeContextForNodes = (
       ...nodeContext,
     };
     return context;
-  }, engineContext.nodes);
+  }, Promise.resolve(engineContext.nodes));
 
 export type CompileGraphResult = {
   fragment: ShaderSections;
@@ -900,15 +879,13 @@ export const computeAllContexts = (
   engineContext: EngineContext,
   engine: Engine,
   graph: Graph
-) => {
-  computeContextForNodes(engineContext, engine, graph, graph.nodes);
-};
+) => computeContextForNodes(engineContext, engine, graph, graph.nodes);
 
 /**
  * Compute the contexts for nodes starting from the outputs, working backwards.
  * Used to only (re)-compute context for any actively used nodes
  */
-export const computeGraphContext = (
+export const computeGraphContext = async (
   engineContext: EngineContext,
   engine: Engine,
   graph: Graph
@@ -937,12 +914,12 @@ export const computeGraphContext = (
       !vertexIds[node.id]
   );
 
-  computeContextForNodes(engineContext, engine, graph, [
+  await computeContextForNodes(engineContext, engine, graph, [
     outputVert,
     ...Object.values(vertexIds).filter((node) => node.id !== outputVert.id),
     ...additionalIds,
   ]);
-  computeContextForNodes(engineContext, engine, graph, [
+  await computeContextForNodes(engineContext, engine, graph, [
     outputFrag,
     ...Object.values(fragmentIds).filter((node) => node.id !== outputFrag.id),
   ]);
@@ -953,7 +930,7 @@ export const compileGraph = (
   engine: Engine,
   graph: Graph
 ): CompileGraphResult => {
-  computeGraphContext(engineContext, engine, graph);
+  // computeGraphContext(engineContext, engine, graph);
 
   const outputFrag = graph.nodes.find(
     (node) => node.type === 'output' && node.stage === 'fragment'

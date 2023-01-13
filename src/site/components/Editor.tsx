@@ -231,8 +231,8 @@ const Editor: React.FC = () => {
     engine: Engine;
   }>({
     lastEngine: null,
-    // engine: threngine,
-    engine: babylengine,
+    engine: threngine,
+    // engine: babylengine,
   });
 
   // Store the engine context in state. There's a separate function for passing
@@ -454,8 +454,8 @@ const Editor: React.FC = () => {
   const initializeGraph = useCallback(
     (initialElements: FlowElements, newCtx: EngineContext, graph: Graph) => {
       setContexting(true);
-      setTimeout(() => {
-        computeAllContexts(newCtx, engine, graph);
+      setTimeout(async () => {
+        await computeAllContexts(newCtx, engine, graph);
         console.log('Initializing flow nodes and compiling graph!', {
           graph,
           newCtx,
@@ -824,6 +824,7 @@ const Editor: React.FC = () => {
 
   const addNodeAtPosition = useCallback(
     (
+      graph: Graph,
       nodeDataType: string,
       name: string,
       position: XYPosition,
@@ -863,21 +864,18 @@ const Editor: React.FC = () => {
       }));
 
       // Give the flow graph time to update after adding the new nodes
-      setTimeout(() => {
-        setGraph((graph) => {
-          const updatedGraph = {
-            ...graph,
-            edges: [...graph.edges, ...expanded.edges],
-            nodes: [...graph.nodes, ...expanded.nodes],
-          };
-          // Create new inputs for new nodes added to the graph
-          computeContextForNodes(ctx as EngineContext, engine, updatedGraph, [
-            ...expanded.nodes,
-            ...(newEdgeData ? [findNode(updatedGraph, newEdgeData.to)] : []),
-          ]);
-          return updatedGraph;
-        });
-
+      setTimeout(async () => {
+        const updatedGraph = {
+          ...graph,
+          edges: [...graph.edges, ...expanded.edges],
+          nodes: [...graph.nodes, ...expanded.nodes],
+        };
+        // Create new inputs for new nodes added to the graph
+        computeContextForNodes(ctx as EngineContext, engine, updatedGraph, [
+          ...expanded.nodes,
+          ...(newEdgeData ? [findNode(updatedGraph, newEdgeData.to)] : []),
+        ]);
+        setGraph(updatedGraph);
         debouncedSetNeedsCompile(true);
       }, 10);
     },
@@ -912,6 +910,7 @@ const Editor: React.FC = () => {
         }
 
         addNodeAtPosition(
+          graph,
           type,
           input.displayName,
           project({
@@ -931,7 +930,7 @@ const Editor: React.FC = () => {
       // Clear the connection info on drag stop
       connecting.current = null;
     },
-    [project, addNodeAtPosition, resetTargets]
+    [graph, project, addNodeAtPosition, resetTargets]
   );
 
   const mouseRef = useRef<MouseData>({
@@ -949,10 +948,10 @@ const Editor: React.FC = () => {
   const onMenuAdd = useCallback(
     (type: string) => {
       const pos = project(menuPosition as XYPosition);
-      addNodeAtPosition(type, '', pos);
+      addNodeAtPosition(graph, type, '', pos);
       setMenuPos();
     },
-    [addNodeAtPosition, setMenuPos, project, menuPosition]
+    [graph, addNodeAtPosition, setMenuPos, project, menuPosition]
   );
 
   /**
@@ -1050,11 +1049,9 @@ const Editor: React.FC = () => {
     <>
       {smallScreen ? null : (
         <div className={cx(styles.tabControls, { [styles.col3]: isLocal })}>
-          {isLocal ? (
-            <div className={styles.activeEngine}>
-              {engine === babylengine ? 'Babylon.js' : 'Three.js'}
-            </div>
-          ) : null}
+          <label className="label m-right-15">
+            Engine: {engine === babylengine ? 'Babylon.js' : 'Three.js'}
+          </label>
           {exampleSelectorElement}
           {isLocal ? (
             <>
@@ -1084,15 +1081,7 @@ const Editor: React.FC = () => {
       <Tabs onSelect={setEditorTabIndex} selected={editorTabIndex}>
         <TabGroup className={styles.tabBar}>
           <Tab>Graph</Tab>
-          <Tab>
-            Editor
-            {activeShader
-              ? `(${activeShader.name} - 
-            ${
-              'stage' in activeShader ? activeShader.stage : activeShader.type
-            })`
-              : null}
-          </Tab>
+          <Tab>GLSL Editor</Tab>
           <Tab
             className={{
               [styles.errored]: uiState.fragError || uiState.vertError,

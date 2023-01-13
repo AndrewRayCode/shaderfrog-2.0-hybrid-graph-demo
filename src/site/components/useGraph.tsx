@@ -1,6 +1,7 @@
 import {
   collectConnectedNodes,
   compileGraph,
+  computeGraphContext,
   filterGraphNodes,
   Graph,
   GraphNode,
@@ -70,7 +71,7 @@ const compileGraphAsync = async (
   ctx: EngineContext
 ): Promise<UICompileGraphResult> =>
   new Promise((resolve, reject) => {
-    setTimeout(() => {
+    setTimeout(async () => {
       console.warn('Compiling!', graph, 'for nodes', ctx.nodes);
 
       const allStart = performance.now();
@@ -78,6 +79,7 @@ const compileGraphAsync = async (
       let result;
 
       try {
+        await computeGraphContext(ctx, engine, graph);
         result = compileGraph(ctx, engine, graph);
       } catch (err) {
         return reject(err);
@@ -116,7 +118,7 @@ const compileGraphAsync = async (
       }, {});
 
       const now = performance.now();
-      console.log(`Compilation too ${(now - allStart).toFixed(3)}ms`);
+      console.log(`Compilation took ${(now - allStart).toFixed(3)}ms`);
       resolve({
         compileMs: (now - allStart).toFixed(3),
         result,

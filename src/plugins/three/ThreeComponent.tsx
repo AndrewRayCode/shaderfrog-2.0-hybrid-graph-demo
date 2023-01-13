@@ -109,11 +109,11 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         shadersUpdated.current = false;
       }
 
-      if (sceneData.lights.length === 2) {
+      if (lights === 'point' && sceneData.lights.length >= 1) {
         const light = sceneData.lights[0];
         light.position.x = 1.2 * Math.sin(time * 0.001);
         light.position.y = 1.2 * Math.cos(time * 0.001);
-      } else if (sceneData.lights.length === 4) {
+      } else if (lights === 'spot' && sceneData.lights.length >= 2) {
         const light = sceneData.lights[0];
         light.position.x = 1.2 * Math.sin(time * 0.001);
         light.position.y = 1.2 * Math.cos(time * 0.001);
@@ -305,26 +305,13 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     }
 
     if (bg) {
+      console.log('setting bg', bg, images[bg]);
       scene.background = images[bg];
       scene.environment = images[bg];
     } else {
       scene.environment = null;
       scene.background = null;
     }
-
-    // if (sceneData.bg) {
-    //   scene.remove(sceneData.bg);
-    // }
-
-    // const geometry = new three.PlaneGeometry(2, 2);
-    // const material = new three.MeshBasicMaterial({
-    //   color: 0xffff00,
-    //   side: three.DoubleSide,
-    // });
-    // const mesh = new three.Mesh(geometry);
-    // mesh.material = material;
-    // sceneData.bg = mesh;
-    // scene.add(mesh);
   }, [
     bg,
     previousBg,
@@ -339,10 +326,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   ]);
 
   const [ctx] = useState<EngineContext>(
-    // EXPERIMENTAL! Added context from hoisted ref as initializer to avoid
-    // re-creating context including cache and envmaptexture. Remove this
-    // comment if there are no future issues switching between threejs source
-    // code tab and the scene
+    // Use context from hoisted ref as initializer to avoid re-creating context
+    // including cache and envmaptexture
     initialCtx || {
       engine: 'three',
       compileCount: 0,

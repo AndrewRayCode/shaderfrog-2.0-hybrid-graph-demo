@@ -32,6 +32,20 @@ import {
 import { NodeInput, NodePosition } from '../../core/nodes/core-node';
 import { DataNode, UniformDataType } from '../../core/nodes/data-nodes';
 
+// Setting these properties on the material have side effects, not just for the
+// GLSL, but for the material itself in JS memory apparently, maybe the bound
+// uniforms?. The material we create in babylengine must have the same initial
+// properties as those in BabylonComponent or else there will be errors with
+// uniforms
+export const physicalDefaultProperties: Partial<
+  Record<keyof BABYLON.PBRMaterial, any>
+> = {
+  forceIrradianceInFragment: true,
+  albedoColor: new BABYLON.Color3(1.0, 1.0, 1.0),
+  metallic: 0.0,
+  roughness: 1.0,
+};
+
 export const physicalNode = (
   id: string,
   name: string,
@@ -55,37 +69,12 @@ export const physicalNode = (
         property('Base Color', 'baseColor', 'rgb', '?????'),
         property('Color', 'albedoColor', 'rgb', 'uniform_vAlbedoColor'),
         property('Texture', 'albedoTexture', 'texture', 'filler_albedoSampler'),
-        property('Bump Map', 'bumpTexture', 'texture', 'filler_bumpTexture'),
-        // property('Normal Scale', 'normalScale', 'vector2'),
+        property('Bump Map', 'bumpTexture', 'texture', 'filler_bumpSampler'),
         property('Metalness', 'metallic', 'number'),
         property('Roughness', 'roughness', 'number'),
-        // property(
-        //   'Roughness Map',
-        //   'roughnessMap',
-        //   'texture',
-        //   'filler_roughnessMap'
-        // ),
-        // property('Displacement Map', 'displacementMap', 'texture'),
-        // MeshPhysicalMaterial gets envMap from the scene. MeshStandardMaterial
-        // gets it from the material
         property('Env Map', 'environmentTexture', 'samplerCube'),
-        // property('Transmission', 'transmission', 'number'),
-        // property(
-        //   'Transmission Map',
-        //   'transmissionMap',
-        //   'texture',
-        //   'filler_transmissionMap'
-        // ),
-        // property('Thickness', 'thickness', 'number'),
-        // property('Index of Refraction', 'ior', 'number'),
-        // property('Sheen', 'sheen', 'number'),
-        // property('Reflectivity', 'reflectivity', 'number'),
-        // property('Clearcoat', 'clearcoat', 'number'),
       ],
-      // hardCodedProperties: {
-      //   isMeshPhysicalMaterial: true,
-      //   isMeshStandardMaterial: true,
-      // },
+      hardCodedProperties: physicalDefaultProperties,
       strategies: [
         uniformStrategy(),
         stage === 'fragment'
@@ -115,6 +104,9 @@ export type RuntimeContext = {
   // index: number;
   // threeTone: any;
   cache: {
+    data: {
+      [key: string]: any;
+    };
     nodes: {
       [id: string]: {
         // fragmentRef: any;
@@ -141,7 +133,7 @@ const babylonMaterialProperties = (
     );
 
   // Then look for any edges into those inputs and set the material property
-  return graph.edges
+  const props = graph.edges
     .filter((edge) => edge.to === node.id || edge.to === sibling?.id)
     .reduce<Record<string, any>>((acc, edge) => {
       // Check if we've plugged into an input for a property
@@ -165,128 +157,168 @@ const babylonMaterialProperties = (
       }
       return acc;
     }, {});
+  console.log('internal props', props);
+  return props;
 };
 
-let mIdx = 0;
+export let mIdx = 0;
 let id = () => mIdx++;
-const onBeforeCompileMegaShader = (
+
+const nodeCacheKey = (graph: Graph, node: SourceNode) => {
+  return (
+    '' +
+    node.id +
+    graph.edges
+      .filter((edge) => edge.to === node.id)
+      .map((edge) => `${edge.to}.${edge.input}`)
+      .sort()
+      .join(',')
+    // Currently excluding node inputs because these are calculated *after*
+    // the onbeforecompile, so the next compile, they'll all change!
+    // node.inputs.map((i) => `${i.id}${i.bakeable}`)
+  );
+};
+
+const programCacheKey = (
   engineContext: EngineContext,
   graph: Graph,
   node: SourceNode,
   sibling: SourceNode
 ) => {
+  // The megashader source is dependent on scene information, like the number
+  // and type of lights in the scene. This kinda sucks - it's duplicating
+  // three's material cache key, and is coupled to how three builds shaders
+  const scene = engineContext.runtime.scene as BABYLON.Scene;
+  const lights = scene.getNodes().filter((n) => n instanceof BABYLON.Light);
+
+  return (
+    [node, sibling]
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map((n) => nodeCacheKey(graph, n))
+      .join('-') + lights.join(',')
+  );
+};
+
+const cacher = async (
+  engineContext: EngineContext,
+  graph: Graph,
+  node: SourceNode,
+  sibling: SourceNode,
+  newValue: (...args: any[]) => Promise<any>
+) => {
+  const cacheKey = programCacheKey(engineContext, graph, node, sibling);
+
+  if (engineContext.runtime.cache.data[cacheKey]) {
+    console.log(`cache hit "${cacheKey}"`);
+  } else {
+    console.log(`cache miss "${cacheKey}"`);
+  }
+  const materialData = await (engineContext.runtime.cache.data[cacheKey] ||
+    newValue());
+  console.log(`Material cache "${cacheKey}" is now`, materialData);
+
+  engineContext.runtime.cache.data[cacheKey] = materialData;
+  engineContext.runtime.engineMaterial = materialData.material;
+
+  // TODO: We mutate the nodes here, can we avoid that later?
+  node.source =
+    node.stage === 'fragment' ? materialData.fragment : materialData.vertex;
+  sibling.source =
+    sibling.stage === 'fragment' ? materialData.fragment : materialData.vertex;
+};
+
+const onBeforeCompileMegaShader = async (
+  engineContext: EngineContext,
+  graph: Graph,
+  node: SourceNode,
+  sibling: SourceNode
+): Promise<{
+  material: BABYLON.Material;
+  fragment: string;
+  vertex: string;
+}> => {
   const { scene, sceneData } = engineContext.runtime;
 
-  // TODO: match what's in threngine, where they comment this out? Maybe to
-  // support changing lights?
-  // const { nodes } = engineContext.runtime.cache;
-  // if (nodes[node.id] || (node.nextStageNodeId && nodes[node.nextStageNodeId])) {
-  //   return;
-  // }
-
-  console.log('------------------------- starting onbeforecompile mega shader');
-  const pbrName = `spbr${id()}`;
+  const pbrName = `engine_pbr${id()}`;
   const shaderMaterial = new BABYLON.PBRMaterial(pbrName, scene);
   Object.assign(
     shaderMaterial,
+    node.config.hardCodedProperties || sibling.config.hardCodedProperties || {},
     babylonMaterialProperties(scene, graph, node, sibling)
   );
 
-  // Ensures irradiance is computed per fragment to make the
-  // Bump visible
-  shaderMaterial.forceIrradianceInFragment = true;
-
-  // const tex = new BABYLON.Texture('/brick-texture.jpeg', scene);
-  // shaderMaterial.albedoTexture = tex;
-  // shaderMaterial.bumpTexture = tex;
-
-  // reasonable default
-  shaderMaterial.albedoColor = new BABYLON.Color3(1.0, 1.0, 1.0);
-  // shaderMaterial.metallic = 0.1; // set to 1 to only use it from the metallicRoughnessTexture
-  // shaderMaterial.roughness = 0.1; // set to 1 to only use it from the metallicRoughnessTexture
-
+  const nodeCache = engineContext.runtime.cache.nodes;
   let fragmentSource =
-    engineContext.runtime.cache.nodes[node.id]?.fragment ||
-    engineContext.runtime.cache.nodes[node.nextStageNodeId || 'tttt']?.fragment;
+    nodeCache[node.id]?.fragment ||
+    nodeCache[node.nextStageNodeId || 'unknown']?.fragment;
   let vertexSource =
-    engineContext.runtime.cache.nodes[node.id]?.vertex ||
-    engineContext.runtime.cache.nodes[node.nextStageNodeId || 'tttt']?.vertex;
-  // console.log(
-  //   '🍃 Creating custom shadermaterial for' + node.id + ` (${node.name})`,
-  //   { fragmentSource, vertexSource }
-  // );
-  shaderMaterial.customShaderNameResolve = (
-    shaderName,
-    uniforms,
-    uniformBuffers,
-    samplers,
-    defines,
-    attributes,
-    options
-  ) => {
-    // console.log('🍃 in customshadernameresolve', { defines });
-    console.log('🍃 in customshadernameresolve');
-    if (Array.isArray(defines)) {
-      defines.push('FAKE_UPDATE_' + id());
-    } else {
-      // defines['FAKE_UPDATE_' + id()] = true;
-      defines.AMBIENTDIRECTUV = 0.0000001 * Math.random();
-      // defines._isDirty = true;
+    nodeCache[node.id]?.vertex ||
+    nodeCache[node.nextStageNodeId || 'unknown']?.vertex;
 
-      // TODO: Does this work?
-      // shaderMaterial.markDirty();
+  return new Promise((resolve) => {
+    shaderMaterial.customShaderNameResolve = (
+      shaderName,
+      uniforms,
+      uniformBuffers,
+      samplers,
+      defines,
+      attributes,
+      options
+    ) => {
+      if (options) {
+        options.processFinalCode = (type, code) => {
+          if (type === 'vertex') {
+            // console.log('bablyengine captured vertex code', { code });
+            vertexSource = code;
+            return code;
+          } else if (type === 'fragment') {
+            // console.log('bablyengine captured fragment code', { code });
+            fragmentSource = code;
+            return code;
+          }
+          throw new Error(`Unknown type ${type}`);
+        };
+      } else {
+        console.warn('No options for', pbrName);
+      }
+      return shaderName;
+    };
+
+    if (!sceneData.mesh) {
+      console.log('🍃 EFF, no MESHREF RENDER()....');
     }
-    if (options) {
-      options.processFinalCode = (type, code) => {
-        console.log('🍃 processFinalCode');
-        if (type === 'vertex' && node.stage === 'vertex') {
-          // console.log('🍃 processFinalCode vertex processFinalCode', {
-          //   node,
-          //   code,
-          //   type,
-          // });
-          vertexSource = code;
-          node.source = code;
-          return code;
-        } else if (type === 'fragment' && node.stage === 'fragment') {
-          // console.log('🍃 processFinalCode fragment processFinalCode', {
-          //   node,
-          //   code,
-          //   type,
-          // });
-          fragmentSource = code;
-          node.source = code;
-          return code;
-        }
-        return code;
+    console.log('🍃 Calling forceCompilation()....');
+
+    shaderMaterial.forceCompilation(sceneData.mesh, (compiledMaterial) => {
+      console.log('Bablony shader compilation done!');
+
+      if (node.stage === 'fragment') {
+        node.source = fragmentSource;
+      }
+      if (sibling.stage === 'fragment') {
+        sibling.source = fragmentSource;
+      }
+      if (node.stage === 'vertex') {
+        node.source = vertexSource;
+      }
+      if (sibling.stage === 'vertex') {
+        sibling.source = vertexSource;
+      }
+
+      engineContext.runtime.cache.nodes[node.id] = {
+        // fragmentRef,
+        // vertexRef,
+        fragment: fragmentSource,
+        vertex: vertexSource,
       };
-    }
-    // return pbrName;
-    return shaderName;
-  };
 
-  if (sceneData.mesh) {
-    // console.log('🍃 Calling forceCompilation()....');
-    // sceneData.mesh.material = shaderMaterial;
-    shaderMaterial.forceCompilation(sceneData.mesh);
-    scene.render();
-  } else {
-    console.log('🍃 FCUK no MESHREF RENDER()....');
-  }
-  // console.log('🍃 BABYLERN forceCompilation done()....');
-  // shaderMaterial.forceCompilation(sceneData.mesh);
-  // scene.render();
-  // console.log('🍃 BABYLERN RENDER done', { vertexSource, fragmentSource });
-
-  // TODO: This is hard coded to not include a b'ump
-  engineContext.runtime.cache.nodes[node.id] = {
-    // fragmentRef,
-    // vertexRef,
-    fragment: fragmentSource,
-    vertex: vertexSource,
-  };
-
-  shaderMaterial.dispose();
+      resolve({
+        material: compiledMaterial,
+        fragment: fragmentSource,
+        vertex: vertexSource,
+      });
+    });
+  });
 };
 
 const megaShaderMainpulateAst: NodeParser['manipulateAst'] = (
@@ -297,12 +329,6 @@ const megaShaderMainpulateAst: NodeParser['manipulateAst'] = (
   ast,
   inputEdges
 ) => {
-  // const { nodes } = engineContext.runtime.cache;
-  // const { vertex } =
-  //   nodes[node.id] || (node.nextStageNodeId && nodes[node.nextStageNodeId]);
-  // engineContext.debuggingNonsense.vertexSource = vertex;
-  // engineContext.debuggingNonsense.vertexPreprocessed = vertexPreprocessed;
-
   const programAst = ast as Program;
   const mainName = 'main' || nodeName(node);
 
@@ -397,7 +423,6 @@ const evaluateNode = (node: DataNode) => {
     return parseFloat(node.value);
   }
 
-  // HARD CODED THREE.JS HACK for testing meshpshysicalmaterial uniforms
   if (node.type === 'vector2') {
     return new BABYLON.Vector2(
       parseFloat(node.value[0]),
@@ -541,25 +566,15 @@ export const babylengine: Engine = {
   ]),
   parsers: {
     [EngineNodeType.physical]: {
-      onBeforeCompile: (graph, engineContext, node, sibling) => {
-        onBeforeCompileMegaShader(
-          engineContext,
-          graph,
-          node,
-          sibling as SourceNode
-        );
-        // Fragment and vertex source code look ok here
-        // console.warn(
-        //   'after compile megashader fragemnt',
-        //   node.stage,
-        //   generate(node.source)
-        // );
-        // console.warn(
-        //   'after compile megashader vertex',
-        //   sibling!.stage,
-        //   generate(sibling!.source)
-        // );
-      },
+      onBeforeCompile: (graph, engineContext, node, sibling) =>
+        cacher(engineContext, graph, node, sibling as SourceNode, () =>
+          onBeforeCompileMegaShader(
+            engineContext,
+            graph,
+            node,
+            sibling as SourceNode
+          )
+        ),
       manipulateAst: megaShaderMainpulateAst,
     },
   },

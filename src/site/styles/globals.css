@@ -26,3 +26,7 @@ a {
 .noselect {
   user-select: none;
 }
+
+.m-right-15 {
+  margin-right: 15px;
+}

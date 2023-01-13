@@ -343,8 +343,8 @@ export const makeExampleGraph = (
         outputV,
         physicalF,
         physicalV,
-        // checkerboardf,
-        // checkerboardv,
+        checkerboardf,
+        checkerboardv,
       ],
       edges: [
         makeEdge(
@@ -363,14 +363,14 @@ export const makeExampleGraph = (
           'filler_gl_Position',
           'vertex'
         ),
-        // makeEdge(
-        //   makeId(),
-        //   checkerboardf.id,
-        //   physicalF.id,
-        //   'out',
-        //   'property_map',
-        //   'fragment'
-        // ),
+        makeEdge(
+          makeId(),
+          checkerboardf.id,
+          physicalF.id,
+          'out',
+          engine.name === 'three' ? 'property_map' : 'property_albedoTexture',
+          'fragment'
+        ),
       ],
     };
     previewObject = 'sphere';

@@ -31,10 +31,6 @@ export const useBabylon = (callback: Callback) => {
       const loadingMaterial = new BABYLON.StandardMaterial('mat2', scene);
       loadingMaterial.emissiveColor = new BABYLON.Color3(0.8, 0.2, 0.5);
       // scene.createDefaultEnvironment();
-      const hdrTexture = BABYLON.CubeTexture.CreateFromPrefilteredData(
-        '/envmaps/environmentSpecular.env',
-        scene
-      );
       // This line makes the object disappear on page load - race condition?
       // Bad shader compile?
       // scene.environmentTexture = hdrTexture;
@@ -50,7 +46,7 @@ export const useBabylon = (callback: Callback) => {
           'camera1',
           Math.PI / 2,
           Math.PI / 2,
-          5,
+          4,
           new BABYLON.Vector3(0, 0, 0),
           scene
         ),
@@ -62,34 +58,10 @@ export const useBabylon = (callback: Callback) => {
       };
     });
 
-  // const [babylonCanvas] = useState(() => document.createElement('canvas'));
-
   const [babylonDom, setBabylonDom] = useState<HTMLCanvasElement | null>(null);
   const babylonDomRef = useCallback((node) => setBabylonDom(node), []);
 
   const frameRef = useRef<number>(0);
-
-  // const [engine] = useState(
-  //   () =>
-  //     new BABYLON.Engine(babylonCanvas, true, {
-  //       preserveDrawingBuffer: true,
-  //       stencil: true,
-  //     })
-  // );
-
-  // const [scene] = useState(() => new BABYLON.Scene(engine));
-
-  // const [camera] = useState(
-  //   () =>
-  //     new BABYLON.ArcRotateCamera(
-  //       'camera1',
-  //       0,
-  //       Math.PI,
-  //       5,
-  //       new BABYLON.Vector3(0, 0, 0),
-  //       scene
-  //     )
-  // );
 
   useEffect(() => {
     // Target the camera to scene origin

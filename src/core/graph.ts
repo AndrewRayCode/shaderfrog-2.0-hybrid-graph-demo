@@ -987,9 +987,6 @@ export const compileGraph = (
     outputVert
   );
 
-  // Imperative hack :( to allow engines to know some unique id of compilation
-  engineContext.compileCount++;
-
   // Every compileNode returns the AST so far, as well as the filler for the
   // next node with inputs. On the final step, we discard the filler
   return {

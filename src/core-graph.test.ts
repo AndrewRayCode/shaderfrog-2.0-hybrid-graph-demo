@@ -127,7 +127,6 @@ void main() {
   };
   const engineContext: EngineContext = {
     engine: 'three',
-    compileCount: 0,
     nodes: {},
     runtime: {},
     debuggingNonsense: {},

@@ -56,7 +56,6 @@ export type NodeContext = {
 // as the generic "RuntimeContext" which is passed to implemented engine methods
 export type EngineContext = {
   engine: string;
-  compileCount: 0;
   nodes: Record<string, NodeContext>;
   runtime: any;
   debuggingNonsense: {

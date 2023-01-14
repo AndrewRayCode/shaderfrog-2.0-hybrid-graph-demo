@@ -330,7 +330,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     // including cache and envmaptexture
     initialCtx || {
       engine: 'three',
-      compileCount: 0,
       // TODO: Rename runtime to "engine" and make a new nodes and data top level
       // key cache (if we keep the material cache) and type it in the graph
       runtime: {

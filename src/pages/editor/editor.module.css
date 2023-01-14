@@ -264,6 +264,16 @@ textarea.error {
   width: 100%;
 }
 
+.babylonContainer {
+  height: 100%;
+  width: 100%;
+}
+
+.babylonContainer canvas {
+  height: 100%;
+  width: 100%;
+}
+
 .sceneAndControls {
   height: 100vh;
   display: grid;

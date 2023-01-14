@@ -323,7 +323,12 @@ const createGraphNode = (
     newGns = [normalMapify(id, position)];
   } else if (nodeDataType === 'samplerCube') {
     newGns = [
-      samplerCubeNode(id, makeName('samplerCube'), position, 'warehouse'),
+      samplerCubeNode(
+        id,
+        makeName('samplerCube'),
+        position,
+        'warehouseEnvTexture'
+      ),
     ];
   } else if (nodeDataType === 'fragment' || nodeDataType === 'vertex') {
     newGns = [

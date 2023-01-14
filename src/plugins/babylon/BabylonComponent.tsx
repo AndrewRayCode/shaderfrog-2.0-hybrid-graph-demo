@@ -15,8 +15,9 @@ import styles from '../../pages/editor/editor.module.css';
 import { useBabylon } from './useBabylon';
 import { usePrevious } from '../../site/hooks/usePrevious';
 import { UICompileGraphResult } from '../../site/uICompileGraphResult';
-import { TextureNode } from '../../core/nodes/data-nodes';
+import { SamplerCubeNode, TextureNode } from '../../core/nodes/data-nodes';
 import { useSize } from '../../site/hooks/useSize';
+import { Nullable } from 'babylonjs';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
@@ -37,23 +38,29 @@ BABYLON.Logger.Error = (...args) => {
   _err(...args);
 };
 
+type OnBeforeDraw = (mesh: BABYLON.Mesh) => void;
 const useOnMeshDraw = (
   mesh: BABYLON.Mesh | undefined,
   callback: (mesh: BABYLON.Mesh) => void
 ) => {
   const lastMesh = usePrevious(mesh);
-  const lastCallback = usePrevious(callback);
+  const savedCallback = useRef<(mesh: BABYLON.Mesh) => void>(callback);
 
   useEffect(() => {
-    if (mesh && (lastMesh !== mesh || lastCallback !== callback)) {
+    savedCallback.current = callback;
+  }, [callback]);
+
+  useEffect(() => {
+    if (mesh && lastMesh !== mesh) {
+      const applied: OnBeforeDraw = (mesh) => savedCallback.current(mesh);
       console.log('Setting new onBeforeDrawObservable callback on mesh!');
       if (lastMesh) {
         lastMesh.onBeforeDrawObservable.clear();
       }
       mesh.onBeforeDrawObservable.clear();
-      mesh.onBeforeDrawObservable.add(callback);
+      mesh.onBeforeDrawObservable.add(applied);
     }
-  }, [lastMesh, mesh, callback, lastCallback]);
+  }, [lastMesh, mesh]);
 };
 
 const lightHelper = (scene: BABYLON.Scene, parent: BABYLON.Light) => {
@@ -107,7 +114,6 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
   height,
 }) => {
   const checkForCompileErrors = useRef<boolean>(false);
-  const compileCount = useRef<number>(0);
   const lastCompile = useRef<any>({});
   const sceneWrapper = useRef<HTMLDivElement>(null);
   const size = useSize(sceneWrapper);
@@ -140,7 +146,12 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     }
   });
 
-  const images = useMemo<Record<string, BABYLON.Texture | null>>(
+  const images = useMemo<
+    Record<
+      string,
+      BABYLON.Texture | BABYLON.HDRCubeTexture | BABYLON.CubeTexture | null
+    >
+  >(
     () => ({
       explosion: new BABYLON.Texture('/explosion.png', scene),
       'grayscale-noise': new BABYLON.Texture('/grayscale-noise.png', scene),
@@ -154,7 +165,15 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       ),
       pebblesBump: new BABYLON.Texture('/Big_pebbles_pxr128_bmp.jpeg', scene),
       pondCubeMap: null,
-      warehouseEnvTexture: null,
+      warehouseEnvTexture: new BABYLON.HDRCubeTexture(
+        '/envmaps/room.hdr',
+        scene,
+        512
+      ),
+      cityCourtYard: BABYLON.CubeTexture.CreateFromPrefilteredData(
+        '/envmaps/citycourtyard.dds',
+        scene
+      ),
     }),
     [scene]
   );
@@ -170,8 +189,8 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       mesh = BABYLON.MeshBuilder.CreateTorusKnot(
         'torusKnot',
         {
-          radius: 1,
-          tube: 0.25,
+          radius: 0.5,
+          tube: 0.15,
           radialSegments: 128,
         },
         scene
@@ -257,9 +276,8 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
                     // THIS DUPLICATES OTHER LINE, used for runtime uniform setting
                     newValue = images[(fromNode as TextureNode).value];
                   }
-                  // TODO RENDER TARGET
                   if (fromNode.type === 'samplerCube') {
-                    return;
+                    newValue = images[(fromNode as SamplerCubeNode).value];
                   }
 
                   if (input.type === 'property' && input.property) {
@@ -314,7 +332,6 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
   const [ctx] = useState<EngineContext>(() => {
     return {
       engine: 'babylon',
-      compileCount: 0,
       runtime: {
         BABYLON,
         scene,
@@ -332,6 +349,32 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     setCtx(ctx);
   }, [ctx, setCtx]);
 
+  const previousPreviewObject = usePrevious(previewObject);
+  const previousBg = usePrevious(bg);
+  const skybox = useRef<Nullable<BABYLON.Mesh>>();
+  useEffect(() => {
+    if (bg === previousBg) {
+      return;
+    }
+    const newBg = bg ? images[bg] : null;
+    console.log('setting bg', bg, newBg);
+    scene.environmentTexture = newBg;
+    if (skybox.current) {
+      skybox.current.dispose();
+    }
+    if (newBg) {
+      skybox.current = scene.createDefaultSkybox(newBg);
+    }
+  }, [
+    bg,
+    previousBg,
+    previousPreviewObject,
+    sceneData,
+    previewObject,
+    scene,
+    images,
+  ]);
+
   useEffect(() => {
     if (!compileResult?.fragmentResult) {
       console.log(
@@ -346,7 +389,6 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       pbrName,
       scene,
       compileResult,
-      ct: ctx.compileCount,
     });
 
     // TODO: Babylon doesn't have a RawShaderMaterial. This hard codes the
@@ -500,7 +542,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
       console.warn('No mesh to assign the material to!');
     }
     // sceneRef.current.shadersUpdated = true;
-  }, [scene, compileResult, ctx.compileCount, sceneData.mesh]);
+  }, [scene, compileResult, images.brickNormal, sceneData.mesh]);
 
   const prevLights = usePrevious(lights);
   const previousShowHelpers = usePrevious(showHelpers);
@@ -690,20 +732,19 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
           <select
             id="Backgroundsfs"
             className="select"
-            disabled
             onChange={(event) => {
               setBg(event.target.value === 'none' ? null : event.target.value);
             }}
             value={bg ? bg : 'none'}
           >
             <option value="none">None</option>
-            <option value="warehouseEnvTexture">Warehouse</option>
-            <option value="pondCubeMap">Pond Cube Map</option>
+            <option value="cityCourtYard">City Courtyard</option>
+            {/* <option value="pondCubeMap">Pond Cube Map</option> */}
           </select>
         </div>
       </div>
       <div ref={sceneWrapper} className={styles.sceneContainer}>
-        <div ref={babylonDomRef}></div>
+        <div ref={babylonDomRef} className={styles.babylonContainer}></div>
       </div>
     </>
   );

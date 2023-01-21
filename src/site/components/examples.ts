@@ -20,7 +20,8 @@ import staticShaderNode, { variation1 } from '../../shaders/staticShaderNode';
 import { makeId } from '../../util/id';
 import { checkerboardF, checkerboardV } from '../../shaders/checkboardNode';
 import normalMapify from '../../shaders/normalmapifyNode';
-import { Engine } from '../../core/engine';
+import { convertNode, Engine } from '../../core/engine';
+import { babylengine } from '../../plugins/babylon/bablyengine';
 
 export enum Example {
   GLASS_FIRE_BALL = 'Glass Fireball',
@@ -152,7 +153,7 @@ export const makeExampleGraph = (
           staticF.id,
           physicalF.id,
           'out',
-          'property_map',
+          engine.name === 'three' ? 'property_map' : 'property_albedoTexture',
           'fragment'
         ),
         makeEdge(
@@ -160,7 +161,7 @@ export const makeExampleGraph = (
           color.id,
           physicalF.id,
           'out',
-          'property_color',
+          engine.name === 'three' ? 'property_color' : 'property_albedoColor',
           'fragment'
         ),
         makeEdge(
@@ -171,22 +172,26 @@ export const makeExampleGraph = (
           'property_roughness',
           'fragment'
         ),
-        makeEdge(
-          makeId(),
-          transmission.id,
-          physicalF.id,
-          'out',
-          'property_transmission',
-          'fragment'
-        ),
-        makeEdge(
-          makeId(),
-          thickness.id,
-          physicalF.id,
-          'out',
-          'property_thickness',
-          'fragment'
-        ),
+        ...(engine.name === 'three'
+          ? [
+              makeEdge(
+                makeId(),
+                transmission.id,
+                physicalF.id,
+                'out',
+                'property_transmission',
+                'fragment'
+              ),
+              makeEdge(
+                makeId(),
+                thickness.id,
+                physicalF.id,
+                'out',
+                'property_thickness',
+                'fragment'
+              ),
+            ]
+          : []),
         makeEdge(
           makeId(),
           ior.id,
@@ -216,7 +221,9 @@ export const makeExampleGraph = (
           normaled.id,
           physicalF.id,
           'out',
-          'property_normalMap',
+          engine.name === 'three'
+            ? 'property_normalMap'
+            : 'property_bumpTexture',
           'fragment'
         ),
       ],
@@ -387,22 +394,48 @@ export const makeExampleGraph = (
     const nMap = normalMapify(makeId(), { x: -185, y: 507 });
 
     const purple = purpleNoiseNode(makeId(), { x: -512, y: 434 }, [
-      numberUniformData('speed', '0.2'),
+      numberUniformData('speed', engine.name === 'babylon' ? '1.0' : '0.2'),
       numberUniformData('brightnessX', '1.0'),
       numberUniformData('permutations', '10'),
       numberUniformData('iterations', '2'),
-      vectorUniformData('uvScale', ['0.9', '0.9']),
+      vectorUniformData(
+        'uvScale',
+        engine.name === 'babylon' ? ['0.1', '0.1'] : ['0.9', '0.9']
+      ),
       vectorUniformData('color1', ['0', '1', '1']),
       vectorUniformData('color2', ['1', '0', '1']),
       vectorUniformData('color3', ['1', '1', '0']),
     ]);
+    const purpleNoise =
+      engine.name === 'babylon'
+        ? convertNode(purple, babylengine.importers.three)
+        : purple;
 
     const properties = [
-      numberNode(makeId(), 'Metalness', { x: -185, y: -110 }, '0.1'),
+      numberNode(
+        makeId(),
+        engine.name === 'three' ? 'Metalness' : 'Metallic',
+        { x: -185, y: -110 },
+        '0.1'
+      ),
       numberNode(makeId(), 'Roughness', { x: -185, y: 0 }, '0.055'),
-      numberNode(makeId(), 'Transmission', { x: -185, y: 110 }, '0.9'),
-      numberNode(makeId(), 'Thickness', { x: -185, y: 220 }, '1.1'),
-      numberNode(makeId(), 'Index of Refraction', { x: -185, y: 330 }, '2.4'),
+      numberNode(
+        makeId(),
+        engine.name === 'three' ? 'Transmission' : 'Alpha',
+        { x: -185, y: 110 },
+        '0.9'
+      ),
+      ...(engine.name === 'three'
+        ? [
+            numberNode(makeId(), 'Thickness', { x: -185, y: 220 }, '1.1'),
+            numberNode(
+              makeId(),
+              'Index of Refraction',
+              { x: -185, y: 330 },
+              '2.4'
+            ),
+          ]
+        : []),
     ];
 
     const physicalGroupId = makeId();
@@ -430,7 +463,7 @@ export const makeExampleGraph = (
         outputV,
         physicalF,
         physicalV,
-        purple,
+        purpleNoise,
         nMap,
         ...properties,
       ],
@@ -453,7 +486,7 @@ export const makeExampleGraph = (
         ),
         makeEdge(
           makeId(),
-          purple.id,
+          purpleNoise.id,
           nMap.id,
           'out',
           'filler_normal_map',
@@ -464,7 +497,9 @@ export const makeExampleGraph = (
           nMap.id,
           physicalF.id,
           'out',
-          'property_normalMap',
+          engine.name === 'three'
+            ? 'property_normalMap'
+            : 'property_bumpTexture',
           'fragment'
         ),
         ...properties.map((prop) =>
@@ -588,7 +623,7 @@ export const makeExampleGraph = (
           fireF.id,
           physicalF.id,
           'out',
-          'property_map',
+          engine.name === 'three' ? 'property_map' : 'property_albedoTexture',
           'fragment'
         ),
         makeEdge(
@@ -596,7 +631,7 @@ export const makeExampleGraph = (
           color.id,
           physicalF.id,
           'out',
-          'property_color',
+          engine.name === 'three' ? 'property_color' : 'property_albedoColor',
           'fragment'
         ),
         makeEdge(
@@ -612,33 +647,37 @@ export const makeExampleGraph = (
           metalness.id,
           physicalF.id,
           'out',
-          'property_metalness',
+          engine.name === 'three' ? 'property_metalness' : 'property_metallic',
           'fragment'
         ),
-        makeEdge(
-          makeId(),
-          transmission.id,
-          physicalF.id,
-          'out',
-          'property_transmission',
-          'fragment'
-        ),
-        makeEdge(
-          makeId(),
-          thickness.id,
-          physicalF.id,
-          'out',
-          'property_thickness',
-          'fragment'
-        ),
-        makeEdge(
-          makeId(),
-          ior.id,
-          physicalF.id,
-          'out',
-          'property_ior',
-          'fragment'
-        ),
+        ...(engine.name === 'three'
+          ? [
+              makeEdge(
+                makeId(),
+                transmission.id,
+                physicalF.id,
+                'out',
+                'property_transmission',
+                'fragment'
+              ),
+              makeEdge(
+                makeId(),
+                thickness.id,
+                physicalF.id,
+                'out',
+                'property_thickness',
+                'fragment'
+              ),
+              makeEdge(
+                makeId(),
+                ior.id,
+                physicalF.id,
+                'out',
+                'property_ior',
+                'fragment'
+              ),
+            ]
+          : []),
         makeEdge(
           makeId(),
           fireV.id,
@@ -679,7 +718,11 @@ export const makeExampleGraph = (
       physicalF.id
     );
 
-    const purpleNoise = purpleNoiseNode(makeId(), { x: -100, y: 0 });
+    const purple = purpleNoiseNode(makeId(), { x: -100, y: 0 });
+    const purpleNoise =
+      engine.name === 'babylon'
+        ? convertNode(purple, babylengine.importers.three)
+        : purple;
 
     newGraph = {
       nodes: [purpleNoise, outputF, outputV, physicalF, physicalV],
@@ -705,7 +748,7 @@ export const makeExampleGraph = (
           purpleNoise.id,
           physicalF.id,
           'out',
-          'property_map',
+          engine.name === 'three' ? 'property_map' : 'property_albedoTexture',
           'fragment'
         ),
       ],

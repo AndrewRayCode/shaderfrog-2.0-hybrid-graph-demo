@@ -364,7 +364,9 @@ const Editor: React.FC = () => {
 
       compileGraphAsync(graph, engine, ctx)
         .then((compileResult) => {
-          console.log('comple async complete!', { compileResult });
+          console.log(`Compile complete in ${compileResult.compileMs} ms!`, {
+            compileResult,
+          });
           setGuiError('');
           setCompileResult(compileResult);
 
@@ -873,10 +875,20 @@ const Editor: React.FC = () => {
           nodes: [...graph.nodes, ...expanded.nodes],
         };
         // Create new inputs for new nodes added to the graph
-        computeContextForNodes(ctx as EngineContext, engine, updatedGraph, [
+        const nodesToRefresh = [
           ...expanded.nodes,
           ...(newEdgeData ? [findNode(updatedGraph, newEdgeData.to)] : []),
-        ]);
+        ];
+        console.log(
+          'Computing context for new nodes to generate their inputs...',
+          { 'New Nodes': nodesToRefresh }
+        );
+        await computeContextForNodes(
+          ctx as EngineContext,
+          engine,
+          updatedGraph,
+          nodesToRefresh
+        );
         setGraph(updatedGraph);
         debouncedSetNeedsCompile(true);
       }, 10);

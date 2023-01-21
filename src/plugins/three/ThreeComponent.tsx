@@ -305,7 +305,6 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     }
 
     if (bg) {
-      console.log('setting bg', bg, images[bg]);
       scene.background = images[bg];
       scene.environment = images[bg];
     } else {

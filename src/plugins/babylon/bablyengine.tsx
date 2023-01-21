@@ -46,6 +46,9 @@ export const physicalDefaultProperties: Partial<
   roughness: 1.0,
 };
 
+const log = (...args: any[]) =>
+  console.log.call(console, '\x1b[32m(babylengine)\x1b[0m', ...args);
+
 export const physicalNode = (
   id: string,
   name: string,
@@ -166,7 +169,6 @@ const babylonMaterialProperties = (
       }
       return acc;
     }, {});
-  console.log('internal props', props);
   return props;
 };
 
@@ -204,7 +206,9 @@ const programCacheKey = (
     [node, sibling]
       .sort((a, b) => a.id.localeCompare(b.id))
       .map((n) => nodeCacheKey(graph, n))
-      .join('-') + lights.join(',')
+      .join('-') +
+    lights.join(',') +
+    scene.environmentTexture
   );
 };
 
@@ -218,13 +222,13 @@ const cacher = async (
   const cacheKey = programCacheKey(engineContext, graph, node, sibling);
 
   if (engineContext.runtime.cache.data[cacheKey]) {
-    console.log(`cache hit "${cacheKey}"`);
+    log(`cache hit "${cacheKey}"`);
   } else {
-    console.log(`cache miss "${cacheKey}"`);
+    log(`cache miss "${cacheKey}"`);
   }
   const materialData = await (engineContext.runtime.cache.data[cacheKey] ||
     newValue());
-  console.log(`Material cache "${cacheKey}" is now`, materialData);
+  log(`Material cache "${cacheKey}" is now`, materialData);
 
   engineContext.runtime.cache.data[cacheKey] = materialData;
   engineContext.runtime.engineMaterial = materialData.material;
@@ -250,19 +254,26 @@ const onBeforeCompileMegaShader = async (
 
   const pbrName = `engine_pbr${id()}`;
   const shaderMaterial = new BABYLON.PBRMaterial(pbrName, scene);
-  Object.assign(
-    shaderMaterial,
-    node.config.hardCodedProperties || sibling.config.hardCodedProperties || {},
-    babylonMaterialProperties(scene, graph, node, sibling)
-  );
+  const newProperties = {
+    ...(node.config.hardCodedProperties ||
+      sibling.config.hardCodedProperties ||
+      {}),
+    ...babylonMaterialProperties(scene, graph, node, sibling),
+  };
+  Object.assign(shaderMaterial, newProperties);
+  log('Engine megashader initial properties', { newProperties });
 
-  const nodeCache = engineContext.runtime.cache.nodes;
-  let fragmentSource =
-    nodeCache[node.id]?.fragment ||
-    nodeCache[node.nextStageNodeId || 'unknown']?.fragment;
-  let vertexSource =
-    nodeCache[node.id]?.vertex ||
-    nodeCache[node.nextStageNodeId || 'unknown']?.vertex;
+  let vertexSource: string;
+  let fragmentSource: string;
+
+  // This was a previous attempt to do what's done in submeshes below
+  // const nodeCache = engineContext.runtime.cache.nodes;
+  // fragmentSource =
+  //   nodeCache[node.id]?.fragment ||
+  //   nodeCache[node.nextStageNodeId || 'unknown']?.fragment;
+  // vertexSource =
+  //   nodeCache[node.id]?.vertex ||
+  //   nodeCache[node.nextStageNodeId || 'unknown']?.vertex;
 
   return new Promise((resolve) => {
     shaderMaterial.customShaderNameResolve = (
@@ -274,14 +285,22 @@ const onBeforeCompileMegaShader = async (
       attributes,
       options
     ) => {
+      log('Babylengine creating new shader', {
+        uniforms,
+        uniformBuffers,
+        samplers,
+        defines,
+        attributes,
+        options,
+      });
       if (options) {
         options.processFinalCode = (type, code) => {
           if (type === 'vertex') {
-            // console.log('bablyengine captured vertex code', { code });
+            log('captured vertex code', { code });
             vertexSource = code;
             return code;
           } else if (type === 'fragment') {
-            // console.log('bablyengine captured fragment code', { code });
+            log('captured fragment code', { code });
             fragmentSource = code;
             return code;
           }
@@ -294,12 +313,26 @@ const onBeforeCompileMegaShader = async (
     };
 
     if (!sceneData.mesh) {
-      console.log('🍃 EFF, no MESHREF RENDER()....');
+      log('🍃 EFF, no MESHREF RENDER()....');
     }
-    console.log('🍃 Calling forceCompilation()....');
-
     shaderMaterial.forceCompilation(sceneData.mesh, (compiledMaterial) => {
-      console.log('Bablony shader compilation done!');
+      log('Babylon shader compilation done!');
+      // This is probably wrong! I'm pretty sure this captures the *current*
+      // material on the mesh, not the latest compilation. I think this is a lie:
+      // https://forum.babylonjs.com/t/how-to-know-the-cached-material-source-code-when-processfinalcode-isnt-called/37402
+      // So if sometimes the material breaks, come look at this again.
+      // Right now this works well "enough"
+      if (!fragmentSource || !vertexSource) {
+        log('Reusing previous mesh render...');
+        const { effect } = sceneData.mesh.subMeshes[0];
+        vertexSource = effect.vertexSourceCode;
+        fragmentSource = effect.fragmentSourceCode;
+      }
+
+      if (!fragmentSource || !vertexSource) {
+        debugger;
+      }
+      log('captured', { fragmentSource, vertexSource });
 
       if (node.stage === 'fragment') {
         node.source = fragmentSource;
@@ -320,6 +353,9 @@ const onBeforeCompileMegaShader = async (
         fragment: fragmentSource,
         vertex: vertexSource,
       };
+
+      // This doesn't appear to do anything (see comment above submeshes)
+      compiledMaterial.dispose(true);
 
       resolve({
         material: compiledMaterial,
@@ -368,7 +404,7 @@ const megaShaderMainpulateAst: NodeParser['manipulateAst'] = (
       }
     );
     if (!outDecl) {
-      console.log(generate(programAst));
+      log(generate(programAst));
       throw new Error(`Didn't find out vec4 in vertex program`);
     }
     const { declarations } = outDecl.declaration;
@@ -572,6 +608,21 @@ export const babylengine: Engine = {
     'light1',
     'light2',
     'light3',
+    'vLightData0',
+    'vLightDiffuse0',
+    'vLightSpecular0',
+    'vLightFalloff0',
+    'vSphericalL00',
+    'vSphericalL1_1',
+    'vSphericalL10',
+    'vSphericalL11',
+    'vSphericalL2_2',
+    'vSphericalL2_1',
+    'vSphericalL20',
+    'vSphericalL21',
+    'vSphericalL22',
+    'vAlbedoInfos',
+    'reflectionSampler',
   ]),
   parsers: {
     [EngineNodeType.physical]: {

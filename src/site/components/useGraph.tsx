@@ -118,7 +118,6 @@ const compileGraphAsync = async (
       }, {});
 
       const now = performance.now();
-      console.log(`Compilation took ${(now - allStart).toFixed(3)}ms`);
       resolve({
         compileMs: (now - allStart).toFixed(3),
         result,

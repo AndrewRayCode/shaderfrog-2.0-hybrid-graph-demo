@@ -99,14 +99,21 @@ const SMALL_SCREEN_WIDTH = 500;
 
 /**
  * Where was I?
- * - Trying to add examples, while at the same time
- *    - Took random jump-back-in change to make the mobile view a little better
- *    - Fixed bugs and double compiling
- *    - wow like 3 years ago I was trying to make a dropdown to change the
- *      scene background and add additional geometry types, and trying to add
- *      EXAMPLES
- *    - add auto-bake plugging code into data/uniform
- *    - make background toggle-able
+ * - Made babylon a lot better, got three<>babylon example working. Then
+ *   noticed:
+ *    - Adding a source code node that references a known engine global, like
+ *      "time", fails because time isn't auto-injected. And an expression-only
+ *      node can't currently support a line for a uniform on top. It woudln't
+ *      make sense for a node to be "uniform float time;\n(sin(time))" for the
+ *      expression. Should it be a function?
+ *      - Also there is no function node generic abstraction
+ *    - API improvement ideas:
+ *      - Make shader generation and uniform generation part of engines, not
+ *        components
+ *    - Up next: Instead of inlining baked values, declare them as a variable
+ *      and reference that variable in the filler code
+ *    - Merge vertex and fragment shaders together into the same nodes, to avoid
+ *      duplicating uniforms between the two nodes
  * - Launch: Feedback, URL sharing, examples
  * - Caching contexts would be helpful
  * - Switching between threejs source code tab and runtime tab re-creates things
@@ -124,11 +131,12 @@ const SMALL_SCREEN_WIDTH = 500;
  *   specifically.
  *
  * Fundamental Issues
- * - The three.js material has properties like "envMap" and "reflectivity" which
+ * - ✅ The three.js material has properties like "envMap" and "reflectivity" which
  *   do different things based on shader settings. They are independent of the
- *   uniforms and/or set the uniforms. Right now there's no way to plug into
- *   a property like "map" or "envMap". Should there be a separate "properties"
- *   section on each node? (https://github.com/mrdoob/three.js/blob/e22cb060cc91283d250e704f886528e1be593f45/src/materials/MeshPhysicalMaterial.js#L37)
+ *   uniforms and/or set the uniforms. Right now there's no way to plug into a
+ *   property like "map" or "envMap". Should there be a separate "properties"
+ *   section on each node?
+ *   (https://github.com/mrdoob/three.js/blob/e22cb060cc91283d250e704f886528e1be593f45/src/materials/MeshPhysicalMaterial.js#L37)
  * - "displacementMap" on a three.js material is calculated in the vertex
  *   shader, so fundamentally it can't have fragment shaders plugged into it as
  *   images.
@@ -138,39 +146,39 @@ const SMALL_SCREEN_WIDTH = 500;
  *   - ✅ Store graph zoom / pan position between tab switches
  *   - ✅ fix default placement of nodes so they don't overlap and stack better,
  *     and/or save node positions for examples?
- *   - Add more syntax highlighting to the GLSL editor, look at vscode
- *     plugin? https://github.com/stef-levesque/vscode-shader/tree/master/syntaxes
+ *   - Add more syntax highlighting to the GLSL editor, look at vscode plugin?
+ *     https://github.com/stef-levesque/vscode-shader/tree/master/syntaxes
  *   - ✅ Allow dragging uniform edge out backwards to create a data node for it
  *   - ✅ Auto rename the data inputs to uniforms to be that uniform name
  *   - Uniform strategy should be added as default to all shaders
  *   - Add three.js ability to switch lighting megashader
  *   - ✅ Sort node inputs into engine, uniforms, properties
  *   - Show input type by the input
- *   - "Compiling" doesn't show up when (at least) changing number input nodes,
+ *   - ✅ "Compiling" doesn't show up when (at least) changing number input nodes,
  *     and the compiling indicator could be more obvious
  * - Core
- *   - Recompiling re-parses / re-compiles the entire graph, nothing is memoized.
- *     Can we use immer or something else to preserve and update the original AST
- *     so it can be reused?
+ *   - Recompiling re-parses / re-compiles the entire graph, nothing is
+ *     memoized. Can we use immer or something else to preserve and update the
+ *     original AST so it can be reused?
  *   - Break up graph.ts into more files, lke core parsers maybe
- *   - onBeforeCompile in threngine mutates the node to add the source - can
- *     we make this an immutable update in graph.ts?
+ *   - onBeforeCompile in threngine mutates the node to add the source - can we
+ *     make this an immutable update in graph.ts?
  *   - See TODO on collapseInputs in graph.ts
  *   - Fragment and Vertex nodes should be combined together, because uniforms
- *     are used between both of them (right?). I guess technically you could
- *     set a different value in the fragment vs vertex uniform...
- *   - Make properties "shadow" the uniforms the control to hide the uniforms
- *     on the node inputs
+ *     are used between both of them (right?). Although I guess technically you
+ *     could bake a different value in the fragment vs vertex uniform...
+ *   - Make properties "shadow" the uniforms the control to hide the uniforms on
+ *     the node inputs
  *   - Add Graph Index data type to avoid re-indexing nodes by ID, filtering
  *     nodes everywhere
  *
  * Features
  * - Ability to export shaders + use in engine
  * - Enable backfilling of uv param
- * - Allow for shader being duplicated in a main fn to allow it to
- *   be both normal map and albdeo
- * - Add types to the connections (like vec3/float), and show the types on
- *   the inputs/ouputs, and prevent wrong types from being connected
+ * - Allow for shader being duplicated in a main fn to allow it to be both
+ *   normal map and albdeo
+ * - Add types to the connections (like vec3/float), and show the types on the
+ *   inputs/ouputs, and prevent wrong types from being connected
  * - Re-add the three > babylon conversion
  * - ✅ Add image data nodes to the graph
  * - Add persistable shaders to a db!
@@ -182,12 +190,8 @@ const SMALL_SCREEN_WIDTH = 500;
  *   - Features not backported: material caching, updating material properties
  *     when a new edge is plugged in.
  *   - Babylon.js light doesn't seem to animate
- *   - Babylon.js shader doesn't seem to get re-applied until I leave
- *     and come back to the scene
- *   - Opposite of above, dragging in solid color to albedo, leaving and
- *     coming back to scene, shader is black
- *   - Adding shader inputs like bumpTexture should not require
- *     duplicating that manually into babylengine
+ *   - Adding shader inputs like bumpTexture should not require duplicating that
+ *     manually into babylengine
  * - Uniforms
  *   - Plugging in a number node to a vec2 uniform (like perlin clouds speed)
  *     causes a crash
@@ -204,18 +208,15 @@ const SMALL_SCREEN_WIDTH = 500;
  *     suffixed/renamed? Interesting
  *   - "color" is an engine variable but most shaders have their own unique
  *     color uniform. So "color" should only be preserved in engine nodes
- *   - Dragging out a color/vec3 auto-creates a number node, causing webgl
- *     render crash. TODO WIP RIGHT NOW: started adding input datatype - see
- *     type errors in strategy.ts - and then use those types to auto-create
- *     dragged out nodes
+ *   - ✅ Dragging out a color/vec3 auto-creates a number node, causing webgl
+ *     render crash
  * - Core
- *   - In a source node, if two functions declare a variable, the
- *     current "Variable" strategy will only pick the second one as
- *     an input.
+ *   - In a source node, if two functions declare a variable, the current
+ *     "Variable" strategy will only pick the second one as an input.
  *   - (same as above?) The variable strategy needs to handle multiple variable
- *     replacements of the same name (looping over references), and
- *     maybe handle if that variable is declared in the program by
- *     removing the declaration line
+ *     replacements of the same name (looping over references), and maybe handle
+ *     if that variable is declared in the program by removing the declaration
+ *     line
  *   - Nodes not plugged into the graph don't get their contex computed (like
  *     new inputs)
  *   - Move engine nodes into engine specific constructors
@@ -1467,7 +1468,7 @@ const StrategyEditor = ({
               id="epo"
               className="checkbox"
               type="checkbox"
-              checked={node.expressionOnly}
+              checked={node.expressionOnly ? true : false}
               onChange={(event) => {
                 node.expressionOnly = event.currentTarget.checked;
                 onSave();

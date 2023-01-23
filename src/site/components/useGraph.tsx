@@ -338,11 +338,7 @@ const createGraphNode = (
         {
           version: 2,
           preprocess: true,
-          strategies: [
-            uniformStrategy(),
-            texture2DStrategy(),
-            declarationOfStrategy('replaceMe'),
-          ],
+          strategies: [uniformStrategy(), texture2DStrategy()],
         },
         nodeDataType === 'fragment'
           ? `void main() {

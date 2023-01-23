@@ -54,8 +54,8 @@ export const physicalNode = (
         property('Texture', 'map', 'texture', 'filler_map'),
         property('Normal Map', 'normalMap', 'texture', 'filler_normalMap'),
         property('Normal Scale', 'normalScale', 'vector2'),
-        property('Metalness', 'metalness', 'number'),
-        property('Roughness', 'roughness', 'number'),
+        property('Metalness', 'metalness', 'number', 'uniform_metalness'),
+        property('Roughness', 'roughness', 'number', 'uniform_roughness'),
         property(
           'Roughness Map',
           'roughnessMap',
@@ -214,7 +214,10 @@ const programCacheKey = (
     [node, sibling]
       .sort((a, b) => a.id.localeCompare(b.id))
       .map((n) => nodeCacheKey(graph, n))
-      .join('-') + lights.join(',')
+      .join('-') +
+    lights.join(',') +
+    scene.background +
+    scene.environment
   );
 };
 

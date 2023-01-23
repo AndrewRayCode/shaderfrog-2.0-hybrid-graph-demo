@@ -253,7 +253,7 @@ export const makeExpressionWithScopes = (expr: string): Program => {
     type: 'program',
     // Set the main() fn body scope as the global one
     scopes: [ast.scopes[1]],
-    program: (ast.program[0] as FunctionNode).body.statements[0].expression,
+    program: [(ast.program[0] as FunctionNode).body.statements[0].expression],
   };
 };
 

@@ -240,7 +240,7 @@ export const strategyRunners: Strategies = {
   },
   [StrategyType.UNIFORM]: (graphNode, ast, strategy) => {
     const program = ast as Program;
-    return program.program.flatMap<ComputedInput>((node) => {
+    return (program.program || []).flatMap<ComputedInput>((node) => {
       // The uniform declration type, like vec4
       const uniformType = (node as DeclarationStatementNode).declaration
         ?.specified_type?.specifier?.specifier?.token;

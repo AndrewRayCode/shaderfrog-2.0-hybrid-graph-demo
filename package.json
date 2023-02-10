@@ -33,7 +33,7 @@
     "react-hotkeys-hook": "^3.4.6",
     "react-multi-split-pane": "^0.3.2",
     "reactflow": "^11.2.0",
-    "three": "^0.132.2",
+    "three": "^0.149.0",
     "zustand": "^4.0.0-rc.1"
   },
   "devDependencies": {

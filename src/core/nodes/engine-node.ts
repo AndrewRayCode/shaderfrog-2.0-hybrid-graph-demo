@@ -60,6 +60,7 @@ export const outputNode = (
   type: NodeType.OUTPUT,
   config: {
     version: 3,
+    mangle: false,
     preprocess: false,
     inputMapping:
       stage === 'fragment'
@@ -146,6 +147,7 @@ export const phongNode = (
     config: {
       version: 3,
       preprocess: true,
+      mangle: false,
       properties: [
         property('Color', 'color', 'rgb', 'uniform_diffuse'),
         property('Emissive', 'emissive', 'rgb', 'uniform_emissive'),
@@ -216,6 +218,7 @@ export const toonNode = (
       uniforms,
       version: 3,
       preprocess: true,
+      mangle: false,
       properties: [
         property('Color', 'color', 'rgb', 'uniform_diffuse'),
         property('Texture', 'map', 'texture', 'filler_map'),
@@ -256,6 +259,7 @@ export const addNode = (id: string, position: NodePosition): BinaryNode => ({
   position,
   type: NodeType.BINARY,
   config: {
+    mangle: false,
     version: 3,
     preprocess: true,
     strategies: [],
@@ -284,6 +288,7 @@ export const multiplyNode = (
   position,
   config: {
     version: 3,
+    mangle: false,
     preprocess: true,
     strategies: [],
   },

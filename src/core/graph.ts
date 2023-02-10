@@ -185,11 +185,19 @@ export const mangleName = (name: string, node: GraphNode) => {
 export const mangleVar = (name: string, engine: Engine, node: GraphNode) =>
   engine.preserve.has(name) ? name : mangleName(name, node);
 
-export const mangle = (ast: Program, node: SourceNode, engine: Engine) => {
+export const mangleEntireProgram = (
+  ast: Program,
+  node: SourceNode,
+  engine: Engine
+) => {
   renameBindings(ast.scopes[0], (name, n) =>
     // @ts-ignore
     n.doNotDescope ? name : mangleVar(name, engine, node)
   );
+  mangleMainFn(ast, node);
+};
+
+export const mangleMainFn = (ast: Program, node: SourceNode) => {
   renameFunctions(ast.scopes[0], (name) =>
     name === 'main' ? nodeName(node) : mangleName(name, node)
   );
@@ -825,15 +833,11 @@ const computeNodeContext = async (
     ),
   };
 
-  // Tricky code warning: We only want to mangle the AST if this is a source
-  // code node like "physical" or a user shader, and (probably?) not an
-  // expression like "a + b" since those are local names;
-  if (
-    !node.expressionOnly &&
-    node.type !== NodeType.BINARY &&
-    node.type !== NodeType.OUTPUT
-  ) {
-    mangle(ast as Program, node, engine);
+  // Skip mangling if the node tells us to, which probably means it's an engine
+  // ndoe where we don't care about renaming all the variables, or if it's
+  // an expression, where we want to be in the context of other variables
+  if (node.config.mangle !== false && !node.expressionOnly) {
+    mangleEntireProgram(ast as Program, node, engine);
   }
 
   return nodeContext;

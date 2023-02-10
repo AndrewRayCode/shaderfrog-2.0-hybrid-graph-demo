@@ -349,7 +349,8 @@ const DataNodeComponent = memo(
         <div className="body">
           {data.type === 'number' ? (
             <NumberEditor id={id} data={data} onChange={onChange} />
-          ) : data.type === 'vector2' ||
+          ) : data.type === 'array' ||
+            data.type === 'vector2' ||
             data.type === 'vector3' ||
             data.type === 'vector4' ? (
             <VectorEditor id={id} data={data} onChange={onChange} />

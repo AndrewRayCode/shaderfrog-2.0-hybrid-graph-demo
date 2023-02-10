@@ -67,6 +67,7 @@ export const physicalNode = (
     config: {
       uniforms,
       version: 3,
+      mangle: false,
       preprocess: true,
       properties: [
         property('Base Color', 'baseColor', 'rgb', '?????'),
@@ -366,6 +367,7 @@ const onBeforeCompileMegaShader = async (
   });
 };
 
+// TODO: NEED TO DO SAME THREE MANGLIGN STEP HERE
 const megaShaderMainpulateAst: NodeParser['manipulateAst'] = (
   engineContext,
   engine,

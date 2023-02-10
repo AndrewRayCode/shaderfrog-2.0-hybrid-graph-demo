@@ -1,5 +1,6 @@
 import { CoreNode, NodeInput, NodeOutput, NodePosition } from './core-node';
 
+type ArrayType = 'array';
 type Vector = 'vector2' | 'vector3' | 'vector4';
 type Color = 'rgb' | 'rgba';
 type Mat =
@@ -23,7 +24,7 @@ export type GraphDataType =
   | 'texture'
   | 'samplerCube'
   | 'number'
-  | 'array';
+  | ArrayType;
 
 export interface NumberNode extends CoreNode {
   type: 'number';
@@ -148,6 +149,38 @@ export const samplerCubeUniformData = (
   value: string
 ): SamplerCubeDataUniform => ({ type: 'samplerCube', name, value });
 
+export type ArrayValue = string[];
+
+export interface ArrayNode extends CoreNode {
+  type: 'array';
+  dimensions: number;
+  value: ArrayValue;
+}
+
+export function arrayNode(
+  id: string,
+  name: string,
+  position: NodePosition,
+  value: ArrayValue
+): ArrayNode {
+  return {
+    id,
+    name,
+    position,
+    inputs: [],
+    outputs: [
+      {
+        name: 'out',
+        id: '1',
+        category: 'data',
+      },
+    ],
+    value,
+    dimensions: value.length,
+    type: 'array',
+  };
+}
+
 export type Vector2 = [string, string];
 export type Vector3 = [string, string, string];
 export type Vector4 = [string, string, string, string];
@@ -193,6 +226,21 @@ export function vectorNode(
       : { value, dimensions: 4, type: 'vector4' }),
   };
 }
+
+export type ArrayDataUniform = Omit<
+  ArrayNode,
+  'id' | 'inputs' | 'outputs' | 'position'
+>;
+
+export const arrayUniformData = (
+  name: string,
+  value: ArrayValue
+): ArrayDataUniform => ({
+  name,
+  value,
+  dimensions: value.length,
+  type: 'array',
+});
 
 export type Vector2DataUniform = Omit<
   Vector2Node,
@@ -291,5 +339,6 @@ export type DataNode =
   | Vector2Node
   | Vector3Node
   | Vector4Node
+  | ArrayNode
   | RgbNode
   | RgbaNode;

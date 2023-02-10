@@ -19,6 +19,7 @@ import { generate } from '@shaderfrog/glsl-parser';
 import { shaderSectionsToProgram } from '../../ast/shader-sections';
 
 import {
+  arrayNode,
   colorNode,
   numberNode,
   samplerCubeNode,
@@ -238,7 +239,8 @@ const createGraphNode = (
   name: string,
   position: { x: number; y: number },
   engine: string | undefined,
-  newEdgeData?: Omit<GraphEdge, 'id' | 'from'>
+  newEdgeData?: Omit<GraphEdge, 'id' | 'from'>,
+  defaultValue?: any
 ): [Set<string>, Graph] => {
   const makeName = (type: string) => name || type;
   const id = makeId();
@@ -246,21 +248,62 @@ const createGraphNode = (
   let newGns: GraphNode[];
 
   if (nodeDataType === 'number') {
-    newGns = [numberNode(id, makeName('number'), position, '1')];
+    newGns = [
+      numberNode(
+        id,
+        makeName('number'),
+        position,
+        defaultValue === undefined || defaultValue === null ? '1' : defaultValue
+      ),
+    ];
   } else if (nodeDataType === 'texture') {
     newGns = [
-      textureNode(id, makeName('texture'), position, 'grayscale-noise'),
+      textureNode(
+        id,
+        makeName('texture'),
+        position,
+        defaultValue || 'grayscale-noise'
+      ),
     ];
   } else if (nodeDataType === 'vector2') {
-    newGns = [vectorNode(id, makeName('vec2'), position, ['1', '1'])];
+    newGns = [
+      vectorNode(id, makeName('vec2'), position, defaultValue || ['1', '1']),
+    ];
+  } else if (nodeDataType === 'array') {
+    newGns = [
+      arrayNode(id, makeName('array'), position, defaultValue || ['1', '1']),
+    ];
   } else if (nodeDataType === 'vector3') {
-    newGns = [vectorNode(id, makeName('vec3'), position, ['1', '1', '1'])];
+    newGns = [
+      vectorNode(
+        id,
+        makeName('vec3'),
+        position,
+        defaultValue || ['1', '1', '1']
+      ),
+    ];
   } else if (nodeDataType === 'vector4') {
-    newGns = [vectorNode(id, makeName('vec4'), position, ['1', '1', '1', '1'])];
+    newGns = [
+      vectorNode(
+        id,
+        makeName('vec4'),
+        position,
+        defaultValue || ['1', '1', '1', '1']
+      ),
+    ];
   } else if (nodeDataType === 'rgb') {
-    newGns = [colorNode(id, makeName('rgb'), position, ['1', '1', '1'])];
+    newGns = [
+      colorNode(id, makeName('rgb'), position, defaultValue || ['1', '1', '1']),
+    ];
   } else if (nodeDataType === 'rgba') {
-    newGns = [colorNode(id, makeName('rgba'), position, ['1', '1', '1', '1'])];
+    newGns = [
+      colorNode(
+        id,
+        makeName('rgba'),
+        position,
+        defaultValue || ['1', '1', '1', '1']
+      ),
+    ];
   } else if (nodeDataType === 'multiply') {
     newGns = [multiplyNode(id, position)];
   } else if (nodeDataType === 'add') {

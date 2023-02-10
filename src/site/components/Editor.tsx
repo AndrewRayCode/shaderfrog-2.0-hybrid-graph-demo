@@ -833,7 +833,8 @@ const Editor: React.FC = () => {
       nodeDataType: string,
       name: string,
       position: XYPosition,
-      newEdgeData?: Omit<GraphEdge, 'id' | 'from'>
+      newEdgeData?: Omit<GraphEdge, 'id' | 'from'>,
+      defaultValue?: any
     ) => {
       setContexting(true);
 
@@ -843,7 +844,8 @@ const Editor: React.FC = () => {
         name,
         position,
         ctx?.engine,
-        newEdgeData
+        newEdgeData,
+        defaultValue
       );
 
       setFlowElements((fe) => ({
@@ -924,6 +926,15 @@ const Editor: React.FC = () => {
           return;
         }
 
+        // Find the default value for this property, if any
+        const fromNode = graph.nodes.find((n) => n.id === node.id);
+        let defaultValue;
+        if (fromNode && 'config' in fromNode && input.property) {
+          const properties = fromNode.config?.properties || [];
+          defaultValue = properties.find(
+            (p) => p.property === input.property
+          )?.defaultValue;
+        }
         addNodeAtPosition(
           graph,
           type,
@@ -938,7 +949,8 @@ const Editor: React.FC = () => {
             output: '1',
             input: input.id,
             type,
-          }
+          },
+          defaultValue
         );
       }
 

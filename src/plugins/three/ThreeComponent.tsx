@@ -16,6 +16,8 @@ import { PreviewLight } from '../../site/components/Editor';
 import { ensure } from '../../util/ensure';
 import { SamplerCubeNode, TextureNode } from '../../core/nodes/data-nodes';
 import { useSize } from '../../site/hooks/useSize';
+import { PMREMGenerator } from 'three';
+import { RoomEnvironment } from './RoomEnvironment';
 
 const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
 
@@ -305,8 +307,17 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     }
 
     if (bg) {
-      scene.background = images[bg];
-      scene.environment = images[bg];
+      if (bg === 'modelviewer') {
+        const pmremGenerator = new PMREMGenerator(renderer);
+        scene.environment = pmremGenerator.fromScene(
+          new RoomEnvironment(),
+          0.04
+        ).texture;
+        scene.background = scene.environment;
+      } else {
+        scene.background = images[bg];
+        scene.environment = images[bg];
+      }
     } else {
       scene.environment = null;
       scene.background = null;
@@ -664,6 +675,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
             <option value="none">None</option>
             <option value="warehouseEnvTexture">Warehouse</option>
             <option value="pondCubeMap">Pond Cube Map</option>
+            <option value="modelviewer">Model Viewer</option>
           </select>
         </div>
       </div>

@@ -11,6 +11,7 @@ export const mapInputName = (
 export type InputMapping = { [original: string]: string };
 export type NodeConfig = {
   version: 2 | 3;
+  mangle?: boolean;
   preprocess: boolean;
   inputMapping?: InputMapping;
   strategies: Strategy[];
@@ -29,18 +30,21 @@ export interface NodeProperty {
   // The name of the filler this property introduces, aka the GLSL source code
   // to be replaced, if this property is present.
   fillerName?: string;
+  defaultValue?: any;
 }
 
 export const property = (
   displayName: string,
   property: string,
   type: GraphDataType,
-  fillerName?: string
+  fillerName?: string,
+  defaultValue?: any
 ): NodeProperty => ({
   displayName,
   type,
   property,
   fillerName,
+  defaultValue,
 });
 
 export interface CodeNode extends CoreNode {

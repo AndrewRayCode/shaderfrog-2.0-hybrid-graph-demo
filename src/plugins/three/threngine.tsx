@@ -6,6 +6,7 @@ import {
   NodeType,
   ShaderStage,
   prepopulatePropertyInputs,
+  mangleMainFn,
 } from '../../core/graph';
 import importers from './importers';
 
@@ -48,6 +49,7 @@ export const physicalNode = (
     config: {
       uniforms,
       version: 3,
+      mangle: false,
       preprocess: true,
       properties: [
         property('Color', 'color', 'rgb', 'uniform_diffuse'),
@@ -78,6 +80,15 @@ export const physicalNode = (
         property('Sheen', 'sheen', 'number'),
         property('Reflectivity', 'reflectivity', 'number'),
         property('Clearcoat', 'clearcoat', 'number'),
+        property('Iridescence', 'iridescence', 'number'),
+        property('Iridescence IOR', 'iridescenceIOR', 'number'),
+        property(
+          'Iridescence Thickness Range',
+          'iridescenceThicknessRange',
+          'array',
+          undefined,
+          ['100', '400']
+        ),
       ],
       hardCodedProperties: {
         isMeshPhysicalMaterial: true,
@@ -190,6 +201,10 @@ const megaShaderMainpulateAst: NodeParser['manipulateAst'] = (
       returnGlPosition(mainName, programAst);
     }
   }
+
+  // We specify engine nodes are mangle: false, which is the graph step that
+  // handles renaming the main fn, so we have to do it ourselves
+  mangleMainFn(programAst, node);
   return programAst;
 };
 
@@ -466,6 +481,8 @@ export const threngine: Engine = {
               // prototype. We have to hard code them for Object.keys() to work
               ...node.config.hardCodedProperties,
               ...threeMaterialProperties(three, graph, node, sibling),
+              iridescence: 1.0,
+              iridescenceIOR: 2.0,
             })
           )
         );

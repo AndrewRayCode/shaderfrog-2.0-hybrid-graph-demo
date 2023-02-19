@@ -104,7 +104,7 @@ export const physicalNode = (
     inputs: [],
     outputs: [
       {
-        name: 'out',
+        name: 'vector4',
         category: 'data',
         id: '1',
       },

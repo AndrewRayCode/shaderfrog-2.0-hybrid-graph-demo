@@ -195,6 +195,14 @@
   width: 50%;
 }
 
+.flow-node_data.flownode .flowlabel {
+  border-bottom: 1px solid #00a5c6;
+}
+
+.flow-node_data.flownode {
+  border: 1px solid #00a5c6;
+}
+
 .selected .flow-node_data.flownode {
   border: 1px solid #00d5ff;
 }
@@ -267,6 +275,14 @@
 
 .fragment .react-flow_handle_label {
   color: rgb(176, 228, 156);
+}
+
+.fragment.flownode .flowlabel {
+  border-bottom: 1px solid #8ca800;
+}
+
+.fragment.flownode {
+  border: 1px solid #8ca800;
 }
 
 .selected .fragment.flownode {
@@ -348,8 +364,16 @@
   color: #f86464;
 }
 
+.vertex.flownode .flowlabel {
+  border-bottom: 1px solid #b84242;
+}
+
+.vertex.flownode {
+  border: 1px solid #b84242;
+}
+
 .selected .vertex.flownode {
-  border: 1px solid #fa5b5b;
+  border: 1px solid #ff0c0c;
 }
 
 .vertex .flowlabel {

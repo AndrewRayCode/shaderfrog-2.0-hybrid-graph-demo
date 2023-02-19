@@ -37,7 +37,7 @@ export const sourceNode = (
   inputs: [],
   outputs: [
     {
-      name: 'out',
+      name: 'vector4',
       category: 'data',
       id: '1',
     },
@@ -122,7 +122,7 @@ export const expressionNode = (
   inputs: [],
   outputs: [
     {
-      name: 'out',
+      name: 'expression',
       category: 'data',
       id: '1',
     },
@@ -189,7 +189,7 @@ export const phongNode = (
     inputs: [],
     outputs: [
       {
-        name: 'out',
+        name: 'vector4',
         category: 'data',
         id: '1',
       },
@@ -243,7 +243,7 @@ export const toonNode = (
     inputs: [],
     outputs: [
       {
-        name: 'out',
+        name: 'vector4',
         category: 'data',
         id: '1',
       },
@@ -267,7 +267,7 @@ export const addNode = (id: string, position: NodePosition): BinaryNode => ({
   inputs: [],
   outputs: [
     {
-      name: 'out',
+      name: 'sum',
       category: 'data',
       id: '1',
     },
@@ -295,7 +295,7 @@ export const multiplyNode = (
   inputs: [],
   outputs: [
     {
-      name: 'out',
+      name: 'product',
       category: 'data',
       id: '1',
     },

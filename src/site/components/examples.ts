@@ -7,7 +7,7 @@ import {
   textureNode,
   vectorUniformData,
 } from '../../core/nodes/data-nodes';
-import { makeEdge } from '../../core/nodes/edge';
+import { EdgeType, makeEdge } from '../../core/nodes/edge';
 import { outputNode, toonNode } from '../../core/nodes/engine-node';
 import { fireFrag, fireVert } from '../../shaders/fireNode';
 import {
@@ -22,6 +22,7 @@ import { checkerboardF, checkerboardV } from '../../shaders/checkboardNode';
 import normalMapify from '../../shaders/normalmapifyNode';
 import { convertNode, Engine } from '../../core/engine';
 import { babylengine } from '../../plugins/babylon/bablyengine';
+import { CoreNode } from '../../core/nodes/core-node';
 
 export enum Example {
   GLASS_FIRE_BALL = 'Glass Fireball',
@@ -30,6 +31,15 @@ export enum Example {
   TOON = 'Toon',
   DEFAULT = 'Mesh Physical Material',
 }
+
+const edgeFrom = (
+  fromNode: CoreNode,
+  toId: string,
+  input: string,
+  type?: EdgeType
+) => makeEdge(makeId(), fromNode.id, toId, outFrom(fromNode), input, type);
+
+const outFrom = (node: CoreNode) => node.outputs[0].name;
 
 export const makeExampleGraph = (
   engine: Engine,
@@ -132,95 +142,48 @@ export const makeExampleGraph = (
         physicalV,
       ],
       edges: [
-        makeEdge(
-          makeId(),
+        edgeFrom(physicalF, outputF.id, 'filler_frogFragOut', 'fragment'),
+        edgeFrom(physicalV, outputV.id, 'filler_gl_Position', 'vertex'),
+        edgeFrom(
+          staticF,
           physicalF.id,
-          outputF.id,
-          'out',
-          'filler_frogFragOut',
-          'fragment'
-        ),
-        makeEdge(
-          makeId(),
-          physicalV.id,
-          outputV.id,
-          'out',
-          'filler_gl_Position',
-          'vertex'
-        ),
-        makeEdge(
-          makeId(),
-          staticF.id,
-          physicalF.id,
-          'out',
           engine.name === 'three' ? 'property_map' : 'property_albedoTexture',
           'fragment'
         ),
-        makeEdge(
-          makeId(),
-          color.id,
+        edgeFrom(
+          color,
           physicalF.id,
-          'out',
           engine.name === 'three' ? 'property_color' : 'property_albedoColor',
           'fragment'
         ),
-        makeEdge(
-          makeId(),
-          roughness.id,
-          physicalF.id,
-          'out',
-          'property_roughness',
-          'fragment'
-        ),
+        edgeFrom(roughness, physicalF.id, 'property_roughness', 'fragment'),
         ...(engine.name === 'three'
           ? [
-              makeEdge(
-                makeId(),
-                transmission.id,
+              edgeFrom(
+                transmission,
                 physicalF.id,
-                'out',
                 'property_transmission',
                 'fragment'
               ),
-              makeEdge(
-                makeId(),
-                thickness.id,
+              edgeFrom(
+                thickness,
                 physicalF.id,
-                'out',
                 'property_thickness',
                 'fragment'
               ),
             ]
           : []),
-        makeEdge(
-          makeId(),
-          ior.id,
-          physicalF.id,
-          'out',
-          'property_ior',
-          'fragment'
-        ),
-        makeEdge(
-          makeId(),
-          normalStrength.id,
+        edgeFrom(ior, physicalF.id, 'property_ior', 'fragment'),
+        edgeFrom(
+          normalStrength,
           normaled.id,
-          'out',
           'uniform_normal_strength',
           'fragment'
         ),
-        makeEdge(
-          makeId(),
-          heatmap.id,
-          normaled.id,
-          'out',
-          'filler_normal_map',
-          'fragment'
-        ),
-        makeEdge(
-          makeId(),
-          normaled.id,
+        edgeFrom(heatmap, normaled.id, 'filler_normal_map', 'fragment'),
+        edgeFrom(
+          normaled,
           physicalF.id,
-          'out',
           engine.name === 'three'
             ? 'property_normalMap'
             : 'property_bumpTexture',
@@ -280,31 +243,10 @@ export const makeExampleGraph = (
     newGraph = {
       nodes: [outputF, outputV, toonF, toonV, ...pps.map(([, p]) => p)],
       edges: [
-        makeEdge(
-          makeId(),
-          toonF.id,
-          outputF.id,
-          'out',
-          'filler_frogFragOut',
-          'fragment'
-        ),
-        makeEdge(
-          makeId(),
-          toonV.id,
-          outputV.id,
-          'out',
-          'filler_gl_Position',
-          'vertex'
-        ),
+        edgeFrom(toonF, outputF.id, 'filler_frogFragOut', 'fragment'),
+        edgeFrom(toonV, outputV.id, 'filler_gl_Position', 'vertex'),
         ...pps.map(([name, prop]) =>
-          makeEdge(
-            makeId(),
-            prop.id,
-            toonF.id,
-            'out',
-            `property_${name}`,
-            prop.type
-          )
+          edgeFrom(prop, toonF.id, `property_${name}`, prop.type)
         ),
       ],
     };
@@ -343,7 +285,6 @@ export const makeExampleGraph = (
       x: -162,
       y: 43,
     });
-
     newGraph = {
       nodes: [
         outputF,
@@ -354,27 +295,11 @@ export const makeExampleGraph = (
         checkerboardv,
       ],
       edges: [
-        makeEdge(
-          makeId(),
+        edgeFrom(physicalF, outputF.id, 'filler_frogFragOut', 'fragment'),
+        edgeFrom(physicalV, outputV.id, 'filler_gl_Position', 'vertex'),
+        edgeFrom(
+          checkerboardf,
           physicalF.id,
-          outputF.id,
-          'out',
-          'filler_frogFragOut',
-          'fragment'
-        ),
-        makeEdge(
-          makeId(),
-          physicalV.id,
-          outputV.id,
-          'out',
-          'filler_gl_Position',
-          'vertex'
-        ),
-        makeEdge(
-          makeId(),
-          checkerboardf.id,
-          physicalF.id,
-          'out',
           engine.name === 'three' ? 'property_map' : 'property_albedoTexture',
           'fragment'
         ),
@@ -468,46 +393,21 @@ export const makeExampleGraph = (
         ...properties,
       ],
       edges: [
-        makeEdge(
-          makeId(),
+        edgeFrom(physicalF, outputF.id, 'filler_frogFragOut', 'fragment'),
+        edgeFrom(physicalV, outputV.id, 'filler_gl_Position', 'vertex'),
+        edgeFrom(purpleNoise, nMap.id, 'filler_normal_map', 'fragment'),
+        edgeFrom(
+          nMap,
           physicalF.id,
-          outputF.id,
-          'out',
-          'filler_frogFragOut',
-          'fragment'
-        ),
-        makeEdge(
-          makeId(),
-          physicalV.id,
-          outputV.id,
-          'out',
-          'filler_gl_Position',
-          'vertex'
-        ),
-        makeEdge(
-          makeId(),
-          purpleNoise.id,
-          nMap.id,
-          'out',
-          'filler_normal_map',
-          'fragment'
-        ),
-        makeEdge(
-          makeId(),
-          nMap.id,
-          physicalF.id,
-          'out',
           engine.name === 'three'
             ? 'property_normalMap'
             : 'property_bumpTexture',
           'fragment'
         ),
         ...properties.map((prop) =>
-          makeEdge(
-            makeId(),
-            prop.id,
+          edgeFrom(
+            prop,
             physicalF.id,
-            'out',
             `property_${
               prop.name === 'Index of Refraction'
                 ? 'ior'
@@ -602,90 +502,45 @@ export const makeExampleGraph = (
         physicalV,
       ],
       edges: [
-        makeEdge(
-          makeId(),
+        edgeFrom(physicalF, outputF.id, 'filler_frogFragOut', 'fragment'),
+        edgeFrom(physicalV, outputV.id, 'filler_gl_Position', 'vertex'),
+        edgeFrom(
+          fireF,
           physicalF.id,
-          outputF.id,
-          'out',
-          'filler_frogFragOut',
-          'fragment'
-        ),
-        makeEdge(
-          makeId(),
-          physicalV.id,
-          outputV.id,
-          'out',
-          'filler_gl_Position',
-          'vertex'
-        ),
-        makeEdge(
-          makeId(),
-          fireF.id,
-          physicalF.id,
-          'out',
           engine.name === 'three' ? 'property_map' : 'property_albedoTexture',
           'fragment'
         ),
-        makeEdge(
-          makeId(),
-          color.id,
+        edgeFrom(
+          color,
           physicalF.id,
-          'out',
           engine.name === 'three' ? 'property_color' : 'property_albedoColor',
           'fragment'
         ),
-        makeEdge(
-          makeId(),
-          roughness.id,
+        edgeFrom(roughness, physicalF.id, 'property_roughness', 'fragment'),
+        edgeFrom(
+          metalness,
           physicalF.id,
-          'out',
-          'property_roughness',
-          'fragment'
-        ),
-        makeEdge(
-          makeId(),
-          metalness.id,
-          physicalF.id,
-          'out',
           engine.name === 'three' ? 'property_metalness' : 'property_metallic',
           'fragment'
         ),
         ...(engine.name === 'three'
           ? [
-              makeEdge(
-                makeId(),
-                transmission.id,
+              edgeFrom(
+                transmission,
                 physicalF.id,
-                'out',
                 'property_transmission',
                 'fragment'
               ),
-              makeEdge(
-                makeId(),
-                thickness.id,
+              edgeFrom(
+                thickness,
                 physicalF.id,
-                'out',
                 'property_thickness',
                 'fragment'
               ),
-              makeEdge(
-                makeId(),
-                ior.id,
-                physicalF.id,
-                'out',
-                'property_ior',
-                'fragment'
-              ),
+              edgeFrom(ior, physicalF.id, 'property_ior', 'fragment'),
             ]
           : []),
-        makeEdge(
-          makeId(),
-          fireV.id,
-          physicalV.id,
-          'out',
-          'filler_position',
-          'vertex'
-        ),
+        edgeFrom(fireV, physicalV.id, 'filler_position', 'vertex'),
       ],
     };
     previewObject = 'sphere';
@@ -727,27 +582,11 @@ export const makeExampleGraph = (
     newGraph = {
       nodes: [purpleNoise, outputF, outputV, physicalF, physicalV],
       edges: [
-        makeEdge(
-          makeId(),
+        edgeFrom(physicalF, outputF.id, 'filler_frogFragOut', 'fragment'),
+        edgeFrom(physicalV, outputV.id, 'filler_gl_Position', 'vertex'),
+        edgeFrom(
+          purpleNoise,
           physicalF.id,
-          outputF.id,
-          'out',
-          'filler_frogFragOut',
-          'fragment'
-        ),
-        makeEdge(
-          makeId(),
-          physicalV.id,
-          outputV.id,
-          'out',
-          'filler_gl_Position',
-          'vertex'
-        ),
-        makeEdge(
-          makeId(),
-          purpleNoise.id,
-          physicalF.id,
-          'out',
           engine.name === 'three' ? 'property_map' : 'property_albedoTexture',
           'fragment'
         ),

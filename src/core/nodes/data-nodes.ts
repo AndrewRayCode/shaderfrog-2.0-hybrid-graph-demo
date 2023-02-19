@@ -52,7 +52,7 @@ export const numberNode = (
   inputs: optionals?.inputs || [],
   outputs: optionals?.outputs || [
     {
-      name: 'out',
+      name: 'float',
       id: '1',
       category: 'data',
     },
@@ -97,7 +97,7 @@ export const textureNode = (
   inputs: [],
   outputs: [
     {
-      name: 'out',
+      name: 'texture',
       id: '1',
       category: 'data',
     },
@@ -132,7 +132,7 @@ export const samplerCubeNode = (
   inputs: [],
   outputs: [
     {
-      name: 'out',
+      name: 'samplerCube',
       id: '1',
       category: 'data',
     },
@@ -170,7 +170,7 @@ export function arrayNode(
     inputs: [],
     outputs: [
       {
-        name: 'out',
+        name: 'array',
         id: '1',
         category: 'data',
       },
@@ -214,7 +214,7 @@ export function vectorNode(
     inputs: [],
     outputs: [
       {
-        name: 'out',
+        name: `vector${value.length}`,
         id: '1',
         category: 'data',
       },
@@ -291,7 +291,7 @@ export function colorNode(
     inputs: [],
     outputs: [
       {
-        name: 'out',
+        name: value.length === 3 ? 'rgb' : 'rgba',
         id: '1',
         category: 'data',
       },

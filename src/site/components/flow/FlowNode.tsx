@@ -302,7 +302,8 @@ const TextureEditor = ({
 }) => (
   <>
     <select
-      className="nodrag"
+      className="nodrag select"
+      style={{ width: 'auto' }}
       onChange={(e) => onChange(id, e.currentTarget.value)}
       value={data.value}
     >
@@ -471,7 +472,7 @@ const SourceNodeComponent = memo(
               <div
                 className={styles.inputSection}
                 style={{
-                  top: `${group.offset}px`,
+                  top: `${2 + group.offset}px`,
                 }}
               >
                 {group.name}

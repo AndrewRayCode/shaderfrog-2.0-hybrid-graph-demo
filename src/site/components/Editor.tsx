@@ -604,6 +604,7 @@ const Editor: React.FC = () => {
       const sourceId = ensure(newEdge.source);
       const targetId = ensure(newEdge.target);
       const targetHandleId = ensure(newEdge.targetHandle);
+      const sourceHandleId = ensure(newEdge.sourceHandle);
 
       // Duplicated by the flow graph update after this
       setGraph((graph) => {
@@ -623,7 +624,7 @@ const Editor: React.FC = () => {
           id: newEdgeId,
           from: sourceId,
           to: targetId,
-          output: 'out',
+          output: sourceHandleId,
           input: targetHandleId,
           type,
         };

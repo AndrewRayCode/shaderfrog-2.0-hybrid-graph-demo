@@ -125,7 +125,7 @@ const SMALL_SCREEN_WIDTH = 500;
  * Experimentation ideas
  * - Try SDF image shader https://www.youtube.com/watch?v=1b5hIMqz_wM
  * - Put other images in the graph like the toon step shader
- * - Have uniforms added per shader in the graph
+ * - ✅ Have uniforms added per shader in the graph
  * - Adding a rim glow to a toon lit mesh is cool - but it would be even cooler
  *   to be able to multiply the rim lighting by the threejs lighting output
  *   specifically.

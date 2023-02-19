@@ -207,14 +207,17 @@
 .react-flow__edge.texture .react-flow__edge-path,
 .react-flow__edge.samplerCube .react-flow__edge-path,
 .react-flow__edge.number .react-flow__edge-path,
+.react-flow__edge.array .react-flow__edge-path,
 .react-flow__edge.vector2 .react-flow__edge-path,
 .react-flow__edge.vector3 .react-flow__edge-path,
+.react-flow__edge.vector4 .react-flow__edge-path,
 .react-flow__edge.rgb .react-flow__edge-path,
 .react-flow__edge.rgba .react-flow__edge-path,
 .react-flow__edge.vector4 .react-flow__edge-path {
   stroke: #00d5ff;
 }
 
+.react-flow__edge.array.updating .react-flow__edge-path,
 .react-flow__edge.vector2.updating .react-flow__edge-path,
 .react-flow__edge.vector3.updating .react-flow__edge-path,
 .react-flow__edge.vector4.updating .react-flow__edge-path,
@@ -227,6 +230,7 @@
 }
 
 /* selected edge */
+.react-flow__edge.array.selected .react-flow__edge-path,
 .react-flow__edge.vector2.selected .react-flow__edge-path,
 .react-flow__edge.vector3.selected .react-flow__edge-path,
 .react-flow__edge.vector4.selected .react-flow__edge-path,
@@ -239,6 +243,7 @@
 }
 
 /* selectable edge path */
+.react-flow__edge.array .react-flow__edge-path-selector,
 .react-flow__edge.vector2 .react-flow__edge-path-selector,
 .react-flow__edge.vector3 .react-flow__edge-path-selector,
 .react-flow__edge.vector4 .react-flow__edge-path-selector,

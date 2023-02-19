@@ -7,6 +7,7 @@ import {
   ShaderStage,
   prepopulatePropertyInputs,
   Graph,
+  mangleMainFn,
 } from '../../core/graph';
 import importers from './importers';
 
@@ -387,81 +388,9 @@ const megaShaderMainpulateAst: NodeParser['manipulateAst'] = (
     }
   }
 
-  /*
-  // I wrote this code like an idiot, when I incorreectly thought that the
-  // "out" var I was looking for in the vertex shader was glFragColor, so this
-  // is to find whatever vec4 var is "out" and rename that in the main fn.
-  if (node.stage === 'vertex') {
-    // Looking for "out vec4 glFragColor"
-    const outDecl = programAst.program.find(
-      (stmt): stmt is DeclarationStatementNode => {
-        return (
-          stmt.type === 'declaration_statement' &&
-          stmt.declaration?.specified_type?.qualifiers?.some(
-            (q: KeywordNode) => q.token === 'out'
-          ) &&
-          stmt.declaration?.specified_type?.specifier?.specifier?.token ===
-            'vec4'
-        );
-      }
-    );
-    if (!outDecl) {
-      log(generate(programAst));
-      throw new Error(`Didn't find out vec4 in vertex program`);
-    }
-    const { declarations } = outDecl.declaration;
-    if (declarations.length !== 1) {
-      throw new Error(
-        `More than one vec4 out found in vertex program, not sure what to do`
-      );
-    }
-    const outVar = declarations[0].identifier.identifier;
-    programAst.program.splice(programAst.program.indexOf(outDecl), 1);
-
-    if (doesLinkThruShader(graph, node)) {
-      returnGlPositionHardCoded(mainName, programAst, 'vec3', 'transformed');
-    } else {
-      // returnGlPosition(mainName, programAst);
-
-      const mainReturnVar = `frogOut`;
-
-      const main = programAst.scopes[0].functions.main
-        .references[0] as FunctionNode;
-      if (!main) {
-        throw new Error(`No main fn found in vertex!`);
-      }
-
-      // Convert the main function to one that returns
-      (
-        main['prototype'].header.returnType.specifier.specifier as KeywordNode
-      ).token = 'vec4';
-
-      // Find the gl_position assignment line
-      const assign = main.body.statements.find(
-        (stmt) =>
-          stmt.type === 'expression_statement' &&
-          stmt.expression.left?.identifier === outVar
-      );
-      if (!assign) {
-        console.error({ statements: main.body.statements });
-        throw new Error(`No ${outVar} assign found in main fn!`);
-      }
-
-      const rtnStmt = makeFnStatement(
-        `vec4 ${mainReturnVar} = 1.0`
-      ) as DeclarationStatementNode;
-      rtnStmt.declaration.declarations[0].initializer = assign.expression.right;
-
-      main.body.statements.splice(
-        main.body.statements.indexOf(assign),
-        1,
-        rtnStmt
-      );
-      main.body.statements.push(makeFnStatement(`return ${mainReturnVar}`));
-    }
-  }
-  */
-
+  // We specify engine nodes are mangle: false, which is the graph step that
+  // handles renaming the main fn, so we have to do it ourselves
+  mangleMainFn(programAst, node);
   return programAst;
 };
 

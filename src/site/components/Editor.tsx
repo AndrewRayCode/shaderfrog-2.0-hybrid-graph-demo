@@ -53,11 +53,15 @@ import CodeEditor from './CodeEditor';
 import {
   Editor as ThreeComponent,
   engine as threngine,
+  makeExampleGraph as threeMakeExampleGraph,
+  Example as ThreeExample,
 } from '../../plugins/three';
 
 import {
   Editor as BabylonComponent,
   engine as babylengine,
+  makeExampleGraph as babylonMakeExampleGraph,
+  Example as BabylonExample,
 } from '../../plugins/babylon';
 import { Hoisty, useHoisty } from '../hoistedRefContext';
 import { UICompileGraphResult } from '../uICompileGraphResult';
@@ -84,7 +88,6 @@ import {
   addFlowEdge,
   addGraphEdge,
 } from './flow/helpers';
-import { Example, makeExampleGraph } from './examples';
 
 import { usePrevious } from '../hooks/usePrevious';
 import {
@@ -249,16 +252,23 @@ const Editor: React.FC = () => {
     }
   );
 
+  const [examples, makeExampleGraph] = useMemo<
+    | [typeof BabylonExample, typeof babylonMakeExampleGraph]
+    | [typeof ThreeExample, typeof threeMakeExampleGraph]
+  >(() => {
+    return engine.name === 'babylon'
+      ? [BabylonExample, babylonMakeExampleGraph]
+      : [ThreeExample, threeMakeExampleGraph];
+  }, [engine]);
+
   const [initialGraph, initialPreviewObject, initialBg, initialExample] =
     useMemo(() => {
       const query = new URLSearchParams(window.location.search);
       const example = query.get('example') || '';
-      const [graph, a, b] = makeExampleGraph(
-        engine,
-        (example as Example) || Example.DEFAULT
-      );
+      // @ts-ignore
+      const [graph, a, b] = makeExampleGraph(example || examples.DEFAULT);
       return [expandUniformDataNodes(graph), a, b, example];
-    }, [engine]);
+    }, [makeExampleGraph, examples]);
 
   const [example, setExample] = useState<string | null>(initialExample);
   const [previewObject, setPreviewObject] = useState(initialPreviewObject);
@@ -477,8 +487,8 @@ const Editor: React.FC = () => {
     if (example !== previousExample && previousExample !== undefined) {
       console.log('🧶 Loading new example!', example);
       const [graph, previewObject, bg] = makeExampleGraph(
-        engine,
-        (example as Example) || Example.DEFAULT
+        // @ts-ignore
+        example || examples.DEFAULT
       );
       const newGraph = expandUniformDataNodes(graph);
       setGraph(newGraph);
@@ -502,6 +512,8 @@ const Editor: React.FC = () => {
     setBg,
     ctx,
     initializeGraph,
+    examples,
+    makeExampleGraph,
     onInputBakedToggle,
   ]);
 
@@ -518,8 +530,7 @@ const Editor: React.FC = () => {
         setCtxState(newCtx);
         let newGraph = graph;
         if (lastEngine) {
-          const result = convertToEngine(lastEngine, engine, graph);
-          newGraph = result[0];
+          newGraph = convertToEngine(lastEngine, engine, graph);
 
           if (ctx?.engine) {
             const currentScene = getRefData(ctx.engine);
@@ -1092,7 +1103,7 @@ const Editor: React.FC = () => {
           value={example || undefined}
         >
           <option value="">None</option>
-          {Object.entries(Example).map(([key, name]) => (
+          {Object.entries(examples).map(([key, name]) => (
             <option key={key} value={name}>
               {name}
             </option>
@@ -1492,9 +1503,7 @@ const StrategyEditor = ({
       </div>
       <div className={styles.uiGroup}>
         <h2 className={styles.uiHeader}>Node Inputs</h2>
-        {inputs.length
-          ? inputs.map((i) => i.displayName).join(', ')
-          : 'No inputs found'}
+        {inputs.length ? inputs.map((i) => i.id).join(', ') : 'No inputs found'}
       </div>
     </>
   );

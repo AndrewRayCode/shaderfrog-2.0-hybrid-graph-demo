@@ -5,12 +5,16 @@ import { Graph, NodeParser } from './graph';
 import preprocess from '@shaderfrog/glsl-parser/preprocessor';
 import { generate, parser } from '@shaderfrog/glsl-parser';
 import { ShaderStage, GraphNode, NodeType } from './graph';
-import { NodeInput, NodePosition } from './nodes/core-node';
+import { CoreNode, NodeInput, NodePosition } from './nodes/core-node';
 import { DataNode, UniformDataType } from './nodes/data-nodes';
 import { CodeNode, SourceNode } from './nodes/code-nodes';
+import { Edge } from './nodes/edge';
+import groupBy from 'lodash.groupby';
+
+const log = (...args: any[]) =>
+  console.log.call(console, '\x1b[32m(core)\x1b[0m', ...args);
 
 export enum EngineNodeType {
-  output = 'output',
   toon = 'toon',
   phong = 'phong',
   physical = 'physical',
@@ -21,10 +25,20 @@ export enum EngineNodeType {
 export type PhysicalNodeConstructor = (
   id: string,
   name: string,
-  groupId: string,
+  groupId: string | null | undefined,
   position: NodePosition,
   uniforms: UniformDataType[],
-  stage: ShaderStage,
+  stage: ShaderStage | undefined,
+  nextStageNodeId?: string
+) => CodeNode;
+
+export type ToonNodeConstructor = (
+  id: string,
+  name: string,
+  groupId: string | null | undefined,
+  position: NodePosition,
+  uniforms: UniformDataType[],
+  stage: ShaderStage | undefined,
   nextStageNodeId?: string
 ) => CodeNode;
 
@@ -39,6 +53,7 @@ export interface Engine {
   evaluateNode: (node: DataNode) => any;
   constructors: {
     [EngineNodeType.physical]: PhysicalNodeConstructor;
+    [EngineNodeType.toon]: ToonNodeConstructor;
   };
 }
 
@@ -68,6 +83,7 @@ export type EngineContext = {
 
 export type EngineImporter = {
   convertAst(ast: Program, type?: ShaderStage): void;
+  nodeInputMap: Partial<Record<EngineNodeType, Record<string, string | null>>>;
   edgeMap: { [oldInput: string]: string };
 };
 export type EngineImporters = {
@@ -80,7 +96,7 @@ export const convertNode = (
   node: SourceNode,
   converter: EngineImporter
 ): SourceNode => {
-  console.log(`Converting ${node.name} (${node.id})`);
+  log(`Converting ${node.name} (${node.id})`);
   const preprocessed = preprocess(node.source, {
     preserveComments: true,
     preserve: {
@@ -90,16 +106,19 @@ export const convertNode = (
   });
   const ast = parser.parse(preprocessed);
   converter.convertAst(ast, node.stage);
-  node.source = generate(ast);
+  const source = generate(ast);
 
-  return node;
+  return {
+    ...node,
+    source,
+  };
 };
 
 export const convertToEngine = (
   oldEngine: Engine,
   newEngine: Engine,
   graph: Graph
-): [Graph, EdgeUpdates] => {
+): Graph => {
   const converter = newEngine.importers[oldEngine.name];
   if (!converter) {
     throw new Error(
@@ -107,36 +126,89 @@ export const convertToEngine = (
     );
   }
 
-  console.log(
-    `Attempting to convert from ${newEngine.name} to ${oldEngine.name}`
-  );
+  log(`Attempting to convert from ${newEngine.name} to ${oldEngine.name}`);
 
-  const edgeUpdates: EdgeUpdates = {};
+  // const edgeUpdates: EdgeUpdates = {};
+
+  const edgesByNodeId = groupBy(graph.edges, 'to');
+  const edgeUpdates: Record<string, Edge | null> = {};
+  const nodeUpdates: Record<string, GraphNode | null> = {};
 
   graph.nodes.forEach((node) => {
-    if (NodeType.SOURCE === node.type) {
-      convertNode(node, converter);
+    // Convert engine nodes
+    if (node.type in EngineNodeType) {
+      if (node.type in newEngine.constructors) {
+        const source = node as SourceNode;
+        nodeUpdates[source.id] = // @ts-ignore
+        (newEngine.constructors[source.type] as PhysicalNodeConstructor)(
+          source.id,
+          source.name,
+          source.groupId,
+          source.position,
+          source.config.uniforms,
+          source.stage,
+          source.nextStageNodeId
+        );
+        // Bail if no conversion
+      } else {
+        throw new Error(
+          `Can't convert ${oldEngine.name} to ${newEngine.name} because ${newEngine.name} does not have a "${node.type}" constructor`
+        );
+      }
+    } else if (NodeType.SOURCE === node.type) {
+      nodeUpdates[node.id] = convertNode(node, converter);
     }
 
-    graph.edges
-      .filter((edge) => edge.to === node.id)
-      .forEach((edge) => {
-        if (edge.input in converter.edgeMap) {
-          console.log(
-            'converting',
-            edge.input,
-            'to',
-            converter.edgeMap[edge.input]
-          );
-          edge.input = converter.edgeMap[edge.input];
-          edgeUpdates[edge.input] = {
-            oldInput: edge.input,
-            newInput: converter.edgeMap[edge.input],
+    // Then update input edges. We only care about engine nodes
+    if (node.type in converter.nodeInputMap) {
+      const map = converter.nodeInputMap[node.type as EngineNodeType]!;
+
+      (edgesByNodeId[node.id] || []).forEach((edge) => {
+        if (edge.input in map) {
+          const mapped = map[edge.input]!;
+          log('Converting edge', edge.input, 'to', map[edge.input]);
+          edgeUpdates[edge.id] = {
+            ...edge,
+            input: mapped,
           };
         } else {
-          console.log(edge.input, 'was not in ', converter.edgeMap);
+          log(
+            'Discarding',
+            edge.input,
+            'as there is no edge mapping in the',
+            newEngine.name,
+            'importer'
+          );
+          edgeUpdates[edge.id] = null;
         }
       });
+    }
   });
-  return [graph, edgeUpdates];
+
+  graph.edges = graph.edges.reduce<Edge[]>((edges, edge) => {
+    if (edge.id in edgeUpdates) {
+      const res = edgeUpdates[edge.id];
+      if (res === null) {
+        return edges;
+      } else {
+        return [...edges, res];
+      }
+    }
+    return [...edges, edge];
+  }, []);
+
+  graph.nodes = graph.nodes.reduce<GraphNode[]>((nodes, node) => {
+    if (node.id in nodeUpdates) {
+      const res = nodeUpdates[node.id];
+      if (res === null) {
+        return nodes;
+      } else {
+        return [...nodes, res];
+      }
+    }
+    return [...nodes, node];
+  }, []);
+
+  log('Created converted graph', graph);
+  return graph;
 };

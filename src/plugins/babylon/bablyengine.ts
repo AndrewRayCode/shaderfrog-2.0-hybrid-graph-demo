@@ -8,6 +8,7 @@ import {
   prepopulatePropertyInputs,
   Graph,
   mangleMainFn,
+  NodeType,
 } from '../../core/graph';
 import importers from './importers';
 
@@ -15,6 +16,7 @@ import {
   returnGlPositionHardCoded,
   returnGlPosition,
   makeFnStatement,
+  returnGlPositionVec3Right,
 } from '../../ast/manipulate';
 
 import { Program } from '@shaderfrog/glsl-parser/ast';
@@ -48,15 +50,18 @@ export const physicalDefaultProperties: Partial<
 };
 
 const log = (...args: any[]) =>
-  console.log.call(console, '\x1b[32m(babylengine)\x1b[0m', ...args);
+  console.log.call(console, '\x1b[33m(babylengine)\x1b[0m', ...args);
+
+const babylonHackCache: Record<string, { fragment: string; vertex: string }> =
+  {};
 
 export const physicalNode = (
   id: string,
   name: string,
-  groupId: string,
+  groupId: string | null | undefined,
   position: NodePosition,
   uniforms: UniformDataType[],
-  stage: ShaderStage,
+  stage: ShaderStage | undefined,
   nextStageNodeId?: string
 ): CodeNode =>
   prepopulatePropertyInputs({
@@ -78,15 +83,16 @@ export const physicalNode = (
         property('Metalness', 'metallic', 'number'),
         property('Roughness', 'roughness', 'number'),
         property('Env Map', 'environmentTexture', 'samplerCube'),
-        property('reflectionTexture', 'reflectionTexture', 'samplerCube'),
-        property('indexOfRefraction', 'indexOfRefraction', 'number'),
-        property('alpha', 'alpha', 'number'),
-        property('directIntensity', 'directIntensity', 'number'),
-        property('environmentIntensity', 'environmentIntensity', 'number'),
-        property('cameraExposure', 'cameraExposure', 'number'),
-        property('cameraContrast', 'cameraContrast', 'number'),
-        property('microSurface', 'microSurface', 'number'),
-        property('reflectivityColor', 'reflectivityColor', 'rgb'),
+        property('Reflection Texture', 'reflectionTexture', 'samplerCube'),
+        property('Refraction Texture', 'refractionTexture', 'samplerCube'),
+        property('Index Of Refraction', 'indexOfRefraction', 'number'),
+        property('Alpha', 'alpha', 'number'),
+        property('Direct Intensity', 'directIntensity', 'number'),
+        property('Environment Intensity', 'environmentIntensity', 'number'),
+        property('Camera Exposure', 'cameraExposure', 'number'),
+        property('Camera Contrast', 'cameraContrast', 'number'),
+        property('Micro Surface', 'microSurface', 'number'),
+        property('Reflectivity Color', 'reflectivityColor', 'rgb'),
       ],
       hardCodedProperties: physicalDefaultProperties,
       strategies: [
@@ -131,6 +137,60 @@ export type RuntimeContext = {
     };
   };
 };
+
+export const toonNode = (
+  id: string,
+  name: string,
+  groupId: string | null | undefined,
+  position: NodePosition,
+  uniforms: UniformDataType[],
+  stage: ShaderStage | undefined,
+  nextStageNodeId?: string
+): CodeNode =>
+  prepopulatePropertyInputs({
+    id,
+    name,
+    groupId,
+    position,
+    type: EngineNodeType.toon,
+    config: {
+      uniforms,
+      version: 3,
+      preprocess: true,
+      mangle: false,
+      properties: [
+        property('Color', 'color', 'rgb', 'uniform_diffuse'),
+        property('Texture', 'map', 'texture', 'filler_map'),
+        property(
+          'Gradient Map',
+          'gradientMap',
+          'texture',
+          'filler_gradientMap'
+        ),
+        property('Normal Map', 'normalMap', 'texture', 'filler_normalMap'),
+        property('Normal Scale', 'normalScale', 'vector2'),
+        property('Displacement Map', 'displacementMap', 'texture'),
+        property('Env Map', 'envMap', 'samplerCube'),
+      ],
+      strategies: [
+        uniformStrategy(),
+        stage === 'fragment'
+          ? texture2DStrategy()
+          : namedAttributeStrategy('position'),
+      ],
+    },
+    inputs: [],
+    outputs: [
+      {
+        name: 'vector4',
+        category: 'data',
+        id: '1',
+      },
+    ],
+    source: '',
+    stage,
+    nextStageNodeId,
+  });
 
 const babylonMaterialProperties = (
   scene: BABYLON.Scene,
@@ -179,13 +239,15 @@ let id = () => mIdx++;
 
 const nodeCacheKey = (graph: Graph, node: SourceNode) => {
   return (
-    '' +
+    '[ID:' +
     node.id +
+    'Edges:' +
     graph.edges
       .filter((edge) => edge.to === node.id)
-      .map((edge) => `${edge.to}.${edge.input}`)
+      .map((edge) => `(${edge.to}->${edge.input})`)
       .sort()
-      .join(',')
+      .join(',') +
+    ']'
     // Currently excluding node inputs because these are calculated *after*
     // the onbeforecompile, so the next compile, they'll all change!
     // node.inputs.map((i) => `${i.id}${i.bakeable}`)
@@ -209,7 +271,9 @@ const programCacheKey = (
       .sort((a, b) => a.id.localeCompare(b.id))
       .map((n) => nodeCacheKey(graph, n))
       .join('-') +
+    '|Lights:' +
     lights.join(',') +
+    '|Envtex:' +
     scene.environmentTexture
   );
 };
@@ -224,9 +288,9 @@ const cacher = async (
   const cacheKey = programCacheKey(engineContext, graph, node, sibling);
 
   if (engineContext.runtime.cache.data[cacheKey]) {
-    log(`cache hit "${cacheKey}"`);
+    log(`Cache hit "${cacheKey}"`);
   } else {
-    log(`cache miss "${cacheKey}"`);
+    log(`Cache miss "${cacheKey}"`);
   }
   const materialData = await (engineContext.runtime.cache.data[cacheKey] ||
     newValue());
@@ -256,6 +320,9 @@ const onBeforeCompileMegaShader = async (
 
   const pbrName = `engine_pbr${id()}`;
   const shaderMaterial = new BABYLON.PBRMaterial(pbrName, scene);
+
+  shaderMaterial.linkRefractionWithTransparency = true;
+  shaderMaterial.subSurface.isRefractionEnabled = true;
   const newProperties = {
     ...(node.config.hardCodedProperties ||
       sibling.config.hardCodedProperties ||
@@ -277,6 +344,10 @@ const onBeforeCompileMegaShader = async (
   //   nodeCache[node.id]?.vertex ||
   //   nodeCache[node.nextStageNodeId || 'unknown']?.vertex;
 
+  const genHackCacheKey = (unknown: BABYLON.MaterialDefines | string[]) =>
+    unknown.toString();
+  let hackKey: string;
+
   return new Promise((resolve) => {
     shaderMaterial.customShaderNameResolve = (
       shaderName,
@@ -287,6 +358,7 @@ const onBeforeCompileMegaShader = async (
       attributes,
       options
     ) => {
+      hackKey = genHackCacheKey(defines);
       log('Babylengine creating new shader', {
         uniforms,
         uniformBuffers,
@@ -297,13 +369,23 @@ const onBeforeCompileMegaShader = async (
       });
       if (options) {
         options.processFinalCode = (type, code) => {
+          // If babylon thinks it has cached code for a new shader,
+          // processFinalCode doesn't get called. This hack attempt is to try to
+          // recreate Babylon's internal cache, based on my understanding that
+          // babylon looks to the defines to determine shader uniqueness
+          babylonHackCache[hackKey] = babylonHackCache[hackKey] || {
+            fragment: '',
+            vertex: '',
+          };
           if (type === 'vertex') {
             log('captured vertex code', { code });
             vertexSource = code;
+            babylonHackCache[hackKey].vertex = code;
             return code;
           } else if (type === 'fragment') {
             log('captured fragment code', { code });
             fragmentSource = code;
+            babylonHackCache[hackKey].fragment = code;
             return code;
           }
           throw new Error(`Unknown type ${type}`);
@@ -319,16 +401,10 @@ const onBeforeCompileMegaShader = async (
     }
     shaderMaterial.forceCompilation(sceneData.mesh, (compiledMaterial) => {
       log('Babylon shader compilation done!');
-      // This is probably wrong! I'm pretty sure this captures the *current*
-      // material on the mesh, not the latest compilation. I think this is a lie:
-      // https://forum.babylonjs.com/t/how-to-know-the-cached-material-source-code-when-processfinalcode-isnt-called/37402
-      // So if sometimes the material breaks, come look at this again.
-      // Right now this works well "enough"
       if (!fragmentSource || !vertexSource) {
         log('Reusing previous mesh render...');
-        const { effect } = sceneData.mesh.subMeshes[0];
-        vertexSource = effect.vertexSourceCode;
-        fragmentSource = effect.fragmentSourceCode;
+        vertexSource = babylonHackCache[hackKey]?.vertex;
+        fragmentSource = babylonHackCache[hackKey]?.fragment;
       }
 
       if (!fragmentSource || !vertexSource) {
@@ -445,6 +521,7 @@ export const babylengine: Engine = {
   evaluateNode,
   constructors: {
     [EngineNodeType.physical]: physicalNode,
+    [EngineNodeType.toon]: toonNode,
   },
   // TODO: Get from uniform lib?
   preserve: new Set<string>([
@@ -556,6 +633,22 @@ export const babylengine: Engine = {
     'reflectionSampler',
   ]),
   parsers: {
+    [NodeType.SOURCE]: {
+      manipulateAst: (engineContext, engine, graph, node, ast, inputEdges) => {
+        const programAst = ast as Program;
+        const mainName = 'main' || nodeName(node);
+
+        // This hinges on the vertex shader calling vec3(p)
+        if (node.stage === 'vertex') {
+          if (doesLinkThruShader(graph, node)) {
+            returnGlPositionVec3Right(mainName, programAst);
+          } else {
+            returnGlPosition(mainName, programAst);
+          }
+        }
+        return ast;
+      },
+    },
     [EngineNodeType.physical]: {
       onBeforeCompile: (graph, engineContext, node, sibling) =>
         cacher(engineContext, graph, node, sibling as SourceNode, () =>

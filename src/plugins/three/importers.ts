@@ -8,6 +8,7 @@ const importers: EngineImporters = {
         name === 'vMainUV1' ? 'vUv' : name === 'vNormalW' ? 'vNormal' : name
       );
     },
+    nodeInputMap: {},
     edgeMap: {
       bumpSampler: 'normalMap',
     },

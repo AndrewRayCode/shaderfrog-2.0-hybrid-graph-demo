@@ -15,7 +15,7 @@ export type NodeConfig = {
   preprocess: boolean;
   inputMapping?: InputMapping;
   strategies: Strategy[];
-  uniforms?: UniformDataType[];
+  uniforms: UniformDataType[];
   properties?: NodeProperty[];
   hardCodedProperties?: Record<string, any>;
 };
@@ -51,9 +51,9 @@ export interface CodeNode extends CoreNode {
   config: NodeConfig;
   source: string;
   expressionOnly?: boolean;
-  stage?: ShaderStage;
+  stage: ShaderStage | undefined;
   biStage?: boolean;
-  groupId?: string;
+  groupId: string | null | undefined;
   nextStageNodeId?: string;
   prevStageNodeId?: string;
   originalEngine?: string;

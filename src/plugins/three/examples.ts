@@ -20,14 +20,14 @@ import staticShaderNode, { variation1 } from '../../shaders/staticShaderNode';
 import { makeId } from '../../util/id';
 import { checkerboardF, checkerboardV } from '../../shaders/checkboardNode';
 import normalMapify from '../../shaders/normalmapifyNode';
-import { convertNode, Engine } from '../../core/engine';
-import { babylengine } from '../../plugins/babylon/bablyengine';
+import { Engine } from '../../core/engine';
 import { CoreNode } from '../../core/nodes/core-node';
+import { threngine } from '../../plugins/three/threngine';
 
 export enum Example {
-  GLASS_FIRE_BALL = 'Glass Fireball',
+  GLASS_FIREBALL = 'Glass Fireball',
   GEMSTONE = 'Gemstone',
-  DIAMOND = 'Living Diamond',
+  LIVING_DIAMOND = 'Living Diamond',
   TOON = 'Toon',
   DEFAULT = 'Mesh Physical Material',
 }
@@ -41,14 +41,12 @@ const edgeFrom = (
 
 const outFrom = (node: CoreNode) => node.outputs[0].name;
 
-export const makeExampleGraph = (
-  engine: Engine,
-  example: Example
-): [Graph, string, string] => {
+export const makeExampleGraph = (example: Example): [Graph, string, string] => {
   console.log('🌈 Making new graph!!');
   let newGraph: Graph;
   let previewObject: string;
   let bg: string = '';
+
   if (example === Example.GEMSTONE) {
     const outputF = outputNode(
       makeId(),
@@ -59,7 +57,7 @@ export const makeExampleGraph = (
     const outputV = outputNode(makeId(), 'Output', { x: 434, y: 20 }, 'vertex');
 
     const physicalGroupId = makeId();
-    const physicalF = engine.constructors.physical(
+    const physicalF = threngine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -67,7 +65,7 @@ export const makeExampleGraph = (
       [],
       'fragment'
     );
-    const physicalV = engine.constructors.physical(
+    const physicalV = threngine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -144,35 +142,17 @@ export const makeExampleGraph = (
       edges: [
         edgeFrom(physicalF, outputF.id, 'filler_frogFragOut', 'fragment'),
         edgeFrom(physicalV, outputV.id, 'filler_gl_Position', 'vertex'),
-        edgeFrom(
-          staticF,
-          physicalF.id,
-          engine.name === 'three' ? 'property_map' : 'property_albedoTexture',
-          'fragment'
-        ),
-        edgeFrom(
-          color,
-          physicalF.id,
-          engine.name === 'three' ? 'property_color' : 'property_albedoColor',
-          'fragment'
-        ),
+        edgeFrom(staticF, physicalF.id, 'property_map', 'fragment'),
+        edgeFrom(color, physicalF.id, 'property_color', 'fragment'),
         edgeFrom(roughness, physicalF.id, 'property_roughness', 'fragment'),
-        ...(engine.name === 'three'
-          ? [
-              edgeFrom(
-                transmission,
-                physicalF.id,
-                'property_transmission',
-                'fragment'
-              ),
-              edgeFrom(
-                thickness,
-                physicalF.id,
-                'property_thickness',
-                'fragment'
-              ),
-            ]
-          : []),
+
+        edgeFrom(
+          transmission,
+          physicalF.id,
+          'property_transmission',
+          'fragment'
+        ),
+        edgeFrom(thickness, physicalF.id, 'property_thickness', 'fragment'),
         edgeFrom(ior, physicalF.id, 'property_ior', 'fragment'),
         edgeFrom(
           normalStrength,
@@ -184,7 +164,7 @@ export const makeExampleGraph = (
         edgeFrom(
           normaled,
           physicalF.id,
-          engine.name === 'three'
+          threngine.name === 'three'
             ? 'property_normalMap'
             : 'property_bumpTexture',
           'fragment'
@@ -262,7 +242,7 @@ export const makeExampleGraph = (
     const outputV = outputNode(makeId(), 'Output', { x: 434, y: 16 }, 'vertex');
 
     const physicalGroupId = makeId();
-    const physicalF = engine.constructors.physical(
+    const physicalF = threngine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -270,7 +250,7 @@ export const makeExampleGraph = (
       [],
       'fragment'
     );
-    const physicalV = engine.constructors.physical(
+    const physicalV = threngine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -300,14 +280,16 @@ export const makeExampleGraph = (
         edgeFrom(
           checkerboardf,
           physicalF.id,
-          engine.name === 'three' ? 'property_map' : 'property_albedoTexture',
+          threngine.name === 'three'
+            ? 'property_map'
+            : 'property_albedoTexture',
           'fragment'
         ),
       ],
     };
     previewObject = 'sphere';
     bg = '';
-  } else if (example === Example.DIAMOND) {
+  } else if (example === Example.LIVING_DIAMOND) {
     const outputF = outputNode(
       makeId(),
       'Output',
@@ -318,53 +300,46 @@ export const makeExampleGraph = (
 
     const nMap = normalMapify(makeId(), { x: -185, y: 507 });
 
-    const purple = purpleNoiseNode(makeId(), { x: -512, y: 434 }, [
-      numberUniformData('speed', engine.name === 'babylon' ? '1.0' : '0.2'),
+    const purpleNoise = purpleNoiseNode(makeId(), { x: -512, y: 434 }, [
+      numberUniformData('speed', threngine.name === 'babylon' ? '1.0' : '0.2'),
       numberUniformData('brightnessX', '1.0'),
       numberUniformData('permutations', '10'),
       numberUniformData('iterations', '2'),
       vectorUniformData(
         'uvScale',
-        engine.name === 'babylon' ? ['0.1', '0.1'] : ['0.9', '0.9']
+        threngine.name === 'babylon' ? ['0.1', '0.1'] : ['0.9', '0.9']
       ),
       vectorUniformData('color1', ['0', '1', '1']),
       vectorUniformData('color2', ['1', '0', '1']),
       vectorUniformData('color3', ['1', '1', '0']),
     ]);
-    const purpleNoise =
-      engine.name === 'babylon'
-        ? convertNode(purple, babylengine.importers.three)
-        : purple;
 
     const properties = [
       numberNode(
         makeId(),
-        engine.name === 'three' ? 'Metalness' : 'Metallic',
+        // threngine.name === 'three' ? 'Metalness' : 'Metallic',
+        'Metalness',
         { x: -185, y: -110 },
         '0.1'
       ),
       numberNode(makeId(), 'Roughness', { x: -185, y: 0 }, '0.055'),
       numberNode(
         makeId(),
-        engine.name === 'three' ? 'Transmission' : 'Alpha',
+        // threngine.name === 'three' ? 'Transmission' : 'Alpha',
+        'Transmission',
         { x: -185, y: 110 },
         '0.9'
       ),
-      ...(engine.name === 'three'
-        ? [
-            numberNode(makeId(), 'Thickness', { x: -185, y: 220 }, '1.1'),
-            numberNode(
-              makeId(),
-              'Index of Refraction',
-              { x: -185, y: 330 },
-              '2.4'
-            ),
-          ]
-        : []),
+      // ...(threngine.name === 'three'
+      //   ? [
+      numberNode(makeId(), 'Thickness', { x: -185, y: 220 }, '1.1'),
+      numberNode(makeId(), 'Index of Refraction', { x: -185, y: 330 }, '2.4'),
+      // ]
+      // : []),
     ];
 
     const physicalGroupId = makeId();
-    const physicalF = engine.constructors.physical(
+    const physicalF = threngine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -372,7 +347,7 @@ export const makeExampleGraph = (
       [],
       'fragment'
     );
-    const physicalV = engine.constructors.physical(
+    const physicalV = threngine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -399,9 +374,10 @@ export const makeExampleGraph = (
         edgeFrom(
           nMap,
           physicalF.id,
-          engine.name === 'three'
-            ? 'property_normalMap'
-            : 'property_bumpTexture',
+          'property_normalMap',
+          // threngine.name === 'three'
+          //   ? 'property_normalMap'
+          //   : 'property_bumpTexture',
           'fragment'
         ),
         ...properties.map((prop) =>
@@ -420,7 +396,7 @@ export const makeExampleGraph = (
     };
     previewObject = 'icosahedron';
     bg = 'warehouseEnvTexture';
-  } else if (example === Example.GLASS_FIRE_BALL) {
+  } else if (example === Example.GLASS_FIREBALL) {
     const outputF = outputNode(
       makeId(),
       'Output',
@@ -430,7 +406,7 @@ export const makeExampleGraph = (
     const outputV = outputNode(makeId(), 'Output', { x: 434, y: 20 }, 'vertex');
 
     const physicalGroupId = makeId();
-    const physicalF = engine.constructors.physical(
+    const physicalF = threngine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -438,7 +414,7 @@ export const makeExampleGraph = (
       [],
       'fragment'
     );
-    const physicalV = engine.constructors.physical(
+    const physicalV = threngine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -507,39 +483,34 @@ export const makeExampleGraph = (
         edgeFrom(
           fireF,
           physicalF.id,
-          engine.name === 'three' ? 'property_map' : 'property_albedoTexture',
+          // threngine.name === 'three' ? 'property_map' : 'property_albedoTexture',
+          'property_map',
           'fragment'
         ),
         edgeFrom(
           color,
           physicalF.id,
-          engine.name === 'three' ? 'property_color' : 'property_albedoColor',
+          // threngine.name === 'three' ? 'property_color' : 'property_albedoColor',
+          'property_color',
           'fragment'
         ),
         edgeFrom(roughness, physicalF.id, 'property_roughness', 'fragment'),
         edgeFrom(
           metalness,
           physicalF.id,
-          engine.name === 'three' ? 'property_metalness' : 'property_metallic',
+          // threngine.name === 'three' ? 'property_metalness' : 'property_metallic',
+          'property_metalness',
           'fragment'
         ),
-        ...(engine.name === 'three'
-          ? [
-              edgeFrom(
-                transmission,
-                physicalF.id,
-                'property_transmission',
-                'fragment'
-              ),
-              edgeFrom(
-                thickness,
-                physicalF.id,
-                'property_thickness',
-                'fragment'
-              ),
-              edgeFrom(ior, physicalF.id, 'property_ior', 'fragment'),
-            ]
-          : []),
+        edgeFrom(
+          transmission,
+          physicalF.id,
+          'property_transmission',
+          'fragment'
+        ),
+        edgeFrom(thickness, physicalF.id, 'property_thickness', 'fragment'),
+        edgeFrom(ior, physicalF.id, 'property_ior', 'fragment'),
+
         edgeFrom(fireV, physicalV.id, 'filler_position', 'vertex'),
       ],
     };
@@ -555,7 +526,7 @@ export const makeExampleGraph = (
     const outputV = outputNode(makeId(), 'Output', { x: 434, y: 20 }, 'vertex');
 
     const physicalGroupId = makeId();
-    const physicalF = engine.constructors.physical(
+    const physicalF = threngine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -563,7 +534,7 @@ export const makeExampleGraph = (
       [],
       'fragment'
     );
-    const physicalV = engine.constructors.physical(
+    const physicalV = threngine.constructors.physical(
       makeId(),
       'Physical',
       physicalGroupId,
@@ -573,11 +544,11 @@ export const makeExampleGraph = (
       physicalF.id
     );
 
-    const purple = purpleNoiseNode(makeId(), { x: -100, y: 0 });
-    const purpleNoise =
-      engine.name === 'babylon'
-        ? convertNode(purple, babylengine.importers.three)
-        : purple;
+    const purpleNoise = purpleNoiseNode(makeId(), { x: -100, y: 0 });
+    // const purpleNoise =
+    //   threngine.name === 'babylon'
+    //     ? convertNode(purple, threngine.importers.three)
+    //     : purple;
 
     newGraph = {
       nodes: [purpleNoise, outputF, outputV, physicalF, physicalV],
@@ -587,12 +558,14 @@ export const makeExampleGraph = (
         edgeFrom(
           purpleNoise,
           physicalF.id,
-          engine.name === 'three' ? 'property_map' : 'property_albedoTexture',
+          // threngine.name === 'three' ? 'property_map' : 'property_albedoTexture',
+          'property_map',
           'fragment'
         ),
       ],
     };
     previewObject = 'torusknot';
   }
+
   return [newGraph, previewObject, bg];
 };

@@ -31,13 +31,16 @@ import {
   uniformStrategy,
 } from '../../core/strategy';
 
+const log = (...args: any[]) =>
+  console.log.call(console, '\x1b[35m(three)\x1b[0m', ...args);
+
 export const physicalNode = (
   id: string,
   name: string,
-  groupId: string,
+  groupId: string | null | undefined,
   position: NodePosition,
   uniforms: UniformDataType[],
-  stage: ShaderStage,
+  stage: ShaderStage | undefined,
   nextStageNodeId?: string
 ): CodeNode =>
   prepopulatePropertyInputs({
@@ -124,9 +127,9 @@ const cacher = (
   const cacheKey = programCacheKey(engineContext, graph, node, sibling);
 
   if (engineContext.runtime.cache.data[cacheKey]) {
-    console.log('cache hit', cacheKey);
+    log('Cache hit', cacheKey);
   } else {
-    console.log('cache miss', cacheKey);
+    log('Cache miss', cacheKey);
   }
   const materialData = engineContext.runtime.cache.data[cacheKey] || newValue();
 
@@ -144,7 +147,7 @@ const onBeforeCompileMegaShader = (
   engineContext: EngineContext,
   newMat: any
 ) => {
-  console.log('compiling three megashader!');
+  log('compiling three megashader!');
   const { renderer, sceneData, scene, camera } = engineContext.runtime;
   const { mesh } = sceneData;
 
@@ -208,6 +211,23 @@ const megaShaderMainpulateAst: NodeParser['manipulateAst'] = (
   return programAst;
 };
 
+const nodeCacheKey = (graph: Graph, node: SourceNode) => {
+  return (
+    '[ID:' +
+    node.id +
+    'Edges:' +
+    graph.edges
+      .filter((edge) => edge.to === node.id)
+      .map((edge) => `(${edge.to}->${edge.input})`)
+      .sort()
+      .join(',') +
+    ']'
+    // Currently excluding node inputs because these are calculated *after*
+    // the onbeforecompile, so the next compile, they'll all change!
+    // node.inputs.map((i) => `${i.id}${i.bakeable}`)
+  );
+};
+
 const programCacheKey = (
   engineContext: EngineContext,
   graph: Graph,
@@ -230,24 +250,10 @@ const programCacheKey = (
       .sort((a, b) => a.id.localeCompare(b.id))
       .map((n) => nodeCacheKey(graph, n))
       .join('-') +
+    '|Lights:' +
     lights.join(',') +
-    scene.background +
-    scene.environment
-  );
-};
-
-const nodeCacheKey = (graph: Graph, node: SourceNode) => {
-  return (
-    '' +
-    node.id +
-    graph.edges
-      .filter((edge) => edge.to === node.id)
-      .map((edge) => `${edge.to}.${edge.input}`)
-      .sort()
-      .join(',')
-    // Currently excluding node inputs because these are calculated *after*
-    // the onbeforecompile, so the next compile, they'll all change!
-    // node.inputs.map((i) => `${i.id}${i.bakeable}`)
+    '|Envtex:' +
+    scene.environmentTexture
   );
 };
 
@@ -353,6 +359,60 @@ const evaluateNode = (node: DataNode) => {
   }
 };
 
+export const toonNode = (
+  id: string,
+  name: string,
+  groupId: string | null | undefined,
+  position: NodePosition,
+  uniforms: UniformDataType[],
+  stage: ShaderStage | undefined,
+  nextStageNodeId?: string
+): CodeNode =>
+  prepopulatePropertyInputs({
+    id,
+    name,
+    groupId,
+    position,
+    type: EngineNodeType.toon,
+    config: {
+      uniforms,
+      version: 3,
+      preprocess: true,
+      mangle: false,
+      properties: [
+        property('Color', 'color', 'rgb', 'uniform_diffuse'),
+        property('Texture', 'map', 'texture', 'filler_map'),
+        property(
+          'Gradient Map',
+          'gradientMap',
+          'texture',
+          'filler_gradientMap'
+        ),
+        property('Normal Map', 'normalMap', 'texture', 'filler_normalMap'),
+        property('Normal Scale', 'normalScale', 'vector2'),
+        property('Displacement Map', 'displacementMap', 'texture'),
+        property('Env Map', 'envMap', 'samplerCube'),
+      ],
+      strategies: [
+        uniformStrategy(),
+        stage === 'fragment'
+          ? texture2DStrategy()
+          : namedAttributeStrategy('position'),
+      ],
+    },
+    inputs: [],
+    outputs: [
+      {
+        name: 'vector4',
+        category: 'data',
+        id: '1',
+      },
+    ],
+    source: '',
+    stage,
+    nextStageNodeId,
+  });
+
 export const threngine: Engine = {
   name: 'three',
   importers,
@@ -363,6 +423,7 @@ export const threngine: Engine = {
   evaluateNode,
   constructors: {
     [EngineNodeType.physical]: physicalNode,
+    [EngineNodeType.toon]: toonNode,
   },
   // TODO: Get from uniform lib?
   preserve: new Set<string>([

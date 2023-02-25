@@ -382,6 +382,7 @@ const createGraphNode = (
           version: 2,
           preprocess: true,
           strategies: [uniformStrategy(), texture2DStrategy()],
+          uniforms: [],
         },
         nodeDataType === 'fragment'
           ? `void main() {
@@ -401,10 +402,11 @@ const createGraphNode = (
   }
 
   // Hack: Auto-converting nodes to threejs for testing
-  newGns.forEach((gn) => {
+  newGns = newGns.map((gn) => {
     if (gn.type === 'source' && engine === 'babylon') {
-      convertNode(gn, babylengine.importers.three);
+      return convertNode(gn, babylengine.importers.three);
     }
+    return gn;
   });
 
   let newGEs: GraphEdge[] = newEdgeData

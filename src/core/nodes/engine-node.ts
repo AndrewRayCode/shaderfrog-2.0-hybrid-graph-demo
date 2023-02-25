@@ -31,6 +31,7 @@ export const sourceNode = (
 ): CodeNode => ({
   id,
   name,
+  groupId: undefined,
   type: NodeType.SOURCE,
   config,
   position,
@@ -57,11 +58,13 @@ export const outputNode = (
   id,
   name,
   position,
+  groupId: undefined,
   type: NodeType.OUTPUT,
   config: {
     version: 3,
     mangle: false,
     preprocess: false,
+    uniforms: [],
     inputMapping:
       stage === 'fragment'
         ? {
@@ -113,7 +116,10 @@ export const expressionNode = (
   position,
   type: NodeType.SOURCE,
   expressionOnly: true,
+  groupId: undefined,
+  stage: undefined,
   config: {
+    uniforms: [],
     version: 3,
     preprocess: false,
     inputMapping: {},
@@ -146,6 +152,7 @@ export const phongNode = (
     type: EngineNodeType.phong,
     config: {
       version: 3,
+      uniforms: [],
       preprocess: true,
       mangle: false,
       properties: [
@@ -199,70 +206,19 @@ export const phongNode = (
     nextStageNodeId,
   });
 
-export const toonNode = (
-  id: string,
-  name: string,
-  groupId: string,
-  position: NodePosition,
-  uniforms: UniformDataType[],
-  stage: ShaderStage,
-  nextStageNodeId?: string
-): CodeNode =>
-  prepopulatePropertyInputs({
-    id,
-    name,
-    groupId,
-    position,
-    type: EngineNodeType.toon,
-    config: {
-      uniforms,
-      version: 3,
-      preprocess: true,
-      mangle: false,
-      properties: [
-        property('Color', 'color', 'rgb', 'uniform_diffuse'),
-        property('Texture', 'map', 'texture', 'filler_map'),
-        property(
-          'Gradient Map',
-          'gradientMap',
-          'texture',
-          'filler_gradientMap'
-        ),
-        property('Normal Map', 'normalMap', 'texture', 'filler_normalMap'),
-        property('Normal Scale', 'normalScale', 'vector2'),
-        property('Displacement Map', 'displacementMap', 'texture'),
-        property('Env Map', 'envMap', 'samplerCube'),
-      ],
-      strategies: [
-        uniformStrategy(),
-        stage === 'fragment'
-          ? texture2DStrategy()
-          : namedAttributeStrategy('position'),
-      ],
-    },
-    inputs: [],
-    outputs: [
-      {
-        name: 'vector4',
-        category: 'data',
-        id: '1',
-      },
-    ],
-    source: '',
-    stage,
-    nextStageNodeId,
-  });
-
 export const addNode = (id: string, position: NodePosition): BinaryNode => ({
   id,
   name: 'add',
   position,
   type: NodeType.BINARY,
+  groupId: undefined,
+  stage: undefined,
   config: {
     mangle: false,
     version: 3,
     preprocess: true,
     strategies: [],
+    uniforms: [],
   },
   inputs: [],
   outputs: [
@@ -285,9 +241,12 @@ export const multiplyNode = (
   id,
   name: 'multiply',
   type: NodeType.BINARY,
+  groupId: undefined,
+  stage: undefined,
   position,
   config: {
     version: 3,
+    uniforms: [],
     mangle: false,
     preprocess: true,
     strategies: [],

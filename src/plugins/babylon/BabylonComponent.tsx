@@ -14,7 +14,10 @@ import styles from '../../pages/editor/editor.module.css';
 
 import { useBabylon } from './useBabylon';
 import { usePrevious } from '../../site/hooks/usePrevious';
-import { UICompileGraphResult } from '../../site/uICompileGraphResult';
+import {
+  IndexedDataInputs,
+  UICompileGraphResult,
+} from '../../site/uICompileGraphResult';
 import { SamplerCubeNode, TextureNode } from '../../core/nodes/data-nodes';
 import { useSize } from '../../site/hooks/useSize';
 import { Nullable } from 'babylonjs';
@@ -40,6 +43,95 @@ BABYLON.Logger.Error = (...args) => {
   }
   _err(...args);
 };
+
+// const dorf = (
+//   graph: Graph,
+//   textures: any,
+//   material: BABYLON.Material | BABYLON.Effect,
+//   inputs: IndexedDataInputs
+// ) => {
+//   Object.entries(inputs).forEach(([nodeId, inputs]) => {
+//     const node = graph.nodes.find(({ id }) => id === nodeId);
+//     if (!node) {
+//       console.warn(
+//         'While populating uniforms, no node was found from dataInputs',
+//         { nodeId, inputs, graph }
+//       );
+//       return;
+//     }
+//     inputs.forEach((input) => {
+//       const edge = graph.edges.find(
+//         ({ to, input: i }) => to === nodeId && i === input.id
+//       );
+//       if (edge) {
+//         const fromNode = graph.nodes.find(({ id }) => id === edge.from);
+//         // In the case where a node has been deleted from the graph,
+//         // dataInputs won't have been udpated until a recompile completes
+//         if (!fromNode) {
+//           return;
+//         }
+
+//         let value;
+//         // THIS DUPLICATES OTHER LINE
+//         // When a shader is plugged into the Texture node of a megashader,
+//         // this happens, I'm not sure why yet. In fact, why is this branch
+//         // getting called at all in useThree() ?
+//         try {
+//           value = evaluateNode(babylengine, graph, fromNode);
+//         } catch (err) {
+//           console.warn(
+//             `Tried to evaluate a non-data node! ${input.displayName} on ${node.name}`
+//           );
+//           return;
+//         }
+//         let newValue = value;
+//         if (fromNode.type === 'texture') {
+//           // THIS DUPLICATES OTHER LINE, used for runtime uniform setting
+//           newValue = textures[(fromNode as TextureNode).value];
+//           // console.log('setting texture', newValue, 'from', fromNode);
+//         }
+//         if (fromNode.type === 'samplerCube') {
+//           newValue = textures[(fromNode as SamplerCubeNode).value];
+//         }
+
+//         if (input.type === 'property' && input.property) {
+//           // @ts-ignore
+//           if (!newValue.url || material[input.property]?.url !== newValue.url) {
+//             // @ts-ignore
+//             material[input.property] = newValue;
+//           }
+//         } else {
+//           // TODO: This doesn't work for engine variables because
+//           // those aren't suffixed
+//           const name = mangleVar(input.displayName, babylengine, node);
+
+//           // @ts-ignore
+//           if (fromNode.type === 'number') {
+//             material.setFloat(name, newValue);
+//           } else if (fromNode.type === 'vector2') {
+//             material.setVector2(name, newValue);
+//           } else if (fromNode.type === 'vector3') {
+//             material.setVector3(name, newValue);
+//           } else if (fromNode.type === 'vector4') {
+//             material.setVector4(name, newValue);
+//           } else if (fromNode.type === 'rgb') {
+//             material.setColor3(name, newValue);
+//           } else if (fromNode.type === 'rgba') {
+//             // TODO: Uniforms aren't working for plugging in purple noise
+//             // shader to Texture filler of babylon physical - was getting
+//             // webgl warnings, but now object is black? Also I need to
+//             // get the actual color4 alpha value here
+//             material.setColor4(name, newValue, 1.0);
+//           } else if (fromNode.type === 'texture') {
+//             material.setTexture(name, newValue);
+//           } else {
+//             log(`Unknown uniform type: ${fromNode.type}`);
+//           }
+//         }
+//       }
+//     });
+//   });
+// };
 
 type OnBeforeDraw = (mesh: BABYLON.Mesh) => void;
 const useOnMeshDraw = (
@@ -149,7 +241,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     }
   });
 
-  const images = useMemo<
+  const textures = useMemo<
     Record<
       string,
       BABYLON.Texture | BABYLON.HDRCubeTexture | BABYLON.CubeTexture | null
@@ -277,10 +369,11 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
                   let newValue = value;
                   if (fromNode.type === 'texture') {
                     // THIS DUPLICATES OTHER LINE, used for runtime uniform setting
-                    newValue = images[(fromNode as TextureNode).value];
+                    newValue = textures[(fromNode as TextureNode).value];
+                    // console.log('setting texture', newValue, 'from', fromNode);
                   }
                   if (fromNode.type === 'samplerCube') {
-                    newValue = images[(fromNode as SamplerCubeNode).value];
+                    newValue = textures[(fromNode as SamplerCubeNode).value];
                   }
 
                   if (input.type === 'property' && input.property) {
@@ -316,6 +409,8 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
                       // webgl warnings, but now object is black? Also I need to
                       // get the actual color4 alpha value here
                       effect.setColor4(name, newValue, 1.0);
+                    } else if (fromNode.type === 'texture') {
+                      effect.setTexture(name, newValue);
                     } else {
                       log(`Unknown uniform type: ${fromNode.type}`);
                     }
@@ -327,7 +422,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
         }
       }
     },
-    [compileResult?.dataInputs, sceneData.mesh, graph, images]
+    [compileResult?.dataInputs, sceneData.mesh, graph, textures]
   );
 
   useOnMeshDraw(sceneData.mesh, meshUpdater);
@@ -359,7 +454,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     if (bg === previousBg) {
       return;
     }
-    const newBg = bg ? images[bg] : null;
+    const newBg = bg ? textures[bg] : null;
     scene.environmentTexture = newBg;
     if (skybox.current) {
       skybox.current.dispose();
@@ -374,7 +469,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     sceneData,
     previewObject,
     scene,
-    images,
+    textures,
   ]);
 
   useEffect(() => {
@@ -394,6 +489,7 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     // TODO: Babylon doesn't have a RawShaderMaterial. This hard codes the
     // assumption there's a Physical material in the graph.
     const shaderMaterial = new BABYLON.PBRMaterial(pbrName, scene);
+    // @ts-ignore
     const graphProperties: Record<string, any> = {};
 
     // Babylon has some internal uniforms like vAlbedoInfos that are only set
@@ -412,15 +508,15 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
           ({ to, input: i }) => to === physicalFragmentNode.id && i === input.id
         );
         // @ts-ignore
-        if (edge && !window.xxx) {
+        if (edge) {
           if (input?.dataType === 'texture') {
             if (input.property === 'albedoTexture') {
               graphProperties.albedoTexture =
-                images.brickNormal as BABYLON.Texture;
+                textures.brickNormal as BABYLON.Texture;
             }
             if (input.property === 'bumpTexture') {
               graphProperties.bumpTexture =
-                images.brickNormal as BABYLON.Texture;
+                textures.brickNormal as BABYLON.Texture;
             }
           }
         }
@@ -429,6 +525,16 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
 
     // Possible PBRMaterial defaults
     // Ensures irradiance is computed per fragment to make the bump visible
+
+    // todo:
+    // refaction works if set subsurface here, and in babylengine. so need to
+    // make sub properties settable in default properties.
+    // and examples need to be engine specific becuse three transmission
+    // doesn't translate to babylon properties easily
+    // see https://playground.babylonjs.com/#FEEK7G#546 working transmission example with ior
+    // all to get glass fireball working
+    shaderMaterial.linkRefractionWithTransparency = true;
+    shaderMaterial.subSurface.isRefractionEnabled = true;
     // shaderMaterial.forceIrradianceInFragment = true;
     // shaderMaterial.bumpTexture = images.brickNormal as BABYLON.Texture;
     // shaderMaterial.albedoColor = new BABYLON.Color3(1.0, 1.0, 1.0);
@@ -453,112 +559,116 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     BABYLON.Effect.ShadersStore[pbrName + 'FragmentShader'] =
       'Cant Be Empty Despite Being Unused';
 
-    // @ts-ignore
-    if (window.xxx) {
-      shaderMaterial.metallic = 1.0;
-      shaderMaterial.roughness = 0.0;
-    } else {
-      shaderMaterial.customShaderNameResolve = (
-        shaderName,
-        uniforms,
-        uniformBuffers,
-        samplers,
-        defines,
-        attributes,
-        options
-      ) => {
-        lastCompile.current.vertexResult = compileResult?.vertexResult;
-        lastCompile.current.fragmentResult = compileResult?.fragmentResult;
+    let didResove = false;
+    shaderMaterial.customShaderNameResolve = (
+      shaderName,
+      uniforms,
+      uniformBuffers,
+      samplers,
+      defines,
+      attributes,
+      options
+    ) => {
+      lastCompile.current.vertexResult = compileResult?.vertexResult;
+      lastCompile.current.fragmentResult = compileResult?.fragmentResult;
+      if (!Array.isArray(defines)) {
+        defines.source =
+          compileResult?.vertexResult + compileResult?.fragmentResult;
+      }
 
-        uniforms.push('time');
+      uniforms.push('time');
 
-        if (compileResult?.dataInputs) {
-          Object.entries(compileResult.dataInputs).forEach(
-            ([nodeId, inputs]) => {
-              const node = graph.nodes.find(({ id }) => id === nodeId);
-              if (!node) {
-                console.warn(
-                  'While creating uniforms, no node was found from dataInputs',
-                  { nodeId, dataInputs: compileResult.dataInputs, graph }
-                );
+      if (compileResult?.dataInputs) {
+        Object.entries(compileResult.dataInputs).forEach(([nodeId, inputs]) => {
+          const node = graph.nodes.find(({ id }) => id === nodeId);
+          if (!node) {
+            console.warn(
+              'While creating uniforms, no node was found from dataInputs',
+              { nodeId, dataInputs: compileResult.dataInputs, graph }
+            );
+            return;
+          }
+          inputs.forEach((input) => {
+            const name = mangleVar(input.displayName, babylengine, node);
+            const edge = graph.edges.find(
+              ({ to, input: i }) => to === nodeId && i === input.id
+            );
+            if (edge) {
+              const fromNode = graph.nodes.find(({ id }) => id === edge.from);
+              // In the case where a node has been deleted from the graph,
+              // dataInputs won't have been udpated until a recompile completes
+              if (!fromNode) {
                 return;
               }
-              inputs.forEach((input) => {
-                const edge = graph.edges.find(
-                  ({ to, input: i }) => to === nodeId && i === input.id
-                );
-                if (edge) {
-                  const fromNode = graph.nodes.find(
-                    ({ id }) => id === edge.from
-                  );
-                  // In the case where a node has been deleted from the graph,
-                  // dataInputs won't have been udpated until a recompile completes
-                  if (!fromNode) {
-                    return;
-                  }
-                  if (input.type !== 'property') {
-                    const name = mangleVar(
-                      input.displayName,
-                      babylengine,
-                      node
-                    );
-                    uniforms.push(name);
-                  }
-                }
-              });
-            }
-          );
-        }
-        log(`${pbrName} PBRMaterial customShaderNameResolve called...`, {
-          defines,
-          uniforms,
-        });
-
-        if (options) {
-          options.processFinalCode = (type, _code) => {
-            log(
-              `${pbrName} scene processFinalCode called, setting ${type} shader source!`
-            );
-            // return _code;
-            if (type === 'vertex') {
-              if (!compileResult?.vertexResult) {
-                console.error('No vertex result for Babylon shader!');
+              if (input.type !== 'property') {
+                uniforms.push(name);
               }
-              // log('Setting vertex source', {
-              //   code,
-              //   type,
-              //   vert: compileResult?.vertexResult,
-              // });
-              return compileResult?.vertexResult;
+              if (fromNode.type === 'texture') {
+                samplers.push(name);
+              }
             }
-            // log('Setting fragment source', {
+          });
+        });
+      }
+      // TODO: trying to get fireball to work, texture not loading? Also I can't
+      // get an image to load at all while hand modifying shader source
+      log(`${pbrName} PBRMaterial customShaderNameResolve called...`, {
+        defines,
+        uniforms,
+      });
+
+      if (options) {
+        options.processFinalCode = (type, _code) => {
+          didResove = true;
+          log(
+            `${pbrName} scene processFinalCode called, setting ${type} shader source!`
+          );
+          // return _code;
+          if (type === 'vertex') {
+            if (!compileResult?.vertexResult) {
+              console.error('No vertex result for Babylon shader!');
+            }
+            // log('Setting vertex source', {
             //   code,
             //   type,
-            //   frag: compileResult?.fragmentResult,
+            //   vert: compileResult?.vertexResult,
             // });
-            // Babylo
-            return compileResult?.fragmentResult.replace(
-              'out vec4 glFragColor',
-              ''
-            );
-          };
-        } else {
-          console.warn(
-            'No options present to set processFinalCode on, cannot set shader source!'
+            return compileResult?.vertexResult;
+          }
+          // log('Setting fragment source', {
+          //   code,
+          //   type,
+          //   frag: compileResult?.fragmentResult,
+          // });
+          // Babylo
+          return compileResult?.fragmentResult.replace(
+            'out vec4 glFragColor',
+            ''
           );
-        }
-        capture = [];
-        checkForCompileErrors.current = true;
-        return pbrName;
-      };
-    }
+        };
+      } else {
+        console.warn(
+          'No options present to set processFinalCode on, cannot set shader source!'
+        );
+      }
+      capture = [];
+      checkForCompileErrors.current = true;
+      return pbrName;
+    };
+
+    setTimeout(() => {
+      if (!didResove) {
+        log('❌ DID NOT RE-CREATE SHADER ❌');
+      }
+    }, 100);
+
     if (sceneData.mesh) {
       sceneData.mesh.material = shaderMaterial;
     } else {
       console.warn('No mesh to assign the material to!');
     }
     // sceneRef.current.shadersUpdated = true;
-  }, [scene, compileResult, images.brickNormal, sceneData.mesh]);
+  }, [scene, compileResult, textures.brickNormal, sceneData.mesh]);
 
   const prevLights = usePrevious(lights);
   const previousShowHelpers = usePrevious(showHelpers);

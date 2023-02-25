@@ -169,7 +169,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
               let newValue = value;
               if (fromNode.type === 'texture') {
                 // THIS DUPLICATES OTHER LINE, used for runtime uniform setting
-                newValue = images[(fromNode as TextureNode).value];
+                newValue = textures[(fromNode as TextureNode).value];
               }
               // TODO RENDER TARGET
               if (fromNode.type === 'samplerCube') {
@@ -205,7 +205,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     }
   );
 
-  const images = useMemo<Record<string, any>>(
+  const textures = useMemo<Record<string, any>>(
     () => ({
       explosion: new three.TextureLoader().load('/explosion.png'),
       'grayscale-noise': new three.TextureLoader().load('/grayscale-noise.png'),
@@ -264,10 +264,10 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       pmremGenerator.compileEquirectangularShader();
       const envMap = pmremGenerator.fromEquirectangular(texture).texture;
       pmremGenerator.dispose();
-      images.warehouseEnvTexture = envMap;
+      textures.warehouseEnvTexture = envMap;
       setWarehouseImage({ texture, envMap });
     });
-  }, [renderer, setWarehouseImage, warehouseImage, images]);
+  }, [renderer, setWarehouseImage, warehouseImage, textures]);
 
   const previousPreviewObject = usePrevious(previewObject);
   useEffect(() => {
@@ -315,8 +315,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         ).texture;
         scene.background = scene.environment;
       } else {
-        scene.background = images[bg];
-        scene.environment = images[bg];
+        scene.background = textures[bg];
+        scene.environment = textures[bg];
       }
     } else {
       scene.environment = null;
@@ -332,7 +332,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     scene,
     previousWarehouseImage,
     warehouseImage,
-    images,
+    textures,
   ]);
 
   const [ctx] = useState<EngineContext>(
@@ -415,9 +415,9 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
             if (fromNode.type === 'texture') {
               // THIS DUPLICATES OTHER LINE
               // This is instantiation of initial shader
-              newValue = images[(fromNode as TextureNode).value];
+              newValue = textures[(fromNode as TextureNode).value];
             } else if (fromNode.type === 'samplerCube') {
-              newValue = images[(fromNode as SamplerCubeNode).value];
+              newValue = textures[(fromNode as SamplerCubeNode).value];
             }
             // TODO: This doesn't work for engine variables because
             // those aren't suffixed
@@ -508,7 +508,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
     mesh.material = newMat;
     shadersUpdated.current = true;
-  }, [compileResult, ctx.runtime, images]);
+  }, [compileResult, ctx.runtime, textures]);
 
   const prevLights = usePrevious(lights);
   const previousShowHelpers = usePrevious(showHelpers);

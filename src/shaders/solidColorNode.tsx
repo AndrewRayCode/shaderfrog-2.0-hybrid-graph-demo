@@ -11,6 +11,7 @@ const solidColorNode = (id: string, position: NodePosition) =>
       version: 2,
       preprocess: true,
       strategies: [uniformStrategy(), texture2DStrategy()],
+      uniforms: [],
     },
     `precision highp float;
 precision highp int;

@@ -8,7 +8,7 @@ import {
   vectorUniformData,
 } from '../../core/nodes/data-nodes';
 import { EdgeType, makeEdge } from '../../core/nodes/edge';
-import { outputNode, toonNode } from '../../core/nodes/engine-node';
+import { outputNode } from '../../core/nodes/engine-node';
 import { fireFrag, fireVert } from '../../shaders/fireNode';
 import {
   heatShaderFragmentNode,
@@ -183,7 +183,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
     const outputV = outputNode(makeId(), 'Output', { x: 434, y: 16 }, 'vertex');
 
     const toonGroupId = makeId();
-    const toonF = toonNode(
+    const toonF = threngine.constructors.toon(
       makeId(),
       'Toon',
       toonGroupId,
@@ -191,7 +191,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
       [],
       'fragment'
     );
-    const toonV = toonNode(
+    const toonV = threngine.constructors.toon(
       makeId(),
       'Toon',
       toonGroupId,

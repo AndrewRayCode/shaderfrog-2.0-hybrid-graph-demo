@@ -7,7 +7,12 @@ const hellOnEarthFrag = (id: string, position: NodePosition) =>
     id,
     'Hell',
     position,
-    { version: 2, preprocess: true, strategies: [uniformStrategy()] },
+    {
+      version: 2,
+      preprocess: true,
+      strategies: [uniformStrategy()],
+      uniforms: [],
+    },
     `
 /**
  * Example Fragment Shader
@@ -199,7 +204,7 @@ const hellOnEarthVert = (
     id,
     'Hell',
     position,
-    { version: 2, preprocess: true, strategies: [] },
+    { version: 2, preprocess: true, strategies: [], uniforms: [] },
     `
 /**
 * Example Vertex Shader

@@ -149,7 +149,7 @@ const heatShaderVertexNode = (
     id,
     'Fake Heatmap',
     position,
-    { version: 2, preprocess: true, strategies: [] },
+    { version: 2, preprocess: true, strategies: [], uniforms: [] },
     `
     precision highp float;
     precision highp int;

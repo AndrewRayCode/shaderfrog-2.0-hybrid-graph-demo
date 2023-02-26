@@ -855,7 +855,7 @@ const Editor: React.FC = () => {
         nodeDataType,
         name,
         position,
-        ctx?.engine,
+        engine,
         newEdgeData,
         defaultValue
       );

@@ -51,7 +51,12 @@ const staticShaderNode = (
     id,
     'Static Shader',
     position,
-    { version: 2, preprocess: true, strategies: [uniformStrategy()] },
+    {
+      version: 2,
+      preprocess: true,
+      strategies: [uniformStrategy()],
+      uniforms: [],
+    },
     source,
     'fragment',
     'three'

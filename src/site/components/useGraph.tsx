@@ -54,7 +54,6 @@ import {
   multiplyNode,
   phongNode,
   sourceNode,
-  toonNode,
 } from '../../core/nodes/engine-node';
 import {
   declarationOfStrategy,
@@ -238,7 +237,7 @@ const createGraphNode = (
   nodeDataType: string,
   name: string,
   position: { x: number; y: number },
-  engine: string | undefined,
+  engine: Engine,
   newEdgeData?: Omit<GraphEdge, 'id' | 'from'>,
   defaultValue?: any
 ): [Set<string>, Graph] => {
@@ -315,8 +314,16 @@ const createGraphNode = (
     ];
   } else if (nodeDataType === 'toon') {
     newGns = [
-      toonNode(id, 'Toon', groupId, position, [], 'fragment'),
-      toonNode(makeId(), 'Toon', groupId, position, [], 'vertex', id),
+      engine.constructors.toon(id, 'Toon', groupId, position, [], 'fragment'),
+      engine.constructors.toon(
+        makeId(),
+        'Toon',
+        groupId,
+        position,
+        [],
+        'vertex',
+        id
+      ),
     ];
   } else if (nodeDataType === 'fireNode') {
     newGns = [fireFrag(id, position), fireVert(makeId(), id, position)];
@@ -392,7 +399,7 @@ const createGraphNode = (
   gl_Position = vec4(1.0);
 }`,
         nodeDataType,
-        engine
+        engine.name
       ),
     ];
   } else {
@@ -403,7 +410,7 @@ const createGraphNode = (
 
   // Hack: Auto-converting nodes to threejs for testing
   newGns = newGns.map((gn) => {
-    if (gn.type === 'source' && engine === 'babylon') {
+    if (gn.type === 'source' && engine.name === 'babylon') {
       return convertNode(gn, babylengine.importers.three);
     }
     return gn;

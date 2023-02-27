@@ -45,9 +45,19 @@ graph editor and core APIs. There is currently no DX (developer experience),
 meaning there is no way to export shaders to use in your own system, nor is there
 a way to use the Hybrid Graph as a standalone library. (Yet!)
 
+# Contact
+
+You can follow along on Twitter, and my DMs are open:
+
+- Twitter [@andrewray](https://twitter.com/andrewray)
+- Twitter [@shaderfrog](https://twitter.com/shaderfrog)
+- Mastodon [@andyray@mastodon.social](https://mastodon.social/@andyray)
+
 # Hacky Documentaiton
 
 ## How a RawShaderMaterial acts like a MeshPhysicalMaterial
+
+(Three.js flow, similar to Babylon flow).
 
 1. The graph compiles all the nodes and sees there's a physical ndoe
 2. It tells threngine to compile the megashader, which makes a new

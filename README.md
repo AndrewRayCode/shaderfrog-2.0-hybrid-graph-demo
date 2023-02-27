@@ -1,5 +1,52 @@
 # Shaderfrog 2.0 "Hybrid Graph" Experimental Editor
 
+![Hybrid Graph editor screenshot](/public/hybrid-graph-screenshot.png)
+
+# [Live Demo Link](http://frogger.andrewray.me/editor.html)
+
+This is only a tech demo, and does not currently offer the ability to save shaders.
+
+# What?
+
+The Shaderfrog 2.0 "Hybrid Graph" editor is a tool that lets you arbitrarily
+compose shader source code (GLSL) using a combination of source code and graph
+nodes.
+
+In the below screenshots, you can see a shader that produes a checkerboard
+pattern. In a traditional graph editor, you need many nodes to reproduce the
+math to create such a pattern. With the Hybird Graph, the entire checkerboard
+shader is a single node, and you can edit its source code and modify its
+uniforms. This hybrid editing creates a powerful and novel way to compose
+effects together.
+
+![Hybrid Graph editor screenshot](/public/checkerboard-graph.png)
+![Hybrid Graph editor screenshot](/public/checkerboard-glsl.png)
+
+# Engines (Three.js, Babylon, ...)
+
+The hybrid graph is a GLSL editor, and is not specific to an engine. Engines are
+implemented as [plugins](src/plugins/) to the hybrid graph. The same algorithm
+of shader composing can in theory work with any GLSL based engine.
+
+I've started with support for Three.js and Babylon.
+
+# Implementation
+
+The hybrid graph utilizes the compiler I wrote
+[@Shaderfrog/glsl-parser](https://github.com/ShaderFrog/glsl-parser) which among
+other things, exposed [a
+bug](https://bugs.chromium.org/p/angleproject/issues/detail?id=6338#c1) in
+Chrome's ANGLE compiler.
+
+# State of this demo
+
+This demo is a constant WIP. The main focus right now is on the UI/UX of the
+graph editor and core APIs. There is currently no DX (developer experience),
+meaning there is no way to export shaders to use in your own system, nor is there
+a way to use the Hybrid Graph as a standalone library. (Yet!)
+
+# Hacky Documentaiton
+
 ## How a RawShaderMaterial acts like a MeshPhysicalMaterial
 
 1. The graph compiles all the nodes and sees there's a physical ndoe

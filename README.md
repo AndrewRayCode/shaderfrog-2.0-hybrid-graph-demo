@@ -1,4 +1,4 @@
-# Shaderfrog 2.0 "Hybrid Graph" Experimental Editor
+# Shaderfrog 2.0 "Hybrid Graph" Tech Demo
 
 ![Hybrid Graph editor screenshot](/public/hybrid-graph-screenshot.png)
 

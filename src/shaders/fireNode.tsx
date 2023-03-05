@@ -5,7 +5,7 @@ import {
   UniformDataType,
 } from '../core/nodes/data-nodes';
 import { sourceNode } from '../core/nodes/engine-node';
-import { uniformStrategy } from '../core/strategy';
+import { namedAttributeStrategy, uniformStrategy } from '../core/strategy';
 
 const fireFrag = (id: string, position: NodePosition) =>
   sourceNode(
@@ -59,7 +59,7 @@ const fireVert = (
     {
       version: 2,
       preprocess: true,
-      strategies: [uniformStrategy()],
+      strategies: [uniformStrategy(), namedAttributeStrategy('position')],
 
       uniforms: uniforms || [
         numberUniformData('fireSpeed', '0.6321'),

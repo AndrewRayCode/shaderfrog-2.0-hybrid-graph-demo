@@ -423,7 +423,6 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
     ]);
 
     const properties = [
-      numberNode(makeId(), 'Metalness', { x: -185, y: -110 }, '0.1'),
       numberNode(makeId(), 'Roughness', { x: -185, y: 0 }, '0.0'),
       numberNode(makeId(), 'Transmission', { x: -200, y: 110 }, '0.5'),
 
@@ -466,7 +465,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
       edges: [
         edgeFrom(physicalF, outputF.id, 'filler_frogFragOut', 'fragment'),
         edgeFrom(physicalV, outputV.id, 'filler_gl_Position', 'vertex'),
-        edgeFrom(clouds, physicalF.id, 'filler_map', 'fragment'),
+        edgeFrom(clouds, physicalF.id, 'property_map', 'fragment'),
         edgeFrom(vertexNoise, physicalV.id, 'filler_position', 'vertex'),
         ...properties.map((prop) =>
           edgeFrom(

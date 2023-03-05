@@ -254,6 +254,7 @@ const ctxNodes: Menu = [
       ['White Noise', 'whiteNoiseNode'],
       ['Tangent Noise', 'staticShaderNode'],
       ['Normal Map-ify', 'normalMapify'],
+      ['Vertex Noise', 'simpleVertex'],
     ],
   ],
 ];

@@ -1,7 +1,11 @@
 import { NodePosition } from '../core/nodes/core-node';
 import { numberUniformData } from '../core/nodes/data-nodes';
 import { sourceNode } from '../core/nodes/engine-node';
-import { uniformStrategy } from '../core/strategy';
+import {
+  namedAttributeStrategy,
+  texture2DStrategy,
+  uniformStrategy,
+} from '../core/strategy';
 
 const sinCosVertWarp = (id: string, position: NodePosition) =>
   sourceNode(
@@ -11,7 +15,7 @@ const sinCosVertWarp = (id: string, position: NodePosition) =>
     {
       version: 2,
       preprocess: true,
-      strategies: [uniformStrategy()],
+      strategies: [uniformStrategy(), namedAttributeStrategy('position')],
       uniforms: [
         numberUniformData('height', '1'),
         numberUniformData('frequency', '10.0', [0, 100]),

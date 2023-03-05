@@ -179,6 +179,8 @@ type BabylonComponentProps = {
   compileResult: UICompileGraphResult | undefined;
   graph: Graph;
   lights: PreviewLight;
+  animatedLights: boolean;
+  setAnimatedLights: AnyFn;
   previewObject: string;
   setCtx: (ctx: EngineContext) => void;
   setGlResult: AnyFn;
@@ -196,10 +198,12 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
   compileResult,
   graph,
   lights,
+  setLights,
+  animatedLights,
+  setAnimatedLights,
   previewObject,
   setCtx,
   setGlResult,
-  setLights,
   setPreviewObject,
   bg,
   setBg,
@@ -232,12 +236,14 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     }
 
     const { lights: lightMeshes } = sceneData;
-    if (lights === 'point') {
-      const light = lightMeshes[0] as BABYLON.PointLight;
-      light.position.x = 1.2 * Math.sin(time * 0.001);
-      light.position.y = 1.2 * Math.cos(time * 0.001);
-    } else if (lights === 'spot') {
-      // I haven't done this yet
+    if (animatedLights) {
+      if (lights === 'point') {
+        const light = lightMeshes[0] as BABYLON.PointLight;
+        light.position.x = 1.2 * Math.sin(time * 0.001);
+        light.position.y = 1.2 * Math.cos(time * 0.001);
+      } else if (lights === 'spot') {
+        // I haven't done this yet
+      }
     }
   });
 
@@ -290,15 +296,32 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
         },
         scene
       );
-    } else if (previewObject === 'sphere') {
-      mesh = BABYLON.Mesh.CreateSphere(
-        'sphere1',
-        16,
-        2,
-        scene,
-        false,
-        BABYLON.Mesh.FRONTSIDE
+    } else if (previewObject === 'plane') {
+      mesh = BABYLON.MeshBuilder.CreatePlane(
+        'plane1',
+        { size: 2, sideOrientation: BABYLON.Mesh.DOUBLESIDE },
+        scene
       );
+      mesh.increaseVertices(4);
+    } else if (previewObject === 'cube') {
+      mesh = BABYLON.MeshBuilder.CreateBox(
+        'cube1',
+        {
+          size: 1,
+        },
+        scene
+      );
+      mesh.increaseVertices(2);
+    } else if (previewObject === 'sphere') {
+      mesh = BABYLON.MeshBuilder.CreateSphere(
+        'sphere1',
+        {
+          segments: 64,
+          diameter: 2,
+        },
+        scene
+      );
+      mesh.increaseVertices(2);
     } else if (previewObject === 'icosahedron') {
       mesh = BABYLON.MeshBuilder.CreatePolyhedron(
         'oct',
@@ -794,79 +817,110 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
 
   return (
     <>
-      <div className={cx(styles.sceneControls)}>
-        <div>
-          <label htmlFor="Lightingsfs" className="label noselect">
-            <span>Lighting</span>
-          </label>
-        </div>
-        <div>
-          <select
-            id="Lightingsfs"
-            className="select"
-            onChange={(event) => {
-              setLights(event.target.value);
-            }}
-            value={lights}
-          >
-            <option value="3point">Static Point Lights</option>
-            <option value="point">Animated Point Light</option>
-            {/* <option value="spot">Spot Lights</option> */}
-          </select>
-        </div>
-        <div>
-          <label className="label noselect" htmlFor="shp">
-            <span>Lighting Helpers</span>
-          </label>
-        </div>
-        <div>
-          <input
-            className="checkbox"
-            id="shp"
-            type="checkbox"
-            checked={showHelpers}
-            onChange={(event) => setShowHelpers(event?.target.checked)}
-          />
-        </div>
-        <div>
-          <label htmlFor="Modelsfs" className="label noselect">
-            <span>Model</span>
-          </label>
-        </div>
-        <div>
-          <select
-            id="Modelsfs"
-            className="select"
-            onChange={(event) => {
-              setPreviewObject(event.target.value);
-            }}
-            value={previewObject}
-          >
-            <option value="sphere">Sphere</option>
-            <option value="torusknot">Torus Knot</option>
-            <option value="icosahedron">Icosahedron</option>
-          </select>
-        </div>
-        <div>
-          <label htmlFor="Backgroundsfs" className="label noselect">
-            <span>Background</span>
-          </label>
-        </div>
-        <div>
-          <select
-            id="Backgroundsfs"
-            className="select"
-            onChange={(event) => {
-              setBg(event.target.value === 'none' ? null : event.target.value);
-            }}
-            value={bg ? bg : 'none'}
-          >
-            <option value="none">None</option>
-            <option value="cityCourtYard">City Courtyard</option>
-            {/* <option value="pondCubeMap">Pond Cube Map</option> */}
-          </select>
+      <div className={styles.sceneControls}>
+        <div className={styles.controlGrid}>
+          <div>
+            <label htmlFor="Lightingsfs" className="label noselect">
+              <span>Lighting</span>
+            </label>
+          </div>
+          <div>
+            <select
+              id="Lightingsfs"
+              className="select"
+              onChange={(event) => {
+                setLights(event.target.value);
+              }}
+              value={lights}
+            >
+              <option value="point">Single Point Light</option>
+              <option value="3point">Multiple Point Lights</option>
+              {/* <option value="spot">Spot Lights</option> */}
+            </select>
+          </div>
+
+          <div className="grid span2">
+            <div className={styles.controlGrid}>
+              <div>
+                <input
+                  className="checkbox"
+                  id="shp"
+                  type="checkbox"
+                  checked={showHelpers}
+                  onChange={(event) => setShowHelpers(event?.target.checked)}
+                />
+              </div>
+              <div>
+                <label className="label noselect" htmlFor="shp">
+                  <span>Lighting Helpers</span>
+                </label>
+              </div>
+            </div>
+            <div className={styles.controlGrid}>
+              <div>
+                <input
+                  className="checkbox"
+                  id="sha"
+                  type="checkbox"
+                  checked={animatedLights}
+                  onChange={(event) => setAnimatedLights(event?.target.checked)}
+                />
+              </div>
+              <div>
+                <label className="label noselect" htmlFor="sha">
+                  <span>Animate</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="Modelsfs" className="label noselect">
+              <span>Model</span>
+            </label>
+          </div>
+          <div>
+            <select
+              id="Modelsfs"
+              className="select"
+              onChange={(event) => {
+                setPreviewObject(event.target.value);
+              }}
+              value={previewObject}
+            >
+              <option value="sphere">Sphere</option>
+              <option value="cube">Cube</option>
+              <option value="plane">Plane</option>
+              <option value="torusknot">Torus Knot</option>
+              <option value="icosahedron">Icosahedron</option>
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="Backgroundsfs" className="label noselect">
+              <span>Background</span>
+            </label>
+          </div>
+          <div>
+            <select
+              id="Backgroundsfs"
+              className="select"
+              onChange={(event) => {
+                setBg(
+                  event.target.value === 'none' ? null : event.target.value
+                );
+              }}
+              value={bg ? bg : 'none'}
+            >
+              <option value="none">None</option>
+              <option value="warehouseEnvTexture">Warehouse</option>
+              <option value="pondCubeMap">Pond Cube Map</option>
+              <option value="modelviewer">Model Viewer</option>
+            </select>
+          </div>
         </div>
       </div>
+
       <div ref={sceneWrapper} className={styles.sceneContainer}>
         <div ref={babylonDomRef} className={styles.babylonContainer}></div>
       </div>

@@ -224,6 +224,9 @@ textarea.error {
 .sceneControls {
   padding: 6px 12px;
   background: linear-gradient(45deg, #1a1a1a, rgb(41, 41, 41));
+}
+
+.controlGrid {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 4px;

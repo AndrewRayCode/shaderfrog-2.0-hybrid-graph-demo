@@ -1,10 +1,12 @@
 import { Graph } from '../../core/graph';
 import {
   colorNode,
+  colorUniformData,
   DataNode,
   numberNode,
   numberUniformData,
   textureNode,
+  textureUniformData,
   vectorUniformData,
 } from '../../core/nodes/data-nodes';
 import { EdgeType, makeEdge } from '../../core/nodes/edge';
@@ -23,11 +25,14 @@ import normalMapify from '../../shaders/normalmapifyNode';
 import { Engine } from '../../core/engine';
 import { CoreNode } from '../../core/nodes/core-node';
 import { threngine } from '../../plugins/three/threngine';
+import perlinCloudsF from '../../shaders/perlinClouds';
+import sinCosVertWarp from '../../shaders/sinCosVertWarp';
 
 export enum Example {
   GLASS_FIREBALL = 'Glass Fireball',
   GEMSTONE = 'Gemstone',
   LIVING_DIAMOND = 'Living Diamond',
+  VERTEX_NOISE = 'Vertex Noise',
   TOON = 'Toon',
   DEFAULT = 'Mesh Physical Material',
 }
@@ -396,6 +401,89 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
     };
     previewObject = 'icosahedron';
     bg = 'warehouseEnvTexture';
+  } else if (example === Example.VERTEX_NOISE) {
+    const outputF = outputNode(
+      makeId(),
+      'Output',
+      { x: 434, y: -97 },
+      'fragment'
+    );
+    const outputV = outputNode(makeId(), 'Output', { x: 434, y: 16 }, 'vertex');
+
+    const vertexNoise = sinCosVertWarp(makeId(), { x: -512, y: 0 });
+    const clouds = perlinCloudsF(makeId(), { x: -512, y: 434 }, [
+      colorUniformData('color', ['1', '1', '1']),
+      numberUniformData('scale', '0.12'),
+      textureUniformData('noiseImage', 'grayscale-noise'),
+      vectorUniformData('speed', ['-0.002', '-0.002']),
+      numberUniformData('cloudBrightness', '0.2'),
+      numberUniformData('cloudMorphSpeed', '0.2'),
+      numberUniformData('cloudMorphDirection', '1'),
+      numberUniformData('cloudCover', '0.65'),
+    ]);
+
+    const properties = [
+      numberNode(makeId(), 'Metalness', { x: -185, y: -110 }, '0.1'),
+      numberNode(makeId(), 'Roughness', { x: -185, y: 0 }, '0.0'),
+      numberNode(makeId(), 'Transmission', { x: -200, y: 110 }, '0.5'),
+
+      numberNode(makeId(), 'Transmission', { x: -215, y: 220 }, '1.0'),
+      numberNode(makeId(), 'Thickness', { x: -230, y: 220 }, '1.1'),
+      numberNode(makeId(), 'Index of Refraction', { x: -245, y: 330 }, '1.5', {
+        range: [0, 5],
+      }),
+    ];
+
+    const physicalGroupId = makeId();
+    const physicalF = threngine.constructors.physical(
+      makeId(),
+      'Physical',
+      physicalGroupId,
+      { x: 178, y: -103 },
+      [],
+      'fragment'
+    );
+    const physicalV = threngine.constructors.physical(
+      makeId(),
+      'Physical',
+      physicalGroupId,
+      { x: 434, y: 130 },
+      [],
+      'vertex',
+      physicalF.id
+    );
+
+    newGraph = {
+      nodes: [
+        outputF,
+        outputV,
+        physicalF,
+        physicalV,
+        clouds,
+        vertexNoise,
+        ...properties,
+      ],
+      edges: [
+        edgeFrom(physicalF, outputF.id, 'filler_frogFragOut', 'fragment'),
+        edgeFrom(physicalV, outputV.id, 'filler_gl_Position', 'vertex'),
+        edgeFrom(clouds, physicalF.id, 'filler_map', 'fragment'),
+        edgeFrom(vertexNoise, physicalV.id, 'filler_position', 'vertex'),
+        ...properties.map((prop) =>
+          edgeFrom(
+            prop,
+            physicalF.id,
+            `property_${
+              prop.name === 'Index of Refraction'
+                ? 'ior'
+                : prop.name.toLowerCase()
+            }`,
+            prop.type
+          )
+        ),
+      ],
+    };
+    previewObject = 'sphere';
+    bg = 'pondCubeMap';
   } else if (example === Example.GLASS_FIREBALL) {
     const outputF = outputNode(
       makeId(),

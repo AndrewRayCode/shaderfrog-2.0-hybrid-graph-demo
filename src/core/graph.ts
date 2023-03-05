@@ -656,6 +656,7 @@ export const compileNode = (
            *     function add(v1) { return main_a(v1) + main_b(v2); }
            * It can't replace the arg _expression_ in the from shaders, because
            * the expression isn't available there.
+           */
           // TODO: This is a hard coded hack for vUv backfilling. It works in
           // the simple case. Doesn't work for hell (based on world position).
           if (filler.args && fillerAst.type === 'function_call') {
@@ -681,7 +682,6 @@ export const compileNode = (
             }
             // })
           }
-          */
 
           // Fill in the input! The return value is the new AST of the filled in
           // fromNode.

@@ -287,6 +287,7 @@ const Editor: React.FC = () => {
   const [guiError, setGuiError] = useState<string>('');
   const [lights, setLights] = useState<PreviewLight>('point');
   const [showHelpers, setShowHelpers] = useState<boolean>(false);
+  const [animatedLights, setAnimatedLights] = useState<boolean>(true);
 
   const [activeShader, setActiveShader] = useState<SourceNode>(
     (graph.nodes.find((n) => n.type === 'source') ||
@@ -1323,10 +1324,12 @@ const Editor: React.FC = () => {
             setBg={setBg}
             setCtx={setCtx}
             graph={graph}
-            lights={lights}
             setShowHelpers={setShowHelpers}
             showHelpers={showHelpers}
+            lights={lights}
             setLights={setLights}
+            animatedLights={animatedLights}
+            setAnimatedLights={setAnimatedLights}
             previewObject={previewObject}
             setPreviewObject={setPreviewObject}
             compile={childCompile}
@@ -1345,6 +1348,8 @@ const Editor: React.FC = () => {
             setBg={setBg}
             lights={lights}
             setLights={setLights}
+            animatedLights={animatedLights}
+            setAnimatedLights={setAnimatedLights}
             previewObject={previewObject}
             setPreviewObject={setPreviewObject}
             compile={childCompile}

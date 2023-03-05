@@ -64,6 +64,7 @@ import { serpentF, serpentV } from '../../shaders/serpentNode';
 import { badTvFrag } from '../../shaders/badTvNode';
 import whiteNoiseNode from '../../shaders/whiteNoiseNode';
 import { babylengine } from '../../plugins/babylon/bablyengine';
+import sinCosVertWarp from '../../shaders/sinCosVertWarp';
 
 const compileGraphAsync = async (
   graph: Graph,
@@ -325,6 +326,8 @@ const createGraphNode = (
         id
       ),
     ];
+  } else if (nodeDataType === 'simpleVertex') {
+    newGns = [sinCosVertWarp(makeId(), position)];
   } else if (nodeDataType === 'fireNode') {
     newGns = [fireFrag(id, position), fireVert(makeId(), id, position)];
   } else if (nodeDataType === 'badTv') {

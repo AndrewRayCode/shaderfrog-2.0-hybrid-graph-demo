@@ -36,6 +36,8 @@ type ThreeSceneProps = {
   compileResult: UICompileGraphResult | undefined;
   graph: Graph;
   lights: PreviewLight;
+  animatedLights: boolean;
+  setAnimatedLights: AnyFn;
   previewObject: string;
   bg: string | undefined;
   setBg: AnyFn;
@@ -61,6 +63,8 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   compileResult,
   graph,
   lights,
+  animatedLights,
+  setAnimatedLights,
   previewObject,
   setCtx,
   initialCtx,
@@ -111,21 +115,27 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         shadersUpdated.current = false;
       }
 
-      if (lights === 'point' && sceneData.lights.length >= 1) {
-        const light = sceneData.lights[0];
-        light.position.x = 1.2 * Math.sin(time * 0.001);
-        light.position.y = 1.2 * Math.cos(time * 0.001);
-      } else if (lights === 'spot' && sceneData.lights.length >= 2) {
-        const light = sceneData.lights[0];
-        light.position.x = 1.2 * Math.sin(time * 0.001);
-        light.position.y = 1.2 * Math.cos(time * 0.001);
-        light.lookAt(new three.Vector3(0, 0, 0));
+      if (animatedLights) {
+        if (lights === 'point' && sceneData.lights.length >= 1) {
+          const light = sceneData.lights[0];
+          light.position.x = 1.2 * Math.sin(time * 0.001);
+          light.position.y = 1.2 * Math.cos(time * 0.001);
+        } else if (lights === 'point' && sceneData.lights.length >= 1) {
+          const light = sceneData.lights[0];
+          light.position.x = 1.2 * Math.sin(time * 0.001);
+          light.position.y = 1.2 * Math.cos(time * 0.001);
+        } else if (lights === 'spot' && sceneData.lights.length >= 2) {
+          const light = sceneData.lights[0];
+          light.position.x = 1.2 * Math.sin(time * 0.001);
+          light.position.y = 1.2 * Math.cos(time * 0.001);
+          light.lookAt(new three.Vector3(0, 0, 0));
 
-        const light1 = sceneData.lights[1];
-        light1.position.x = 1.3 * Math.cos(time * 0.0015);
-        light1.position.y = 1.3 * Math.sin(time * 0.0015);
+          const light1 = sceneData.lights[1];
+          light1.position.x = 1.3 * Math.cos(time * 0.0015);
+          light1.position.y = 1.3 * Math.sin(time * 0.0015);
 
-        light1.lookAt(new three.Vector3(0, 0, 0));
+          light1.lookAt(new three.Vector3(0, 0, 0));
+        }
       }
 
       // Note the uniforms are updated here every frame, but also instantiated
@@ -278,20 +288,22 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
       scene.remove(sceneData.mesh);
     }
 
-    let mesh;
+    let mesh: three.Mesh;
+    let geometry: three.BufferGeometry;
     if (previewObject === 'torusknot') {
-      const geometry = new three.TorusKnotGeometry(0.6, 0.25, 200, 32);
-
-      mesh = new three.Mesh(geometry);
+      geometry = new three.TorusKnotGeometry(0.6, 0.25, 200, 32);
+    } else if (previewObject === 'cube') {
+      geometry = new three.BoxGeometry(1, 1, 1, 64, 64, 64);
+    } else if (previewObject === 'plane') {
+      geometry = new three.PlaneGeometry(1, 1, 64, 64);
     } else if (previewObject === 'sphere') {
-      const geometry = new three.SphereBufferGeometry(1, 64, 64);
-      mesh = new three.Mesh(geometry);
+      geometry = new three.SphereBufferGeometry(1, 64, 64);
     } else if (previewObject === 'icosahedron') {
-      const geometry = new three.IcosahedronGeometry(1, 0);
-      mesh = new three.Mesh(geometry);
+      geometry = new three.IcosahedronGeometry(1, 0);
     } else {
       throw new Error(`Wtf there is no preview object named ${previewObject}`);
     }
+    mesh = new three.Mesh(geometry);
     if (sceneData.mesh) {
       mesh.material = sceneData.mesh.material;
     }
@@ -605,80 +617,110 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
   return (
     <>
-      <div className={cx(styles.sceneControls)}>
-        <div>
-          <label htmlFor="Lightingsfs" className="label noselect">
-            <span>Lighting</span>
-          </label>
-        </div>
-        <div>
-          <select
-            id="Lightingsfs"
-            className="select"
-            onChange={(event) => {
-              setLights(event.target.value);
-            }}
-            value={lights}
-          >
-            <option value="3point">Static Point Lights</option>
-            <option value="point">Animated Point Light</option>
-            <option value="spot">Spot Lights</option>
-          </select>
-        </div>
-        <div>
-          <label className="label noselect" htmlFor="shp">
-            <span>Lighting Helpers</span>
-          </label>
-        </div>
-        <div>
-          <input
-            className="checkbox"
-            id="shp"
-            type="checkbox"
-            checked={showHelpers}
-            onChange={(event) => setShowHelpers(event?.target.checked)}
-          />
-        </div>
-        <div>
-          <label htmlFor="Modelsfs" className="label noselect">
-            <span>Model</span>
-          </label>
-        </div>
-        <div>
-          <select
-            id="Modelsfs"
-            className="select"
-            onChange={(event) => {
-              setPreviewObject(event.target.value);
-            }}
-            value={previewObject}
-          >
-            <option value="sphere">Sphere</option>
-            <option value="torusknot">Torus Knot</option>
-            <option value="icosahedron">Icosahedron</option>
-          </select>
-        </div>
-        <div>
-          <label htmlFor="Backgroundsfs" className="label noselect">
-            <span>Background</span>
-          </label>
-        </div>
-        <div>
-          <select
-            id="Backgroundsfs"
-            className="select"
-            onChange={(event) => {
-              setBg(event.target.value === 'none' ? null : event.target.value);
-            }}
-            value={bg ? bg : 'none'}
-          >
-            <option value="none">None</option>
-            <option value="warehouseEnvTexture">Warehouse</option>
-            <option value="pondCubeMap">Pond Cube Map</option>
-            <option value="modelviewer">Model Viewer</option>
-          </select>
+      <div className={styles.sceneControls}>
+        <div className={styles.controlGrid}>
+          <div>
+            <label htmlFor="Lightingsfs" className="label noselect">
+              <span>Lighting</span>
+            </label>
+          </div>
+          <div>
+            <select
+              id="Lightingsfs"
+              className="select"
+              onChange={(event) => {
+                setLights(event.target.value);
+              }}
+              value={lights}
+            >
+              <option value="point">Single Point Light</option>
+              <option value="3point">Multiple Point Lights</option>
+              <option value="spot">Spot Lights</option>
+            </select>
+          </div>
+
+          <div className="grid span2">
+            <div className={styles.controlGrid}>
+              <div>
+                <input
+                  className="checkbox"
+                  id="shp"
+                  type="checkbox"
+                  checked={showHelpers}
+                  onChange={(event) => setShowHelpers(event?.target.checked)}
+                />
+              </div>
+              <div>
+                <label className="label noselect" htmlFor="shp">
+                  <span>Lighting Helpers</span>
+                </label>
+              </div>
+            </div>
+            <div className={styles.controlGrid}>
+              <div>
+                <input
+                  className="checkbox"
+                  id="sha"
+                  type="checkbox"
+                  checked={animatedLights}
+                  onChange={(event) => setAnimatedLights(event?.target.checked)}
+                />
+              </div>
+              <div>
+                <label className="label noselect" htmlFor="sha">
+                  <span>Animate</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="Modelsfs" className="label noselect">
+              <span>Model</span>
+            </label>
+          </div>
+          <div>
+            <select
+              id="Modelsfs"
+              className="select"
+              onChange={(event) => {
+                setPreviewObject(event.target.value);
+              }}
+              value={previewObject}
+            >
+              <option value="sphere">Sphere</option>
+              <option value="cube">Cube</option>
+              <option value="plane">Plane</option>
+              <option value="torusknot">Torus Knot</option>
+              <option value="icosahedron">Icosahedron</option>
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="Backgroundsfs" className="label noselect">
+              <span>Background</span>
+            </label>
+          </div>
+          <div>
+            <select
+              id="Backgroundsfs"
+              className="select"
+              onChange={(event) => {
+                setBg(
+                  event.target.value === 'none' ? null : event.target.value
+                );
+              }}
+              value={bg ? bg : 'none'}
+            >
+              <option value="none">None</option>
+              <option value="warehouseEnvTexture">Warehouse</option>
+              <option value="pondCubeMap">Pond Cube Map</option>
+              <option value="modelviewer">Model Viewer</option>
+            </select>
+          </div>
         </div>
       </div>
+
       <div ref={sceneWrapper} className={styles.sceneContainer}>
         <div ref={threeDomCbRef}></div>
       </div>

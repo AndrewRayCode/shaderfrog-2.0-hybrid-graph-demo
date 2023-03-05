@@ -3,12 +3,17 @@ import {
   colorUniformData,
   numberUniformData,
   textureUniformData,
+  UniformDataType,
   vectorUniformData,
 } from '../core/nodes/data-nodes';
 import { sourceNode } from '../core/nodes/engine-node';
 import { texture2DStrategy, uniformStrategy } from '../core/strategy';
 
-const perlinCloudsF = (id: string, position: NodePosition) =>
+const perlinCloudsF = (
+  id: string,
+  position: NodePosition,
+  uniforms?: UniformDataType[]
+) =>
   sourceNode(
     id,
     'Perlin Clouds',
@@ -17,7 +22,7 @@ const perlinCloudsF = (id: string, position: NodePosition) =>
       version: 2,
       preprocess: true,
       strategies: [texture2DStrategy(), uniformStrategy()],
-      uniforms: [
+      uniforms: uniforms || [
         colorUniformData('color', ['1', '1', '1']),
         numberUniformData('scale', '0.05'),
         textureUniformData('noiseImage', 'grayscale-noise'),
@@ -73,7 +78,7 @@ void main() {
   colorOutput = max( colorOutput - ( 1.0 - cloudCover ), 0.0 );
   colorOutput = vec4( 1.0 - pow( ( 1.0 - cloudBrightness ), colorOutput.r * 255.0 ) );
   
-  gl_FragColor = vec4( color * colorOutput.rgb, 1.0 );
+  gl_FragColor = vec4( vec3(0.4, 0.6, 1.0) + color * colorOutput.rgb, 1.0 );
 
 }
 `,

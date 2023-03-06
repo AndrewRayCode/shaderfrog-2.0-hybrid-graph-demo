@@ -1165,24 +1165,50 @@ const Editor: React.FC = () => {
             className={styles.reactFlowWrapper}
             ref={reactFlowWrapper}
           >
-            <FlowEditor
-              mouse={mouseRef}
-              onMenuAdd={onMenuAdd}
-              onNodeValueChange={onNodeValueChange}
-              nodes={flowElements.nodes}
-              edges={flowElements.edges}
-              onConnect={onConnect}
-              onEdgeUpdate={onEdgeUpdate}
-              onEdgesChange={onEdgesChange}
-              onNodesChange={onNodesChange}
-              onNodesDelete={onNodesDelete}
-              onNodeDoubleClick={onNodeDoubleClick}
-              onEdgesDelete={onEdgesDelete}
-              onConnectStart={onConnectStart}
-              onEdgeUpdateStart={onEdgeUpdateStart}
-              onEdgeUpdateEnd={onEdgeUpdateEnd}
-              onConnectEnd={onConnectEnd}
-            />
+            <div
+              style={{
+                height: '100%',
+                width: '100%',
+                position: 'relative',
+              }}
+            >
+              <FlowEditor
+                mouse={mouseRef}
+                onMenuAdd={onMenuAdd}
+                onNodeValueChange={onNodeValueChange}
+                nodes={flowElements.nodes}
+                edges={flowElements.edges}
+                onConnect={onConnect}
+                onEdgeUpdate={onEdgeUpdate}
+                onEdgesChange={onEdgesChange}
+                onNodesChange={onNodesChange}
+                onNodesDelete={onNodesDelete}
+                onNodeDoubleClick={onNodeDoubleClick}
+                onEdgesDelete={onEdgesDelete}
+                onConnectStart={onConnectStart}
+                onEdgeUpdateStart={onEdgeUpdateStart}
+                onEdgeUpdateEnd={onEdgeUpdateEnd}
+                onConnectEnd={onConnectEnd}
+              />
+              <div className={styles.graphFooter}>
+                <a
+                  href="https://github.com/AndrewRayCode/shaderfrog-2.0-hybrid-graph-demo"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Source on Github
+                </a>
+                <span>|</span>
+                Author:{' '}
+                <a
+                  href="https://twitter.com/andrewray"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  @andrewray
+                </a>
+              </div>
+            </div>
           </TabPanel>
           {/* Main code editor tab */}
           <TabPanel>

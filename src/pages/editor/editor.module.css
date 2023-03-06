@@ -329,3 +329,29 @@ textarea.error {
   position: relative;
   z-index: 2;
 }
+
+.graphFooter {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(#31382a, #2b3028);
+  color: #fff;
+  border-top: 1px solid #47553e;
+  padding: 3px 12px 4px;
+  text-align: center;
+  font-size: 12px;
+  width: 100%;
+  box-shadow: 0 0 20px #000;
+}
+
+.graphFooter span {
+  color: #66715e;
+  padding: 0 4px;
+}
+.graphFooter a {
+  color: #a6cb00;
+}
+.graphFooter a:hover {
+  text-decoration: underline;
+  color: #d1f72a;
+}

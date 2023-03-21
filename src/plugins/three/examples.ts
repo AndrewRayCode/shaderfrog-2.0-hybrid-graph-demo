@@ -437,9 +437,9 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
     const vertexNoise = sinCosVertWarp(makeId(), { x: -512, y: 0 });
     const clouds = perlinCloudsF(makeId(), { x: -512, y: 434 }, [
       colorUniformData('color', ['1', '1', '1']),
-      numberUniformData('scale', '0.12'),
+      numberUniformData('scale', '0.1'),
       textureUniformData('noiseImage', 'grayscale-noise'),
-      vectorUniformData('speed', ['-0.002', '-0.002']),
+      vectorUniformData('speed', ['-0.001', '-0.001']),
       numberUniformData('cloudBrightness', '0.2'),
       numberUniformData('cloudMorphSpeed', '0.2'),
       numberUniformData('cloudMorphDirection', '1'),
@@ -448,9 +448,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
 
     const properties = [
       numberNode(makeId(), 'Roughness', { x: -185, y: 0 }, '0.0'),
-      numberNode(makeId(), 'Transmission', { x: -200, y: 110 }, '0.5'),
-
-      numberNode(makeId(), 'Transmission', { x: -215, y: 220 }, '1.0'),
+      numberNode(makeId(), 'Transmission', { x: -200, y: 110 }, '0.9'),
       numberNode(makeId(), 'Thickness', { x: -230, y: 220 }, '1.1'),
       numberNode(makeId(), 'Index of Refraction', { x: -245, y: 330 }, '1.5', {
         range: [0, 5],

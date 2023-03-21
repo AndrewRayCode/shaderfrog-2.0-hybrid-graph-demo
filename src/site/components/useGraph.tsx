@@ -313,6 +313,19 @@ const createGraphNode = (
       phongNode(id, 'Phong', groupId, position, 'fragment'),
       phongNode(makeId(), 'Phong', groupId, position, 'vertex', id),
     ];
+  } else if (nodeDataType === 'physical') {
+    newGns = [
+      engine.constructors.physical(id, 'Physical', groupId, position, [], 'fragment'),
+      engine.constructors.physical(
+        makeId(),
+        'Physical',
+        groupId,
+        position,
+        [],
+        'vertex',
+        id
+      ),
+    ];
   } else if (nodeDataType === 'toon') {
     newGns = [
       engine.constructors.toon(id, 'Toon', groupId, position, [], 'fragment'),

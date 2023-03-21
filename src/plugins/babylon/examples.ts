@@ -298,7 +298,7 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
     );
     const outputV = outputNode(makeId(), 'Output', { x: 434, y: 16 }, 'vertex');
 
-    const nMap = normalMapify(makeId(), { x: -185, y: 507 });
+    const nMap = konvert(normalMapify(makeId(), { x: -185, y: 507 }));
 
     const purpleNoise = konvert(
       purpleNoiseNode(makeId(), { x: -512, y: 434 }, [

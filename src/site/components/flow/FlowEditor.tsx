@@ -237,7 +237,7 @@ const ctxNodes: Menu = [
   [
     'Example Shader',
     [
-      ['Cube Map Reflection', 'cubemapReflection'],
+      ['Physical', 'physical'],
       ['Phong', 'phong'],
       ['Toon', 'toon'],
       ['Serpent', 'serpent'],
@@ -255,6 +255,7 @@ const ctxNodes: Menu = [
       ['Tangent Noise', 'staticShaderNode'],
       ['Normal Map-ify', 'normalMapify'],
       ['Vertex Noise', 'simpleVertex'],
+      ['Cube Map Reflection', 'cubemapReflection'],
     ],
   ],
 ];

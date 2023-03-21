@@ -297,7 +297,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     } else if (previewObject === 'plane') {
       geometry = new three.PlaneGeometry(1, 1, 64, 64);
     } else if (previewObject === 'sphere') {
-      geometry = new three.SphereBufferGeometry(1, 64, 64);
+      geometry = new three.SphereBufferGeometry(1, 128, 128);
     } else if (previewObject === 'icosahedron') {
       geometry = new three.IcosahedronGeometry(1, 0);
     } else {

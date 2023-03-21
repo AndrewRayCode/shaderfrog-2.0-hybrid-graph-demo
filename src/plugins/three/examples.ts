@@ -27,6 +27,7 @@ import { CoreNode } from '../../core/nodes/core-node';
 import { threngine } from '../../plugins/three/threngine';
 import perlinCloudsF from '../../shaders/perlinClouds';
 import sinCosVertWarp from '../../shaders/sinCosVertWarp';
+import starterVertex from '../../shaders/starterNode';
 
 export enum Example {
   GLASS_FIREBALL = 'Glass Fireball',
@@ -34,7 +35,8 @@ export enum Example {
   LIVING_DIAMOND = 'Living Diamond',
   VERTEX_NOISE = 'Vertex Noise',
   TOON = 'Toon',
-  DEFAULT = 'Mesh Physical Material',
+  EMPTY = 'Empty',
+  PHYSICAL = 'Mesh Physical Material',
 }
 
 const edgeFrom = (
@@ -237,7 +239,29 @@ export const makeExampleGraph = (example: Example): [Graph, string, string] => {
     };
     previewObject = 'torusknot';
     bg = '';
-  } else if (example === Example.DEFAULT) {
+  } else if (example === Example.EMPTY) {
+    const outputF = outputNode(
+      makeId(),
+      'Output',
+      { x: 778, y: -75 },
+      'fragment'
+    );
+    const outputV = outputNode(
+      makeId(),
+      'Output',
+      { x: 778, y: 134 },
+      'vertex'
+    );
+
+    const vertex = starterVertex(makeId(), { x: 434, y: 130 });
+
+    newGraph = {
+      nodes: [outputF, outputV, vertex],
+      edges: [edgeFrom(vertex, outputV.id, 'filler_gl_Position', 'vertex')],
+    };
+    previewObject = 'sphere';
+    bg = '';
+  } else if (example === Example.PHYSICAL) {
     const outputF = outputNode(
       makeId(),
       'Output',

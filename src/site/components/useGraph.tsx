@@ -65,6 +65,7 @@ import { badTvFrag } from '../../shaders/badTvNode';
 import whiteNoiseNode from '../../shaders/whiteNoiseNode';
 import { babylengine } from '../../plugins/babylon/bablyengine';
 import sinCosVertWarp from '../../shaders/sinCosVertWarp';
+import { juliaF, juliaV } from '../../shaders/juliaNode';
 
 const compileGraphAsync = async (
   graph: Graph,
@@ -315,7 +316,14 @@ const createGraphNode = (
     ];
   } else if (nodeDataType === 'physical') {
     newGns = [
-      engine.constructors.physical(id, 'Physical', groupId, position, [], 'fragment'),
+      engine.constructors.physical(
+        id,
+        'Physical',
+        groupId,
+        position,
+        [],
+        'fragment'
+      ),
       engine.constructors.physical(
         makeId(),
         'Physical',
@@ -341,6 +349,8 @@ const createGraphNode = (
     ];
   } else if (nodeDataType === 'simpleVertex') {
     newGns = [sinCosVertWarp(makeId(), position)];
+  } else if (nodeDataType === 'julia') {
+    newGns = [juliaF(id, position), juliaV(makeId(), id, position)];
   } else if (nodeDataType === 'fireNode') {
     newGns = [fireFrag(id, position), fireVert(makeId(), id, position)];
   } else if (nodeDataType === 'badTv') {

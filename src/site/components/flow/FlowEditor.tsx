@@ -242,6 +242,7 @@ const ctxNodes: Menu = [
       ['Toon', 'toon'],
       ['Serpent', 'serpent'],
       ['Fireball', 'fireNode'],
+      ['Julia', 'julia'],
       ['Bad TV', 'badTv'],
       ['Checkerboard', 'checkerboardF'],
       ['Fluid Circles', 'fluidCirclesNode'],

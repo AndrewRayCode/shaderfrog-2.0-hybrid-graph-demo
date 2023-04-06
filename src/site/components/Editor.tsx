@@ -201,6 +201,7 @@ const SMALL_SCREEN_WIDTH = 500;
  *   - Data nodes hard coded as '1' fail because that's not a valid float, like
  *     hard coding "transmission" uniform.
  * - Nodes / Graph
+ *   - clamp(texture2D(), vec4(), vec4()) and replacing texture2D() eats whole clamp!
  *   - Plugging in Shader > Add > Baked Texture Input causes the input to be
  *     unbaked. This is because the auto-bake algorithm only looks one node
  *     level deep, and the "add" node isn't type = "source"
@@ -1334,7 +1335,7 @@ const Editor: React.FC = () => {
         </div>
       ) : compileResult?.compileMs ? (
         <div className={styles.guiMsg}>
-          Complile took {compileResult?.compileMs}ms
+          Compile took {compileResult?.compileMs}ms
         </div>
       ) : null}
       {smallScreen ? exampleSelectorElement : null}

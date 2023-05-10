@@ -1,10 +1,13 @@
-import { NodePosition } from '../core/nodes/core-node';
+import { NodePosition } from '@shaderfrog/core/src/core/nodes/core-node';
 import {
   numberUniformData,
   textureUniformData,
-} from '../core/nodes/data-nodes';
-import { sourceNode } from '../core/nodes/engine-node';
-import { texture2DStrategy, uniformStrategy } from '../core/strategy';
+} from '@shaderfrog/core/src/core/nodes/data-nodes';
+import { sourceNode } from '@shaderfrog/core/src/core/nodes/engine-node';
+import {
+  texture2DStrategy,
+  uniformStrategy,
+} from '@shaderfrog/core/src/core/strategy';
 
 const badTvFrag = (id: string, position: NodePosition) =>
   sourceNode(

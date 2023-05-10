@@ -35,10 +35,17 @@ import {
   computeAllContexts,
   findNode,
   computeContextForNodes,
-} from '../../core/graph';
-import { Edge as GraphEdge, EdgeType } from '../../core/nodes/edge';
+} from '@shaderfrog/core/src/core/graph';
+import {
+  Edge as GraphEdge,
+  EdgeType,
+} from '@shaderfrog/core/src/core/nodes/edge';
 
-import { Engine, EngineContext, convertToEngine } from '../../core/engine';
+import {
+  Engine,
+  EngineContext,
+  convertToEngine,
+} from '@shaderfrog/core/src/core/engine';
 
 import useThrottle from '../hooks/useThrottle';
 
@@ -50,30 +57,34 @@ import { FlowNodeSourceData, FlowNodeDataData } from './flow/FlowNode';
 import { Tabs, Tab, TabGroup, TabPanel, TabPanels } from './tabs/Tabs';
 import CodeEditor from './CodeEditor';
 
+import { engine as threngine } from '@shaderfrog/core/src/plugins/three';
 import {
   Editor as ThreeComponent,
-  engine as threngine,
   makeExampleGraph as threeMakeExampleGraph,
   Example as ThreeExample,
 } from '../../plugins/three';
 
+import { engine as babylengine } from '@shaderfrog/core/src/plugins/babylon';
 import {
   Editor as BabylonComponent,
-  engine as babylengine,
   makeExampleGraph as babylonMakeExampleGraph,
   Example as BabylonExample,
 } from '../../plugins/babylon';
+
 import { Hoisty, useHoisty } from '../hoistedRefContext';
 import { UICompileGraphResult } from '../uICompileGraphResult';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { Strategy, StrategyType } from '../../core/strategy';
+import { Strategy, StrategyType } from '@shaderfrog/core/src/core/strategy';
 import { ensure } from '../../util/ensure';
 
-import { CodeNode, SourceNode } from '../../core/nodes/code-nodes';
+import {
+  CodeNode,
+  SourceNode,
+} from '@shaderfrog/core/src/core/nodes/code-nodes';
 import { makeId } from '../../util/id';
 import { hasParent } from '../../util/hasParent';
 import { useWindowSize } from '../hooks/useWindowSize';
-import { NodeInput } from '../../core/nodes/core-node';
+import { NodeInput } from '@shaderfrog/core/src/core/nodes/core-node';
 import {
   FlowElements,
   toFlowInputs,

@@ -1,5 +1,9 @@
-import { CompileGraphResult, Graph, GraphNode } from '../core/graph';
-import { NodeInput } from '../core/nodes/core-node';
+import {
+  CompileGraphResult,
+  Graph,
+  GraphNode,
+} from '@shaderfrog/core/src/core/graph';
+import { NodeInput } from '@shaderfrog/core/src/core/nodes/core-node';
 
 export type IndexedDataInputs = Record<string, NodeInput[]>;
 

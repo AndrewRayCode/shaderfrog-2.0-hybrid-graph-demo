@@ -1,11 +1,11 @@
-import { NodePosition } from '../core/nodes/core-node';
-import { numberUniformData } from '../core/nodes/data-nodes';
-import { sourceNode } from '../core/nodes/engine-node';
+import { NodePosition } from '@shaderfrog/core/src/core/nodes/core-node';
+import { numberUniformData } from '@shaderfrog/core/src/core/nodes/data-nodes';
+import { sourceNode } from '@shaderfrog/core/src/core/nodes/engine-node';
 import {
   namedAttributeStrategy,
   texture2DStrategy,
   uniformStrategy,
-} from '../core/strategy';
+} from '@shaderfrog/core/src/core/strategy';
 
 const sinCosVertWarp = (id: string, position: NodePosition) =>
   sourceNode(

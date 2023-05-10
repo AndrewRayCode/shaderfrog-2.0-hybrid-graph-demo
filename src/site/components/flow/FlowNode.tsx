@@ -11,7 +11,7 @@ import {
 import styles from './flownode.module.css';
 const cx = classnames.bind(styles);
 
-import { ShaderStage } from '../../../core/graph';
+import { ShaderStage } from '@shaderfrog/core/src/core/graph';
 
 import { useUpdateNodeInternals } from 'reactflow';
 import {
@@ -19,8 +19,8 @@ import {
   Vector2,
   Vector3,
   Vector4,
-} from '../../../core/nodes/data-nodes';
-import { InputCategory } from '../../../core/nodes/core-node';
+} from '@shaderfrog/core/src/core/nodes/data-nodes';
+import { InputCategory } from '@shaderfrog/core/src/core/nodes/core-node';
 import { ChangeHandler, useFlowEventHack } from '../../flowEventHack';
 import { replaceAt } from '../../../util/replaceAt';
 import groupBy from 'lodash.groupby';

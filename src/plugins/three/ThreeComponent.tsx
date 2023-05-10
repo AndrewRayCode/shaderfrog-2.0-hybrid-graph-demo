@@ -1,20 +1,29 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as three from 'three';
-import cx from 'classnames';
-import { evaluateNode, Graph, mangleVar } from '../../core/graph';
+import {
+  evaluateNode,
+  Graph,
+  mangleVar,
+} from '@shaderfrog/core/src/core/graph';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
-import { EngineContext } from '../../core/engine';
+import { EngineContext } from '@shaderfrog/core/src/core/engine';
 
 import styles from '../../pages/editor/editor.module.css';
 
-import { threngine, ThreeRuntime } from './threngine';
+import {
+  threngine,
+  ThreeRuntime,
+} from '@shaderfrog/core/src/plugins/three/threngine';
 
 import { useThree } from './useThree';
 import { usePrevious } from '../../site/hooks/usePrevious';
 import { UICompileGraphResult } from '../../site/uICompileGraphResult';
 import { PreviewLight } from '../../site/components/Editor';
 import { ensure } from '../../util/ensure';
-import { SamplerCubeNode, TextureNode } from '../../core/nodes/data-nodes';
+import {
+  SamplerCubeNode,
+  TextureNode,
+} from '@shaderfrog/core/src/core/nodes/data-nodes';
 import { useSize } from '../../site/hooks/useSize';
 import { PMREMGenerator } from 'three';
 import { RoomEnvironment } from './RoomEnvironment';

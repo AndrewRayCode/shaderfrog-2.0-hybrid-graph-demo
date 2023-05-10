@@ -7,8 +7,8 @@ import {
   NodeType,
   alphabet,
   findNode,
-} from '../../../core/graph';
-import { Edge as GraphEdge } from '../../../core/nodes/edge';
+} from '@shaderfrog/core/src/core/graph';
+import { Edge as GraphEdge } from '@shaderfrog/core/src/core/nodes/edge';
 import { Node as FlowNode, Edge as FlowEdge, XYPosition } from 'reactflow';
 import { FlowEdgeData } from './FlowEdge';
 import {
@@ -17,10 +17,7 @@ import {
   flowOutput,
   InputNodeHandle,
 } from './FlowNode';
-import { ensure } from '../../../util/ensure';
-import { EngineNodeType } from '../../../core/engine';
-import { NodeInput } from '../../../core/nodes/core-node';
-import { SourceNode } from '../../../core/nodes/code-nodes';
+import { NodeInput } from '@shaderfrog/core/src/core/nodes/core-node';
 
 export type FlowElement = FlowNode<FlowNodeData> | FlowEdge<FlowEdgeData>;
 export type FlowEdgeOrLink = FlowEdge<FlowEdgeData>;

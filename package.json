@@ -16,7 +16,7 @@
     "@playcanvas/pcui": "^2.2.4",
     "@playcanvas/pcui-graph": "^1.0.2",
     "@react-hook/resize-observer": "^1.2.6",
-    "@shaderfrog/core": "^0.0.1",
+    "@shaderfrog/core": ">=0.0.2",
     "@shaderfrog/glsl-parser": "^1.2.0",
     "@types/lodash.groupby": "^4.6.7",
     "@types/three": "^0.131.0",

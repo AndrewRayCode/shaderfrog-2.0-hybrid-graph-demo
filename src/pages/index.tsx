@@ -7,8 +7,7 @@ import { useEffect } from 'react';
 
 const Home: NextPage = () => {
   useEffect(() => {
-    const isLocal = window.location.toString().includes('localhost');
-    Router.push(isLocal ? '/editor' : '/editor.html');
+    Router.push('/editor');
   }, []);
   return (
     <div className={styles.container}>

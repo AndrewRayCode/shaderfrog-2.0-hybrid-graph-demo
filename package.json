@@ -1,6 +1,6 @@
 {
   "name": "@shaderfrog/editor",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "scripts": {
     "dev": "next dev",
     "deploy": "./deploy.sh",
@@ -12,9 +12,6 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.3.1",
-    "@playcanvas/observer": "^1.1.0",
-    "@playcanvas/pcui": "^2.2.4",
-    "@playcanvas/pcui-graph": "^1.0.2",
     "@react-hook/resize-observer": "^1.2.6",
     "@shaderfrog/core": ">=0.0.2",
     "@shaderfrog/glsl-parser": "^1.2.0",
@@ -23,7 +20,6 @@
     "babylonjs": "^5.43.0",
     "classnames": "^2.3.1",
     "is-what": "^4.0.0",
-    "litegraph.js": "^0.7.10",
     "lodash.debounce": "^4.0.8",
     "lodash.groupby": "^4.6.0",
     "lodash.throttle": "^4.1.1",
@@ -51,5 +47,13 @@
     "prettier": "^2.3.2",
     "typescript": "^4.5.4",
     "typescript-plugin-css-modules": "^3.4.0"
+  },
+  "peerDependencies": {
+    "@shaderfrog/core": ">=0.0.2",
+    "@shaderfrog/glsl-parser": ">=1.2.0",
+    "classnames": ">=2.3.1",
+    "react": ">=17.0.2",
+    "react-dom": ">=17.0.2",
+    "three": ">=0.149.0"
   }
 }

@@ -6,21 +6,17 @@ import {
   Graph,
   GraphNode,
   isDataInput,
-} from '@shaderfrog/core/src/core/graph';
-import {
-  Edge as GraphEdge,
-  EdgeType,
-  makeEdge,
-} from '@shaderfrog/core/src/core/nodes/edge';
+} from '@core/core/graph';
+import { Edge as GraphEdge, EdgeType, makeEdge } from '@core/core/nodes/edge';
 import {
   Engine,
   EngineContext,
   convertToEngine,
   convertNode,
-} from '@shaderfrog/core/src/core/engine';
+} from '@core/core/engine';
 import { UICompileGraphResult } from '../uICompileGraphResult';
 import { generate } from '@shaderfrog/glsl-parser';
-import { shaderSectionsToProgram } from '@shaderfrog/core/src/ast/shader-sections';
+import { shaderSectionsToProgram } from '@core/ast/shader-sections';
 
 import {
   arrayNode,
@@ -32,7 +28,7 @@ import {
   Vector3,
   Vector4,
   vectorNode,
-} from '@shaderfrog/core/src/core/nodes/data-nodes';
+} from '@core/core/nodes/data-nodes';
 
 import { fireFrag, fireVert } from '../../shaders/fireNode';
 import fluidCirclesNode from '../../shaders/fluidCirclesNode';
@@ -58,16 +54,16 @@ import {
   multiplyNode,
   phongNode,
   sourceNode,
-} from '@shaderfrog/core/src/core/nodes/engine-node';
+} from '@core/core/nodes/engine-node';
 import {
   declarationOfStrategy,
   texture2DStrategy,
   uniformStrategy,
-} from '@shaderfrog/core/src/core/strategy';
+} from '@core/core/strategy';
 import { serpentF, serpentV } from '../../shaders/serpentNode';
 import { badTvFrag } from '../../shaders/badTvNode';
 import whiteNoiseNode from '../../shaders/whiteNoiseNode';
-import { babylengine } from '@shaderfrog/core/src/plugins/babylon/bablyengine';
+import { babylengine } from '@core/plugins/babylon/bablyengine';
 import sinCosVertWarp from '../../shaders/sinCosVertWarp';
 import { juliaF, juliaV } from '../../shaders/juliaNode';
 

@@ -17,13 +17,12 @@ import ReactFlow, {
   ReactFlowProps,
   ReactFlowInstance,
 } from 'reactflow';
-import 'reactflow/dist/style.css';
 
-import { NodeType } from '@shaderfrog/core/src/core/graph';
-import { EngineNodeType } from '@shaderfrog/core/src/core/engine';
+import { NodeType } from '@core/core/graph';
+import { EngineNodeType } from '@core/core/engine';
 import FlowEdgeComponent from './FlowEdge';
 import { DataNodeComponent, SourceNodeComponent } from './FlowNode';
-import { GraphDataType } from '@shaderfrog/core/src/core/nodes/data-nodes';
+import { GraphDataType } from '@core/core/nodes/data-nodes';
 import { FlowEventHack } from '../../flowEventHack';
 
 import styles from './context.menu.module.css';

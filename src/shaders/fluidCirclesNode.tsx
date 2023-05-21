@@ -1,10 +1,10 @@
-import { NodePosition } from '@shaderfrog/core/src/core/nodes/core-node';
-import { sourceNode } from '@shaderfrog/core/src/core/nodes/engine-node';
-import { uniformStrategy } from '@shaderfrog/core/src/core/strategy';
+import { NodePosition } from '@core/core/nodes/core-node';
+import { sourceNode } from '@core/core/nodes/engine-node';
+import { uniformStrategy } from '@core/core/strategy';
 import {
   numberUniformData,
   colorUniformData,
-} from '@shaderfrog/core/src/core/nodes/data-nodes';
+} from '@core/core/nodes/data-nodes';
 
 const fluidCirclesNode = (id: string, position: NodePosition) =>
   sourceNode(

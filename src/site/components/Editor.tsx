@@ -3,7 +3,7 @@ import debounce from 'lodash.debounce';
 
 import FlowEditor, { MouseData, useEditorStore } from './flow/FlowEditor';
 
-import { SplitPane } from 'react-multi-split-pane';
+import { SplitPane } from '@andrewray/react-multi-split-pane';
 import cx from 'classnames';
 import React, {
   useCallback,
@@ -35,17 +35,10 @@ import {
   computeAllContexts,
   findNode,
   computeContextForNodes,
-} from '@shaderfrog/core/src/core/graph';
-import {
-  Edge as GraphEdge,
-  EdgeType,
-} from '@shaderfrog/core/src/core/nodes/edge';
+} from '@core/core/graph';
+import { Edge as GraphEdge, EdgeType } from '@core/core/nodes/edge';
 
-import {
-  Engine,
-  EngineContext,
-  convertToEngine,
-} from '@shaderfrog/core/src/core/engine';
+import { Engine, EngineContext, convertToEngine } from '@core/core/engine';
 
 import useThrottle from '../hooks/useThrottle';
 
@@ -57,14 +50,14 @@ import { FlowNodeSourceData, FlowNodeDataData } from './flow/FlowNode';
 import { Tabs, Tab, TabGroup, TabPanel, TabPanels } from './tabs/Tabs';
 import CodeEditor from './CodeEditor';
 
-import { engine as threngine } from '@shaderfrog/core/src/plugins/three';
+import { engine as threngine } from '@core/plugins/three';
 import {
   Editor as ThreeComponent,
   makeExampleGraph as threeMakeExampleGraph,
   Example as ThreeExample,
 } from '../../plugins/three';
 
-import { engine as babylengine } from '@shaderfrog/core/src/plugins/babylon';
+import { engine as babylengine } from '@core/plugins/babylon';
 import {
   Editor as BabylonComponent,
   makeExampleGraph as babylonMakeExampleGraph,
@@ -74,17 +67,14 @@ import {
 import { Hoisty, useHoisty } from '../hoistedRefContext';
 import { UICompileGraphResult } from '../uICompileGraphResult';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { Strategy, StrategyType } from '@shaderfrog/core/src/core/strategy';
+import { Strategy, StrategyType } from '@core/core/strategy';
 import { ensure } from '../../util/ensure';
 
-import {
-  CodeNode,
-  SourceNode,
-} from '@shaderfrog/core/src/core/nodes/code-nodes';
+import { CodeNode, SourceNode } from '@core/core/nodes/code-nodes';
 import { makeId } from '../../util/id';
 import { hasParent } from '../../util/hasParent';
 import { useWindowSize } from '../hooks/useWindowSize';
-import { NodeInput } from '@shaderfrog/core/src/core/nodes/core-node';
+import { NodeInput } from '@core/core/nodes/core-node';
 import {
   FlowElements,
   toFlowInputs,

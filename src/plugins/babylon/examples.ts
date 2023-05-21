@@ -1,4 +1,4 @@
-import { Graph } from '@shaderfrog/core/src/core/graph';
+import { Graph } from '@core/core/graph';
 import {
   colorNode,
   DataNode,
@@ -6,9 +6,9 @@ import {
   numberUniformData,
   textureNode,
   vectorUniformData,
-} from '@shaderfrog/core/src/core/nodes/data-nodes';
-import { EdgeType, makeEdge } from '@shaderfrog/core/src/core/nodes/edge';
-import { outputNode } from '@shaderfrog/core/src/core/nodes/engine-node';
+} from '@core/core/nodes/data-nodes';
+import { EdgeType, makeEdge } from '@core/core/nodes/edge';
+import { outputNode } from '@core/core/nodes/engine-node';
 import { fireFrag, fireVert } from '../../shaders/fireNode';
 import {
   heatShaderFragmentNode,
@@ -20,14 +20,10 @@ import staticShaderNode, { variation1 } from '../../shaders/staticShaderNode';
 import { makeId } from '../../util/id';
 import { checkerboardF, checkerboardV } from '../../shaders/checkboardNode';
 import normalMapify from '../../shaders/normalmapifyNode';
-import {
-  convertNode,
-  convertToEngine,
-  Engine,
-} from '@shaderfrog/core/src/core/engine';
-import { babylengine } from '@shaderfrog/core/src/plugins/babylon/bablyengine';
-import { CoreNode } from '@shaderfrog/core/src/core/nodes/core-node';
-import { SourceNode } from '@shaderfrog/core/src/core/nodes/code-nodes';
+import { convertNode, convertToEngine, Engine } from '@core/core/engine';
+import { babylengine } from '@core/plugins/babylon/bablyengine';
+import { CoreNode } from '@core/core/nodes/core-node';
+import { SourceNode } from '@core/core/nodes/code-nodes';
 
 export enum Example {
   GLASS_FIREBALL = 'Glass Fireball',

@@ -1,11 +1,11 @@
-import { NodePosition } from '@shaderfrog/core/src/core/nodes/core-node';
+import { NodePosition } from '@core/core/nodes/core-node';
 import {
   numberUniformData,
   UniformDataType,
   vectorUniformData,
-} from '@shaderfrog/core/src/core/nodes/data-nodes';
-import { sourceNode } from '@shaderfrog/core/src/core/nodes/engine-node';
-import { uniformStrategy } from '@shaderfrog/core/src/core/strategy';
+} from '@core/core/nodes/data-nodes';
+import { sourceNode } from '@core/core/nodes/engine-node';
+import { uniformStrategy } from '@core/core/strategy';
 
 const purpleNoiseNode = (
   id: string,

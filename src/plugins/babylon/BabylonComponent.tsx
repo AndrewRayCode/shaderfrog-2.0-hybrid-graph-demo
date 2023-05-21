@@ -2,20 +2,14 @@ import * as BABYLON from 'babylonjs';
 import cx from 'classnames';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import {
-  evaluateNode,
-  Graph,
-  mangleVar,
-} from '@shaderfrog/core/src/core/graph';
-import {
-  EngineContext,
-  EngineNodeType,
-} from '@shaderfrog/core/src/core/engine';
+import { evaluateNode, Graph, mangleVar } from '@core/core/graph';
+
+import { EngineContext, EngineNodeType } from '@core/core/engine';
 import {
   babylengine,
   physicalDefaultProperties,
   RuntimeContext,
-} from '@shaderfrog/core/src/plugins/babylon/bablyengine';
+} from '@core/plugins/babylon/bablyengine';
 
 import styles from '../../pages/editor/editor.module.css';
 
@@ -25,10 +19,7 @@ import {
   IndexedDataInputs,
   UICompileGraphResult,
 } from '../../site/uICompileGraphResult';
-import {
-  SamplerCubeNode,
-  TextureNode,
-} from '@shaderfrog/core/src/core/nodes/data-nodes';
+import { SamplerCubeNode, TextureNode } from '@core/core/nodes/data-nodes';
 import { useSize } from '../../site/hooks/useSize';
 import { Nullable } from 'babylonjs';
 

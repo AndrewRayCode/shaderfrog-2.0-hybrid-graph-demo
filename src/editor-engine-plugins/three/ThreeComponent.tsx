@@ -4,7 +4,7 @@ import { evaluateNode, Graph, mangleVar } from '@core/core/graph';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import { EngineContext } from '@core/core/engine';
 
-import styles from '../../pages/editor/editor.module.css';
+import styles from '../../editor/styles/editor.module.css';
 
 import { threngine, ThreeRuntime } from '@core/plugins/three/threngine';
 

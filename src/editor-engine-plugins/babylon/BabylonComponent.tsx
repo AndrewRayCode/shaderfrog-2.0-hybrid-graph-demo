@@ -11,7 +11,7 @@ import {
   RuntimeContext,
 } from '@core/plugins/babylon/bablyengine';
 
-import styles from '../../pages/editor/editor.module.css';
+import styles from '../../editor/styles/editor.module.css';
 
 import { useBabylon } from './useBabylon';
 import { usePrevious } from '../../editor/hooks/usePrevious';

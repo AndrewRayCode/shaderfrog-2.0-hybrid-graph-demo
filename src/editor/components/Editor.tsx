@@ -1,4 +1,4 @@
-import styles from '../../pages/editor/editor.module.css';
+import styles from '../styles/editor.module.css';
 import debounce from 'lodash.debounce';
 
 import FlowEditor, { MouseData, useEditorStore } from './flow/FlowEditor';

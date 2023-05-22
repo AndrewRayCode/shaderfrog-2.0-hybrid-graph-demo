@@ -55,24 +55,24 @@ import {
   Editor as ThreeComponent,
   makeExampleGraph as threeMakeExampleGraph,
   Example as ThreeExample,
-} from '../../plugins/three';
+} from '../../editor-engine-plugins/three';
 
 import { engine as babylengine } from '@core/plugins/babylon';
 import {
   Editor as BabylonComponent,
   makeExampleGraph as babylonMakeExampleGraph,
   Example as BabylonExample,
-} from '../../plugins/babylon';
+} from '../../editor-engine-plugins/babylon';
 
 import { Hoisty, useHoisty } from '../hoistedRefContext';
 import { UICompileGraphResult } from '../uICompileGraphResult';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Strategy, StrategyType } from '@core/core/strategy';
-import { ensure } from '../../util/ensure';
+import { ensure } from '../../editor-util/ensure';
 
 import { CodeNode, SourceNode } from '@core/core/nodes/code-nodes';
-import { makeId } from '../../util/id';
-import { hasParent } from '../../util/hasParent';
+import { makeId } from '../../editor-util/id';
+import { hasParent } from '../../editor-util/hasParent';
 import { useWindowSize } from '../hooks/useWindowSize';
 import { NodeInput } from '@core/core/nodes/core-node';
 import {

@@ -9,12 +9,12 @@ import styles from '../../pages/editor/editor.module.css';
 import { threngine, ThreeRuntime } from '@core/plugins/three/threngine';
 
 import { useThree } from './useThree';
-import { usePrevious } from '../../site/hooks/usePrevious';
-import { UICompileGraphResult } from '../../site/uICompileGraphResult';
-import { PreviewLight } from '../../site/components/Editor';
-import { ensure } from '../../util/ensure';
+import { usePrevious } from '../../editor/hooks/usePrevious';
+import { UICompileGraphResult } from '../../editor/uICompileGraphResult';
+import { PreviewLight } from '../../editor/components/Editor';
+import { ensure } from '../../editor-util/ensure';
 import { SamplerCubeNode, TextureNode } from '@core/core/nodes/data-nodes';
-import { useSize } from '../../site/hooks/useSize';
+import { useSize } from '../../editor/hooks/useSize';
 import { PMREMGenerator } from 'three';
 import { RoomEnvironment } from './RoomEnvironment';
 

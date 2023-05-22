@@ -19,7 +19,7 @@ import {
 } from '../../shaders/heatmapShaderNode';
 import purpleNoiseNode from '../../shaders/purpleNoiseNode';
 import staticShaderNode, { variation1 } from '../../shaders/staticShaderNode';
-import { makeId } from '../../util/id';
+import { makeId } from '../../editor-util/id';
 import { checkerboardF, checkerboardV } from '../../shaders/checkboardNode';
 import normalMapify from '../../shaders/normalmapifyNode';
 import { CoreNode } from '@core/core/nodes/core-node';

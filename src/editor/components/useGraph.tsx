@@ -48,7 +48,7 @@ import {
   cubemapReflectionV,
 } from '../../shaders/cubemapReflectionNode';
 import normalMapify from '../../shaders/normalmapifyNode';
-import { makeId } from '../../util/id';
+import { makeId } from '../../editor-util/id';
 import {
   addNode,
   multiplyNode,

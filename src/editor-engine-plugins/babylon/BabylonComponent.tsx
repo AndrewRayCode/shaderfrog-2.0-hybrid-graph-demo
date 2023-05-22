@@ -14,13 +14,13 @@ import {
 import styles from '../../pages/editor/editor.module.css';
 
 import { useBabylon } from './useBabylon';
-import { usePrevious } from '../../site/hooks/usePrevious';
+import { usePrevious } from '../../editor/hooks/usePrevious';
 import {
   IndexedDataInputs,
   UICompileGraphResult,
-} from '../../site/uICompileGraphResult';
+} from '../../editor/uICompileGraphResult';
 import { SamplerCubeNode, TextureNode } from '@core/core/nodes/data-nodes';
-import { useSize } from '../../site/hooks/useSize';
+import { useSize } from '../../editor/hooks/useSize';
 import { Nullable } from 'babylonjs';
 
 export type PreviewLight = 'point' | '3point' | 'spot';

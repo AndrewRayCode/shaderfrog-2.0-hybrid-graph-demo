@@ -22,7 +22,7 @@ import {
 } from '@core/core/nodes/data-nodes';
 import { InputCategory } from '@core/core/nodes/core-node';
 import { ChangeHandler, useFlowEventHack } from '../../flowEventHack';
-import { replaceAt } from '../../../util/replaceAt';
+import { replaceAt } from '../../../editor-util/replaceAt';
 import groupBy from 'lodash.groupby';
 
 const headerHeight = 30;

@@ -1,7 +1,7 @@
 import dynamic from 'next/dynamic';
 
 const DynamicComponentWithNoSSR = dynamic(
-  () => import('../../site/components/Editor'),
+  () => import('../../editor/components/Editor'),
   {
     ssr: false,
   }

@@ -1151,7 +1151,7 @@ const Editor: React.FC = () => {
       <Tabs onSelect={setEditorTabIndex} selected={editorTabIndex}>
         <TabGroup className={styles.tabBar}>
           <Tab>Graph</Tab>
-          <Tab>GLSL Editorx</Tab>
+          <Tab>GLSL Editor</Tab>
           <Tab
             className={{
               [styles.errored]: uiState.fragError || uiState.vertError,

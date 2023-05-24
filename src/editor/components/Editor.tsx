@@ -860,7 +860,7 @@ const Editor = ({ shader, onSave }: EditorProps) => {
 
   const connecting = useRef<{ node: GraphNode; input: NodeInput } | null>();
   const onConnectStart = useCallback(
-    (_: React.MouseEvent, params: OnConnectStartParams) => {
+    (_: React.MouseEvent | React.TouchEvent, params: OnConnectStartParams) => {
       const { nodeId, handleType, handleId } = params;
       if (handleType === 'source' || !nodeId || !handleType) {
         return;

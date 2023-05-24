@@ -293,18 +293,22 @@ const Editor = ({ shader, onSave }: EditorProps) => {
     useMemo(() => {
       const query = new URLSearchParams(window.location.search);
       const example = query.get('example') || examples.DEFAULT;
-      const [graph, a, b] = shader
-        ? [
-            shader.config.graph as Graph,
-            shader.config.scene.previewObject,
-            shader.config.scene.bg,
-          ]
-        : // @ts-ignore
-          makeExampleGraph(example);
+      if (shader) {
+        console.log('Loading shader from API', shader);
+        return [
+          shader.config.graph as Graph,
+          shader.config.scene.previewObject,
+          shader.config.scene.bg,
+        ];
+      }
+      // @ts-ignore
+      const [graph, a, b] = makeExampleGraph(example);
       return [expandUniformDataNodes(graph), a, b, example];
     }, [makeExampleGraph, examples, shader]);
 
-  const [example, setExample] = useState<string | null>(initialExample);
+  const [currentExample, setExample] = useState<string | null | undefined>(
+    initialExample
+  );
   const [previewObject, setPreviewObject] = useState(initialPreviewObject);
   const [bg, setBg] = useState<string>(initialBg);
   const [graph, setGraph] = useLocalStorage<Graph>('graph', initialGraph);
@@ -517,13 +521,13 @@ const Editor = ({ shader, onSave }: EditorProps) => {
     [compile, engine]
   );
 
-  const previousExample = usePrevious(example);
+  const previousExample = usePrevious(currentExample);
   useEffect(() => {
-    if (example !== previousExample && previousExample !== undefined) {
-      console.log('🧶 Loading new example!', example);
+    if (currentExample !== previousExample && previousExample !== undefined) {
+      console.log('🧶 Loading new example!', currentExample);
       const [graph, previewObject, bg] = makeExampleGraph(
         // @ts-ignore
-        example || examples.DEFAULT
+        currentExample || examples.DEFAULT
       );
       const newGraph = expandUniformDataNodes(graph);
       setGraph(newGraph);
@@ -540,7 +544,7 @@ const Editor = ({ shader, onSave }: EditorProps) => {
     }
   }, [
     engine,
-    example,
+    currentExample,
     previousExample,
     setGraph,
     setPreviewObject,
@@ -856,7 +860,7 @@ const Editor = ({ shader, onSave }: EditorProps) => {
 
   const connecting = useRef<{ node: GraphNode; input: NodeInput } | null>();
   const onConnectStart = useCallback(
-    (_: MouseEvent, params: OnConnectStartParams) => {
+    (_: React.MouseEvent, params: OnConnectStartParams) => {
       const { nodeId, handleType, handleId } = params;
       if (handleType === 'source' || !nodeId || !handleType) {
         return;
@@ -1090,14 +1094,14 @@ const Editor = ({ shader, onSave }: EditorProps) => {
       return;
     }
     const urlParams = new URLSearchParams(window.location.search);
-    const value = example || '';
+    const value = currentExample || '';
     urlParams.set('example', value);
     window.history.replaceState(
       {},
       value,
       `${window.location.pathname}?${urlParams.toString()}`
     );
-  }, [example, shader]);
+  }, [currentExample, shader]);
 
   const engineSelectorElement = (
     <div className="inlinecontrol">
@@ -1138,7 +1142,7 @@ const Editor = ({ shader, onSave }: EditorProps) => {
           id="exampleSelect"
           className="select"
           onChange={(e) => setExample(e.currentTarget.value || null)}
-          value={example || undefined}
+          value={currentExample || undefined}
         >
           <option value="">None</option>
           {Object.entries(examples).map(([key, name]) => (

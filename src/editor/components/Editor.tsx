@@ -227,7 +227,33 @@ const SMALL_SCREEN_WIDTH = 500;
  *   - Move engine nodes into engine specific constructors
  */
 
-const Editor: React.FC = () => {
+export type EditorShader = {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  userId: string;
+  name: string | null;
+  description: string | null;
+  config: {
+    graph: {
+      nodes: any[];
+      edges: any[];
+    };
+    scene: {
+      bg: string;
+      lights: string;
+      previewObject: string;
+    };
+  };
+  visibility: number;
+};
+
+type EditorProps = {
+  shader?: EditorShader;
+  onSave: (shader: EditorShader) => Promise<void>;
+};
+
+const Editor = ({ shader, onSave }: EditorProps) => {
   const { getRefData } = useHoisty();
 
   const updateNodeInternals = useUpdateNodeInternals();
@@ -266,11 +292,17 @@ const Editor: React.FC = () => {
   const [initialGraph, initialPreviewObject, initialBg, initialExample] =
     useMemo(() => {
       const query = new URLSearchParams(window.location.search);
-      const example = query.get('example') || '';
-      // @ts-ignore
-      const [graph, a, b] = makeExampleGraph(example || examples.DEFAULT);
+      const example = query.get('example') || examples.DEFAULT;
+      const [graph, a, b] = shader
+        ? [
+            shader.config.graph as Graph,
+            shader.config.scene.previewObject,
+            shader.config.scene.bg,
+          ]
+        : // @ts-ignore
+          makeExampleGraph(example);
       return [expandUniformDataNodes(graph), a, b, example];
-    }, [makeExampleGraph, examples]);
+    }, [makeExampleGraph, examples, shader]);
 
   const [example, setExample] = useState<string | null>(initialExample);
   const [previewObject, setPreviewObject] = useState(initialPreviewObject);
@@ -1054,6 +1086,9 @@ const Editor: React.FC = () => {
   );
 
   useEffect(() => {
+    if (shader) {
+      return;
+    }
     const urlParams = new URLSearchParams(window.location.search);
     const value = example || '';
     urlParams.set('example', value);
@@ -1062,7 +1097,7 @@ const Editor: React.FC = () => {
       value,
       `${window.location.pathname}?${urlParams.toString()}`
     );
-  }, [example]);
+  }, [example, shader]);
 
   const engineSelectorElement = (
     <div className="inlinecontrol">
@@ -1121,6 +1156,34 @@ const Editor: React.FC = () => {
     <>
       {smallScreen ? null : (
         <div className={cx(styles.tabControls, { [styles.col3]: isLocal })}>
+          <div className="m-right-15">
+            <button
+              className="buttonauto formbutton"
+              onClick={() => {
+                if (!ctx || !shader) {
+                  return;
+                }
+                console.log('saving', graph);
+                onSave({
+                  ...shader,
+                  config: {
+                    ...shader.config,
+                    graph: graph,
+                    scene: {
+                      ...shader.config.scene,
+                      bg,
+                      lights,
+                      previewObject,
+                    },
+                  },
+                }).then(() => {
+                  console.log('saved');
+                });
+              }}
+            >
+              Save
+            </button>
+          </div>
           <div className="m-right-15">{engineSelectorElement}</div>
           {exampleSelectorElement}
           {isLocal ? (
@@ -1544,10 +1607,10 @@ const StrategyEditor = ({
 
 // Use React Flow Provider to get project(), to figure out the mouse position
 // in the graph
-const WithProvider = () => (
+const WithProvider = (props: EditorProps) => (
   <ReactFlowProvider>
     <Hoisty>
-      <Editor />
+      <Editor {...props} />
     </Hoisty>
   </ReactFlowProvider>
 );

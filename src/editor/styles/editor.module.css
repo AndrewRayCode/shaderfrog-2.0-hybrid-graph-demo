@@ -143,7 +143,7 @@ textarea.error {
   right: 2px;
   z-index: 10;
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto auto 1fr;
 }
 .tabControls.col3 {
   grid-template-columns: auto 1fr 1fr;

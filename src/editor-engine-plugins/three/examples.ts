@@ -36,6 +36,7 @@ export enum Example {
   TOON = 'Toon',
   EMPTY = 'Empty',
   PHYSICAL = 'Mesh Physical Material',
+  DEFAULT = 'Mesh Physical Material',
 }
 
 const edgeFrom = (

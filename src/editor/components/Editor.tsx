@@ -88,6 +88,7 @@ import {
   updateGraphNode,
   addFlowEdge,
   addGraphEdge,
+  updateGraphFromFlowGraph,
 } from './flow/helpers';
 
 import { usePrevious } from '../hooks/usePrevious';
@@ -1155,6 +1156,7 @@ const Editor = ({ shader, onSave }: EditorProps) => {
     </div>
   );
 
+  const [isSaving, setIsSaving] = useState<boolean>(false);
   const isLocal = window.location.href.indexOf('localhost') > 111;
   const editorElements = (
     <>
@@ -1162,17 +1164,18 @@ const Editor = ({ shader, onSave }: EditorProps) => {
         <div className={cx(styles.tabControls, { [styles.col3]: isLocal })}>
           <div className="m-right-15">
             <button
+              disabled={isSaving}
               className="buttonauto formbutton"
               onClick={() => {
                 if (!ctx || !shader) {
                   return;
                 }
-                console.log('saving', graph);
+                setIsSaving(true);
                 onSave({
                   ...shader,
                   config: {
                     ...shader.config,
-                    graph: graph,
+                    graph: updateGraphFromFlowGraph(graph, flowElements),
                     scene: {
                       ...shader.config.scene,
                       bg,
@@ -1180,9 +1183,13 @@ const Editor = ({ shader, onSave }: EditorProps) => {
                       previewObject,
                     },
                   },
-                }).then(() => {
-                  console.log('saved');
-                });
+                })
+                  .then(() => {
+                    console.log('saved');
+                  })
+                  .finally(() => {
+                    setIsSaving(false);
+                  });
               }}
             >
               Save

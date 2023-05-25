@@ -1,3 +1,4 @@
+import groupBy from 'lodash.groupby';
 import {
   Graph,
   GraphNode,
@@ -416,4 +417,18 @@ export const graphToFlowGraph = (
   const edges: FlowEdgeOrLink[] = graph.edges.map(graphEdgeToFlowEdge);
 
   return setFlowNodeStages({ nodes, edges });
+};
+
+export const updateGraphFromFlowGraph = (
+  graph: Graph,
+  elements: FlowElements
+): Graph => {
+  const byId = groupBy(elements.nodes, 'id');
+  return {
+    ...graph,
+    nodes: graph.nodes.map((n) => ({
+      ...n,
+      position: byId[n.id][0].position,
+    })),
+  };
 };

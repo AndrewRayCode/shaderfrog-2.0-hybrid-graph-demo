@@ -80,7 +80,7 @@ export interface FlowNodeSourceData extends CoreFlowNode {
 export type FlowNodeData = FlowNodeSourceData | FlowNodeDataData;
 
 const showPosition = (id: any, xPos: number, yPos: number) =>
-  window.location.href.indexOf('localhost') > -1 ? (
+  window.location.search.indexOf('debug') > -1 ? (
     <>
       ({id}) {Math.round(xPos)}, {Math.round(yPos)}
     </>
@@ -163,7 +163,7 @@ const FlowWrap = ({
   className: any;
 }) => (
   <div
-    className={classnames('flownode', className)}
+    className={cx('flownode', className)}
     style={{
       height:
         height ||
@@ -296,7 +296,7 @@ const TextureEditor = ({
   onChange,
 }: {
   id: string;
-  tex: typeof textures['texture'];
+  tex: (typeof textures)['texture'];
   data: FlowNodeDataData;
   onChange: ChangeHandler;
 }) => (

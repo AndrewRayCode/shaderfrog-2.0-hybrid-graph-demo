@@ -13,6 +13,7 @@ import React, {
   useRef,
   useState,
   MouseEvent,
+  MouseEventHandler,
 } from 'react';
 
 import {
@@ -97,6 +98,10 @@ import {
   createGraphNode,
   expandUniformDataNodes,
 } from './useGraph';
+import {
+  ShaderCreateInput,
+  ShaderUpdateInput,
+} from 'src/repository/shader_repository';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
@@ -228,13 +233,16 @@ const SMALL_SCREEN_WIDTH = 500;
  *   - Move engine nodes into engine specific constructors
  */
 
+// This must be kept in sync with the core shader model
 export type EditorShader = {
   id: string;
+  engine: string;
   createdAt: Date;
   updatedAt: Date;
   userId: string;
   name: string | null;
-  description: string | null;
+  description?: string | null;
+  visibility: number;
   config: {
     graph: {
       nodes: any[];
@@ -246,29 +254,36 @@ export type EditorShader = {
       previewObject: string;
     };
   };
-  visibility: number;
 };
 
 type EditorProps = {
   shader?: EditorShader;
-  onSave: (shader: EditorShader) => Promise<void>;
+  onCreateShader?: (shader: ShaderCreateInput) => Promise<void>;
+  onUpdateShader?: (shader: ShaderUpdateInput) => Promise<void>;
 };
 
-const Editor = ({ shader, onSave }: EditorProps) => {
+const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
   const { getRefData } = useHoisty();
 
   const updateNodeInternals = useUpdateNodeInternals();
 
-  const query = new URLSearchParams(window.location.search);
-  const queryEngine = query.get('engine') || '';
+  // const query = new URLSearchParams(window.location.search);
+  // const queryEngine = query.get('engine') || '';
 
-  const [{ lastEngine, engine }, setEngine] = useState<{
-    lastEngine: Engine | null;
-    engine: Engine;
-  }>({
-    lastEngine: null,
-    engine: queryEngine === 'babylon' ? babylengine : threngine,
-  });
+  const [{ lastEngine: lastEngineName, engine: engineName }, setEngine] =
+    useState<{
+      lastEngine: string | null;
+      engine: string;
+    }>({
+      lastEngine: null,
+      engine: shader?.engine || 'three',
+    });
+  const lastEngine = lastEngineName
+    ? lastEngineName === 'babylon'
+      ? babylengine
+      : threngine
+    : null;
+  const engine = engineName === 'babylon' ? babylengine : threngine;
 
   // Store the engine context in state. There's a separate function for passing
   // to children to update the engine context, which has more side effects
@@ -285,10 +300,10 @@ const Editor = ({ shader, onSave }: EditorProps) => {
     | [typeof BabylonExample, typeof babylonMakeExampleGraph]
     | [typeof ThreeExample, typeof threeMakeExampleGraph]
   >(() => {
-    return engine.name === 'babylon'
+    return engineName === 'babylon'
       ? [BabylonExample, babylonMakeExampleGraph]
       : [ThreeExample, threeMakeExampleGraph];
-  }, [engine]);
+  }, [engineName]);
 
   const [initialGraph, initialPreviewObject, initialBg, initialExample] =
     useMemo(() => {
@@ -544,7 +559,7 @@ const Editor = ({ shader, onSave }: EditorProps) => {
       }
     }
   }, [
-    engine,
+    engineName,
     currentExample,
     previousExample,
     setGraph,
@@ -597,7 +612,7 @@ const Editor = ({ shader, onSave }: EditorProps) => {
     [
       ctx,
       lastEngine,
-      engine,
+      engineName,
       setCtxState,
       initializeGraph,
       getRefData,
@@ -1116,13 +1131,17 @@ const Editor = ({ shader, onSave }: EditorProps) => {
           id="engineSelect"
           className="select"
           onChange={(e) => {
-            const urlParams = new URLSearchParams(window.location.search);
-            urlParams.set('engine', e.currentTarget.value);
-            window.location.href = `${
-              window.location.pathname
-            }?${urlParams.toString()}`;
+            setEngine({
+              lastEngine: engine.name,
+              engine: e.currentTarget.value,
+            });
+            // const urlParams = new URLSearchParams(window.location.search);
+            // urlParams.set('engine', e.currentTarget.value);
+            // window.location.href = `${
+            //   window.location.pathname
+            // }?${urlParams.toString()}`;
           }}
-          value={queryEngine}
+          value={engine.name}
         >
           <option value="three">Three.js</option>
           <option value="babylon">Babylon</option>
@@ -1156,6 +1175,43 @@ const Editor = ({ shader, onSave }: EditorProps) => {
     </div>
   );
 
+  const onClickSave = async (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    if (!ctx || (!onUpdateShader && !onCreateShader)) {
+      return;
+    }
+    setIsSaving(true);
+    const payload = {
+      engine: engineName,
+      userId: shader?.userId || '1',
+      name: shader?.name || `Andy's new shader ${Math.random()}`,
+      description: shader?.description || 'description',
+      visibility: shader?.visibility || 1,
+      config: {
+        graph: updateGraphFromFlowGraph(graph, flowElements),
+        scene: {
+          bg,
+          lights,
+          previewObject,
+        },
+      },
+    };
+    try {
+      if (shader?.id && onUpdateShader) {
+        await onUpdateShader({
+          id: shader.id,
+          ...payload,
+        });
+      } else if (onCreateShader) {
+        await onCreateShader(payload);
+      }
+      console.log('saved');
+    } catch (error) {
+      console.error(error);
+    }
+    setIsSaving(false);
+  };
+
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const isLocal = window.location.href.indexOf('localhost') > 111;
   const editorElements = (
@@ -1166,31 +1222,7 @@ const Editor = ({ shader, onSave }: EditorProps) => {
             <button
               disabled={isSaving}
               className="buttonauto formbutton"
-              onClick={() => {
-                if (!ctx || !shader) {
-                  return;
-                }
-                setIsSaving(true);
-                onSave({
-                  ...shader,
-                  config: {
-                    ...shader.config,
-                    graph: updateGraphFromFlowGraph(graph, flowElements),
-                    scene: {
-                      ...shader.config.scene,
-                      bg,
-                      lights,
-                      previewObject,
-                    },
-                  },
-                })
-                  .then(() => {
-                    console.log('saved');
-                  })
-                  .finally(() => {
-                    setIsSaving(false);
-                  });
-              }}
+              onClick={onClickSave}
             >
               Save
             </button>
@@ -1207,10 +1239,16 @@ const Editor = ({ shader, onSave }: EditorProps) => {
                   }
                   if (engine === babylengine) {
                     setCompileResult(undefined);
-                    setEngine({ lastEngine: engine, engine: threngine });
+                    setEngine({
+                      lastEngine: engine.name,
+                      engine: threngine.name,
+                    });
                   } else {
                     setCompileResult(undefined);
-                    setEngine({ lastEngine: engine, engine: babylengine });
+                    setEngine({
+                      lastEngine: engine.name,
+                      engine: babylengine.name,
+                    });
                   }
                 }}
               >

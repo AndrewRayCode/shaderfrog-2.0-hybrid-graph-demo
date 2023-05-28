@@ -3,6 +3,13 @@ import classnames from 'classnames/bind';
 import style from './tabs.module.css';
 const cx = classnames.bind(style);
 
+type TabbableChildProps = {
+  selectedClassName: any;
+  selected: any;
+  onSelect: any;
+  index: any;
+};
+
 // Overall wrapping component
 const Tabs = ({
   children,
@@ -21,7 +28,7 @@ const Tabs = ({
         children,
         (child) =>
           React.isValidElement(child) &&
-          React.cloneElement(child, {
+          React.cloneElement(child as React.ReactElement<TabbableChildProps>, {
             selectedClassName,
             selected,
             onSelect,
@@ -51,7 +58,7 @@ const TabGroup = ({
         children,
         (child, index) =>
           React.isValidElement(child) &&
-          React.cloneElement(child, {
+          React.cloneElement(child as React.ReactElement<TabbableChildProps>, {
             selectedClassName,
             selected,
             onSelect,

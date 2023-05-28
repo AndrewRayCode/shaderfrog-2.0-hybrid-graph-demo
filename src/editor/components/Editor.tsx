@@ -236,7 +236,7 @@ export type EditorShader = {
   createdAt: Date;
   updatedAt: Date;
   userId: string;
-  name: string | null;
+  name: string;
   description?: string | null;
   visibility: number;
   config: {

@@ -98,10 +98,6 @@ import {
   createGraphNode,
   expandUniformDataNodes,
 } from './useGraph';
-import {
-  ShaderCreateInput,
-  ShaderUpdateInput,
-} from 'src/repository/shader_repository';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
@@ -255,6 +251,9 @@ export type EditorShader = {
     };
   };
 };
+// Ditto. Maybe one day extract a @shaderfrog/types library or something
+type ShaderUpdateInput = Omit<EditorShader, 'createdAt' | 'updatedAt'>;
+type ShaderCreateInput = Omit<EditorShader, 'id' | 'createdAt' | 'updatedAt'>;
 
 type EditorProps = {
   shader?: EditorShader;

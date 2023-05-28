@@ -1,26 +1,16 @@
-import type { NextPage } from 'next';
-import Head from 'next/head';
-import Link from 'next/link';
-import styles from '../site/styles/Home.module.css';
-import Router from 'next/router';
-import { useEffect } from 'react';
+import dynamic from 'next/dynamic';
+import styles from '../editor/styles/Home.module.css';
 
-const Home: NextPage = () => {
-  useEffect(() => {
-    Router.push('/editor');
-  }, []);
-  return (
-    <div className={styles.container}>
-      <Head>
-        <title>Shaderfrog 2.0 Hybrid Graph Demo</title>
-        <meta name="description" content="Shaderfrog 2.0 Hybrid Graph Demo" />
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
-      <Link href="/editor">
-        <a style={{ color: '#fff' }}>/editor</a>
-      </Link>
-    </div>
-  );
-};
+const DynamicComponentWithNoSSR = dynamic(
+  () => import('../editor/components/Editor'),
+  {
+    ssr: false,
+    loading: () => <div style={{ color: '#fff' }}>Loarfing&hellip;</div>,
+  }
+);
 
-export default Home;
+function Editor() {
+  return <DynamicComponentWithNoSSR />;
+}
+
+export default Editor;

@@ -1304,22 +1304,9 @@ const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
                 onConnectEnd={onConnectEnd}
               />
               <div className={styles.graphFooter}>
-                <a
-                  href="https://github.com/AndrewRayCode/shaderfrog-2.0-hybrid-graph-demo"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Source on Github
-                </a>
-                <span>|</span>
-                Author:{' '}
-                <a
-                  href="https://twitter.com/andrewray"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  @andrewray
-                </a>
+                {compileResult?.compileMs ? (
+                  <>Compile took {compileResult?.compileMs}ms</>
+                ) : null}
               </div>
             </div>
           </TabPanel>
@@ -1444,10 +1431,6 @@ const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
       ) : guiError ? (
         <div className={styles.guiError}>
           <b>Compilation Error!</b> {guiError}
-        </div>
-      ) : compileResult?.compileMs ? (
-        <div className={styles.guiMsg}>
-          Compile took {compileResult?.compileMs}ms
         </div>
       ) : null}
       {smallScreen ? exampleSelectorElement : null}

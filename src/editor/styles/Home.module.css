@@ -6,6 +6,7 @@
   justify-content: center;
   align-items: center;
   height: 100vh;
+  border: 50px solid red; /* testing if this is used on the site */
 }
 
 .main {

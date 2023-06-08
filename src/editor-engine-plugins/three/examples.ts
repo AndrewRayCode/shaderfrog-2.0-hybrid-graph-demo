@@ -1,4 +1,4 @@
-import { Graph } from '@core/core/graph';
+import { Graph } from '@core/graph';
 import {
   colorNode,
   colorUniformData,
@@ -8,9 +8,9 @@ import {
   textureNode,
   textureUniformData,
   vectorUniformData,
-} from '@core/core/nodes/data-nodes';
-import { EdgeType, makeEdge } from '@core/core/nodes/edge';
-import { outputNode } from '@core/core/nodes/engine-node';
+} from '@core/nodes/data-nodes';
+import { EdgeType, makeEdge } from '@core/nodes/edge';
+import { outputNode } from '@core/nodes/engine-node';
 import { fireFrag, fireVert } from '../../shaders/fireNode';
 import {
   heatShaderFragmentNode,
@@ -22,7 +22,7 @@ import staticShaderNode, { variation1 } from '../../shaders/staticShaderNode';
 import { makeId } from '../../editor-util/id';
 import { checkerboardF, checkerboardV } from '../../shaders/checkboardNode';
 import normalMapify from '../../shaders/normalmapifyNode';
-import { CoreNode } from '@core/core/nodes/core-node';
+import { CoreNode } from '@core/nodes/core-node';
 import { threngine } from '@core/plugins/three/threngine';
 import perlinCloudsF from '../../shaders/perlinClouds';
 import sinCosVertWarp from '../../shaders/sinCosVertWarp';

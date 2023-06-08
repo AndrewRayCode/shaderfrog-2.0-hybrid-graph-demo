@@ -1,10 +1,7 @@
-import { NodePosition } from '@core/core/nodes/core-node';
-import { sourceNode } from '@core/core/nodes/engine-node';
-import { uniformStrategy } from '@core/core/strategy';
-import {
-  numberUniformData,
-  colorUniformData,
-} from '@core/core/nodes/data-nodes';
+import { NodePosition } from '@core/nodes/core-node';
+import { sourceNode } from '@core/nodes/engine-node';
+import { uniformStrategy } from '@core/strategy';
+import { numberUniformData, colorUniformData } from '@core/nodes/data-nodes';
 
 const fluidCirclesNode = (id: string, position: NodePosition) =>
   sourceNode(

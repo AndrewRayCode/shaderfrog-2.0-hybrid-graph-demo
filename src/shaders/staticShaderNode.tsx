@@ -1,6 +1,6 @@
-import { NodePosition } from '@core/core/nodes/core-node';
-import { sourceNode } from '@core/core/nodes/engine-node';
-import { uniformStrategy } from '@core/core/strategy';
+import { NodePosition } from '@core/nodes/core-node';
+import { sourceNode } from '@core/nodes/engine-node';
+import { uniformStrategy } from '@core/strategy';
 
 export const variation0 = `
 precision highp float;

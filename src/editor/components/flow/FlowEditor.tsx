@@ -18,11 +18,11 @@ import ReactFlow, {
   ReactFlowInstance,
 } from 'reactflow';
 
-import { NodeType } from '@core/core/graph';
-import { EngineNodeType } from '@core/core/engine';
+import { NodeType } from '@core/graph';
+import { EngineNodeType } from '@core/engine';
 import FlowEdgeComponent from './FlowEdge';
 import { DataNodeComponent, SourceNodeComponent } from './FlowNode';
-import { GraphDataType } from '@core/core/nodes/data-nodes';
+import { GraphDataType } from '@core/nodes/data-nodes';
 import { FlowEventHack } from '../../flowEventHack';
 
 import styles from './context.menu.module.css';

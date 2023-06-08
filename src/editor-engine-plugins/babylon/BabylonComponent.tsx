@@ -2,9 +2,9 @@ import * as BABYLON from 'babylonjs';
 import cx from 'classnames';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { evaluateNode, Graph, mangleVar } from '@core/core/graph';
+import { evaluateNode, Graph, mangleVar } from '@core/graph';
 
-import { EngineContext, EngineNodeType } from '@core/core/engine';
+import { EngineContext, EngineNodeType } from '@core/engine';
 import {
   babylengine,
   physicalDefaultProperties,
@@ -19,7 +19,7 @@ import {
   IndexedDataInputs,
   UICompileGraphResult,
 } from '../../editor/uICompileGraphResult';
-import { SamplerCubeNode, TextureNode } from '@core/core/nodes/data-nodes';
+import { SamplerCubeNode, TextureNode } from '@core/nodes/data-nodes';
 import { useSize } from '../../editor/hooks/useSize';
 import { Nullable } from 'babylonjs';
 

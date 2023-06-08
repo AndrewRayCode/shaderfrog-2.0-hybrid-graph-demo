@@ -1,11 +1,11 @@
-import { NodePosition } from '@core/core/nodes/core-node';
+import { NodePosition } from '@core/nodes/core-node';
 import {
   numberUniformData,
   UniformDataType,
   vectorUniformData,
-} from '@core/core/nodes/data-nodes';
-import { sourceNode } from '@core/core/nodes/engine-node';
-import { uniformStrategy } from '@core/core/strategy';
+} from '@core/nodes/data-nodes';
+import { sourceNode } from '@core/nodes/engine-node';
+import { uniformStrategy } from '@core/strategy';
 
 const purpleNoiseNode = (
   id: string,

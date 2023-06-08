@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as three from 'three';
-import { evaluateNode, Graph, mangleVar } from '@core/core/graph';
+import { evaluateNode, Graph, mangleVar } from '@core/graph';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
-import { EngineContext } from '@core/core/engine';
+import { EngineContext } from '@core/engine';
 
 import styles from '../../editor/styles/editor.module.css';
 
@@ -13,7 +13,7 @@ import { usePrevious } from '../../editor/hooks/usePrevious';
 import { UICompileGraphResult } from '../../editor/uICompileGraphResult';
 import { PreviewLight } from '../../editor/components/Editor';
 import { ensure } from '../../editor-util/ensure';
-import { SamplerCubeNode, TextureNode } from '@core/core/nodes/data-nodes';
+import { SamplerCubeNode, TextureNode } from '@core/nodes/data-nodes';
 import { useSize } from '../../editor/hooks/useSize';
 import { PMREMGenerator } from 'three';
 import { RoomEnvironment } from './RoomEnvironment';

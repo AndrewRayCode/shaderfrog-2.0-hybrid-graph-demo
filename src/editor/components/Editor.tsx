@@ -36,10 +36,10 @@ import {
   computeAllContexts,
   findNode,
   computeContextForNodes,
-} from '@core/core/graph';
-import { Edge as GraphEdge, EdgeType } from '@core/core/nodes/edge';
+} from '@core/graph';
+import { Edge as GraphEdge, EdgeType } from '@core/nodes/edge';
 
-import { Engine, EngineContext, convertToEngine } from '@core/core/engine';
+import { Engine, EngineContext, convertToEngine } from '@core/engine';
 
 import useThrottle from '../hooks/useThrottle';
 
@@ -68,14 +68,14 @@ import {
 import { Hoisty, useHoisty } from '../hoistedRefContext';
 import { UICompileGraphResult } from '../uICompileGraphResult';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { Strategy, StrategyType } from '@core/core/strategy';
+import { Strategy, StrategyType } from '@core/strategy';
 import { ensure } from '../../editor-util/ensure';
 
-import { CodeNode, SourceNode } from '@core/core/nodes/code-nodes';
+import { CodeNode, SourceNode } from '@core/nodes/code-nodes';
 import { makeId } from '../../editor-util/id';
 import { hasParent } from '../../editor-util/hasParent';
 import { useWindowSize } from '../hooks/useWindowSize';
-import { NodeInput } from '@core/core/nodes/core-node';
+import { NodeInput } from '@core/nodes/core-node';
 import {
   FlowElements,
   toFlowInputs,

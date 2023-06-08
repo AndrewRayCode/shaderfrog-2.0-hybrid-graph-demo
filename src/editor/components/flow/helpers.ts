@@ -8,8 +8,8 @@ import {
   NodeType,
   alphabet,
   findNode,
-} from '@core/core/graph';
-import { Edge as GraphEdge } from '@core/core/nodes/edge';
+} from '@core/graph';
+import { Edge as GraphEdge } from '@core/nodes/edge';
 import { Node as FlowNode, Edge as FlowEdge, XYPosition } from 'reactflow';
 import { FlowEdgeData } from './FlowEdge';
 import {
@@ -18,7 +18,7 @@ import {
   flowOutput,
   InputNodeHandle,
 } from './FlowNode';
-import { NodeInput } from '@core/core/nodes/core-node';
+import { NodeInput } from '@core/nodes/core-node';
 
 export type FlowElement = FlowNode<FlowNodeData> | FlowEdge<FlowEdgeData>;
 export type FlowEdgeOrLink = FlowEdge<FlowEdgeData>;

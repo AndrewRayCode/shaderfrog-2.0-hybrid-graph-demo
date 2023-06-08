@@ -6,14 +6,14 @@ import {
   Graph,
   GraphNode,
   isDataInput,
-} from '@core/core/graph';
-import { Edge as GraphEdge, EdgeType, makeEdge } from '@core/core/nodes/edge';
+} from '@core/graph';
+import { Edge as GraphEdge, EdgeType, makeEdge } from '@core/nodes/edge';
 import {
   Engine,
   EngineContext,
   convertToEngine,
   convertNode,
-} from '@core/core/engine';
+} from '@core/engine';
 import { UICompileGraphResult } from '../uICompileGraphResult';
 import { generate } from '@shaderfrog/glsl-parser';
 import { shaderSectionsToProgram } from '@core/ast/shader-sections';
@@ -28,7 +28,7 @@ import {
   Vector3,
   Vector4,
   vectorNode,
-} from '@core/core/nodes/data-nodes';
+} from '@core/nodes/data-nodes';
 
 import { fireFrag, fireVert } from '../../shaders/fireNode';
 import fluidCirclesNode from '../../shaders/fluidCirclesNode';
@@ -54,12 +54,8 @@ import {
   multiplyNode,
   phongNode,
   sourceNode,
-} from '@core/core/nodes/engine-node';
-import {
-  declarationOfStrategy,
-  texture2DStrategy,
-  uniformStrategy,
-} from '@core/core/strategy';
+} from '@core/nodes/engine-node';
+import { texture2DStrategy, uniformStrategy } from '@core/strategy';
 import { serpentF, serpentV } from '../../shaders/serpentNode';
 import { badTvFrag } from '../../shaders/badTvNode';
 import whiteNoiseNode from '../../shaders/whiteNoiseNode';
@@ -86,6 +82,7 @@ const compileGraphAsync = async (
       } catch (err) {
         return reject(err);
       }
+
       const fragmentResult = generate(
         shaderSectionsToProgram(result.fragment, engine.mergeOptions).program
       );

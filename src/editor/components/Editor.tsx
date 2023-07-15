@@ -71,7 +71,7 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 import { Strategy, StrategyType } from '@core/strategy';
 import { ensure } from '../../editor-util/ensure';
 
-import { CodeNode, SourceNode } from '@core/nodes/code-nodes';
+import { CodeNode, SourceNode, SourceType } from '@core/nodes/code-nodes';
 import { makeId } from '../../editor-util/id';
 import { hasParent } from '../../editor-util/hasParent';
 import { useWindowSize } from '../hooks/useWindowSize';
@@ -524,16 +524,36 @@ const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
     (initialElements: FlowElements, newCtx: EngineContext, graph: Graph) => {
       setContexting(true);
       setTimeout(async () => {
-        await computeAllContexts(newCtx, engine, graph);
-        console.log('Initializing flow nodes and compiling graph!', {
-          graph,
-          newCtx,
-        });
+        try {
+          const result = await computeAllContexts(newCtx, engine, graph);
+          if (result.type === 'errors') {
+            setContexting(false);
+            const errors = result.errors as any[];
+            console.error('Error computing context!', errors);
+            setGuiError(`Error computing context: ${errors[0]}`);
 
-        compile(engine, newCtx, graph, initialElements);
+            // In case the initial context fails to generate, which can happen
+            // if a node is saved in a bad state, create the flow elements
+            // anyway, so the graph still shows up
+            setFlowElements(initialElements);
+          } else {
+            console.log('Initializing flow nodes and compiling graph!', {
+              graph,
+              newCtx,
+            });
+            compile(engine, newCtx, graph, initialElements);
+          }
+        } catch (error: any) {
+          setContexting(false);
+          console.error('Error computing context!', error);
+          setGuiError(error.message);
+
+          // Same comment as above
+          setFlowElements(initialElements);
+        }
       }, 0);
     },
-    [compile, engine]
+    [compile, engine, setFlowElements]
   );
 
   const previousExample = usePrevious(currentExample);
@@ -611,7 +631,7 @@ const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
     [
       ctx,
       lastEngine,
-      engineName,
+      engine,
       setCtxState,
       initializeGraph,
       getRefData,
@@ -1363,6 +1383,12 @@ const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
                     onSave={() =>
                       compile(engine, ctx as EngineContext, graph, flowElements)
                     }
+                    onGraphChange={() => {
+                      setGraph(graph);
+                      setFlowElements(
+                        graphToFlowGraph(graph, onInputBakedToggle)
+                      );
+                    }}
                   ></StrategyEditor>
                 </div>
               </SplitPane>
@@ -1521,20 +1547,40 @@ const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
 const StrategyEditor = ({
   node,
   onSave,
+  onGraphChange,
   ctx,
 }: {
   node: SourceNode;
   onSave: () => void;
+  onGraphChange: () => void;
   ctx?: EngineContext;
 }) => {
   if (!ctx || !node.config) {
     return null;
   }
   const { inputs } = node;
+
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    node.sourceType = event.target.value as typeof node.sourceType;
+    onSave();
+  };
+
   return (
     <>
       <div className={styles.uiGroup}>
-        <h2 className={styles.uiHeader}>Node Strategies</h2>
+        <div>
+          <h2 className={styles.uiHeader}>Node Name</h2>
+          <input
+            className="textinput"
+            type="text"
+            value={node.name}
+            onChange={(e) => {
+              node.name = e.target.value;
+              onGraphChange();
+            }}
+          ></input>
+        </div>
+        <h2 className={cx(styles.uiHeader, 'mTop1')}>Node Strategies</h2>
         <div className={styles.autocolmax}>
           {node.config.strategies.map((strategy, index) => (
             <React.Fragment key={strategy.type}>
@@ -1608,26 +1654,20 @@ const StrategyEditor = ({
         </form>
       </div>
       <div className={styles.uiGroup}>
-        <div className="inlinecontrol">
-          <div>
-            <label className="label" htmlFor="epo">
-              Expression only?
-            </label>
-          </div>
-          <div>
+        <h2 className={styles.uiHeader}>Source Code Type</h2>
+        {Object.values(SourceType).map((value) => (
+          <label key={value}>
             <input
-              id="epo"
-              className="checkbox"
-              type="checkbox"
-              checked={node.expressionOnly ? true : false}
-              onChange={(event) => {
-                node.expressionOnly = event.currentTarget.checked;
-                onSave();
-              }}
+              type="radio"
+              value={value}
+              checked={node.sourceType === value}
+              onChange={handleChange}
             />
-          </div>
-        </div>
+            {value}
+          </label>
+        ))}
       </div>
+
       <div className={styles.uiGroup}>
         <h2 className={styles.uiHeader}>Node Inputs</h2>
         {inputs.length ? inputs.map((i) => i.id).join(', ') : 'No inputs found'}

@@ -408,8 +408,6 @@ export const graphToFlowGraph = (
   graph: Graph,
   onInputBakedToggle: any
 ): FlowElements => {
-  console.log('Initializing flow elements from', { graph });
-
   const nodes = graph.nodes.map((node) =>
     graphNodeToFlowNode(node, onInputBakedToggle, node.position)
   );

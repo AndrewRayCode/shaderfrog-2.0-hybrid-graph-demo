@@ -7,13 +7,8 @@ import {
   GraphNode,
   isDataInput,
 } from '@core/graph';
-import { Edge as GraphEdge, EdgeType, makeEdge } from '@core/nodes/edge';
-import {
-  Engine,
-  EngineContext,
-  convertToEngine,
-  convertNode,
-} from '@core/engine';
+import { Edge as GraphEdge, makeEdge } from '@core/nodes/edge';
+import { Engine, EngineContext, convertNode } from '@core/engine';
 import { UICompileGraphResult } from '../uICompileGraphResult';
 import { generate } from '@shaderfrog/glsl-parser';
 import { shaderSectionsToProgram } from '@core/ast/shader-sections';
@@ -77,55 +72,56 @@ const compileGraphAsync = async (
       let result;
 
       try {
-        await computeGraphContext(ctx, engine, graph);
+        const comptued = await computeGraphContext(ctx, engine, graph);
+        console.log('comptued', comptued);
         result = compileGraph(ctx, engine, graph);
+
+        const fragmentResult = generate(
+          shaderSectionsToProgram(result.fragment, engine.mergeOptions).program
+        );
+        const vertexResult = generate(
+          shaderSectionsToProgram(result.vertex, engine.mergeOptions).program
+        );
+
+        const dataInputs = filterGraphNodes(
+          graph,
+          [result.outputFrag, result.outputVert],
+          { input: isDataInput }
+        ).inputs;
+
+        // Find which nodes flow up into uniform inputs, for colorizing and for
+        // not recompiling when their data changes
+        const dataNodes = Object.entries(dataInputs).reduce<
+          Record<string, GraphNode>
+        >((acc, [nodeId, inputs]) => {
+          return inputs.reduce((iAcc, input) => {
+            const fromEdge = graph.edges.find(
+              (edge) => edge.to === nodeId && edge.input === input.id
+            );
+            const fromNode =
+              fromEdge && graph.nodes.find((node) => node.id === fromEdge.from);
+            return fromNode
+              ? {
+                  ...iAcc,
+                  ...collectConnectedNodes(graph, fromNode),
+                }
+              : iAcc;
+          }, acc);
+        }, {});
+
+        const now = performance.now();
+        resolve({
+          compileMs: (now - allStart).toFixed(3),
+          result,
+          fragmentResult,
+          vertexResult,
+          dataNodes,
+          dataInputs,
+          graph,
+        });
       } catch (err) {
         return reject(err);
       }
-
-      const fragmentResult = generate(
-        shaderSectionsToProgram(result.fragment, engine.mergeOptions).program
-      );
-      const vertexResult = generate(
-        shaderSectionsToProgram(result.vertex, engine.mergeOptions).program
-      );
-
-      const dataInputs = filterGraphNodes(
-        graph,
-        [result.outputFrag, result.outputVert],
-        { input: isDataInput }
-      ).inputs;
-
-      // Find which nodes flow up into uniform inputs, for colorizing and for
-      // not recompiling when their data changes
-      const dataNodes = Object.entries(dataInputs).reduce<
-        Record<string, GraphNode>
-      >((acc, [nodeId, inputs]) => {
-        return inputs.reduce((iAcc, input) => {
-          const fromEdge = graph.edges.find(
-            (edge) => edge.to === nodeId && edge.input === input.id
-          );
-          const fromNode =
-            fromEdge && graph.nodes.find((node) => node.id === fromEdge.from);
-          return fromNode
-            ? {
-                ...iAcc,
-                ...collectConnectedNodes(graph, fromNode),
-              }
-            : iAcc;
-        }, acc);
-      }, {});
-
-      const now = performance.now();
-      resolve({
-        compileMs: (now - allStart).toFixed(3),
-        result,
-        fragmentResult,
-        vertexResult,
-        dataNodes,
-        dataInputs,
-        graph,
-      });
     }, 10);
   });
 

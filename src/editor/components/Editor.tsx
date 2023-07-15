@@ -338,18 +338,18 @@ const Editor = ({
     useMemo(() => {
       const query = new URLSearchParams(window.location.search);
       const example = query.get('example') || examples.DEFAULT;
-      if (shader) {
-        console.log('Loading shader from API', shader);
+      if (initialShader) {
+        console.log('Loading shader from API', initialShader);
         return [
-          shader.config.graph as Graph,
-          shader.config.scene.previewObject,
-          shader.config.scene.bg,
+          initialShader.config.graph as Graph,
+          initialShader.config.scene.previewObject,
+          initialShader.config.scene.bg,
         ];
       }
       // @ts-ignore
       const [graph, a, b] = makeExampleGraph(example);
       return [expandUniformDataNodes(graph), a, b, example];
-    }, [makeExampleGraph, examples, shader]);
+    }, [makeExampleGraph, examples, initialShader]);
 
   const [currentExample, setExample] = useState<string | null | undefined>(
     initialExample

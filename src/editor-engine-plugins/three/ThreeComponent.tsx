@@ -268,7 +268,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     if (warehouseImage) {
       return;
     }
-    new RGBELoader().load('envmaps/empty_warehouse_01_2k.hdr', (texture) => {
+    new RGBELoader().load('/envmaps/empty_warehouse_01_2k.hdr', (texture) => {
       const pmremGenerator = new three.PMREMGenerator(renderer);
       pmremGenerator.compileEquirectangularShader();
       const envMap = pmremGenerator.fromEquirectangular(texture).texture;

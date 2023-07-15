@@ -231,11 +231,11 @@ const SMALL_SCREEN_WIDTH = 500;
 
 // This must be kept in sync with the core shader model
 export type EditorShader = {
-  id: string;
+  id?: string;
   engine: string;
-  createdAt: Date;
-  updatedAt: Date;
-  userId: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+  userId?: string;
   name: string;
   description?: string | null;
   visibility: number;
@@ -252,8 +252,14 @@ export type EditorShader = {
   };
 };
 // Ditto. Maybe one day extract a @shaderfrog/types library or something
-type ShaderUpdateInput = Omit<EditorShader, 'createdAt' | 'updatedAt'>;
-type ShaderCreateInput = Omit<EditorShader, 'id' | 'createdAt' | 'updatedAt'>;
+type ShaderUpdateInput = Omit<
+  EditorShader,
+  'createdAt' | 'updatedAt' | 'userId'
+>;
+type ShaderCreateInput = Omit<
+  EditorShader,
+  'id' | 'createdAt' | 'updatedAt' | 'userId'
+>;
 
 type EditorProps = {
   shader?: EditorShader;
@@ -261,7 +267,31 @@ type EditorProps = {
   onUpdateShader?: (shader: ShaderUpdateInput) => Promise<void>;
 };
 
-const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
+const Editor = ({
+  shader: initialShader,
+  onCreateShader,
+  onUpdateShader,
+}: EditorProps) => {
+  const [shader, setShader] = useState<EditorShader>(
+    initialShader || {
+      // TODO: Align these with the examples and/or the actual initial values
+      // when creating a shader
+      engine: 'three',
+      name: `New shader ${Math.random()}`,
+      visibility: 0,
+      config: {
+        graph: {
+          nodes: [],
+          edges: [],
+        },
+        scene: {
+          bg: '',
+          lights: 'point',
+          previewObject: 'sphere',
+        },
+      },
+    }
+  );
   const { getRefData } = useHoisty();
 
   const updateNodeInternals = useUpdateNodeInternals();
@@ -342,7 +372,7 @@ const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
   const [showHelpers, setShowHelpers] = useState<boolean>(false);
   const [animatedLights, setAnimatedLights] = useState<boolean>(true);
 
-  const [activeShader, setActiveShader] = useState<SourceNode>(
+  const [activeNode, setActiveNode] = useState<SourceNode>(
     (graph.nodes.find((n) => n.type === 'source') ||
       graph.nodes[0]) as SourceNode
   );
@@ -568,7 +598,7 @@ const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
       setGraph(newGraph);
       setPreviewObject(previewObject);
       setBg(bg);
-      setActiveShader(newGraph.nodes[0] as SourceNode);
+      setActiveNode(newGraph.nodes[0] as SourceNode);
 
       if (ctx) {
         const initFlowElements = graphToFlowGraph(newGraph, onInputBakedToggle);
@@ -811,9 +841,7 @@ const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
   const onNodeDoubleClick = useCallback(
     (event: any, node: any) => {
       if (!('value' in node.data)) {
-        setActiveShader(
-          graph.nodes.find((n) => n.id === node.id) as SourceNode
-        );
+        setActiveNode(graph.nodes.find((n) => n.id === node.id) as SourceNode);
         setEditorTabIndex(1);
       }
     },
@@ -1200,9 +1228,10 @@ const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
       return;
     }
     setIsSaving(true);
+    // TODO: These values liek engine and bg all have their own state, vs
+    // setShader() copies all those values
     const payload = {
       engine: engineName,
-      userId: shader?.userId || '1',
       name: shader?.name || `Andy's new shader ${Math.random()}`,
       description: shader?.description || 'description',
       visibility: shader?.visibility || 1,
@@ -1226,7 +1255,7 @@ const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
       }
       console.log('saved');
     } catch (error) {
-      console.error(error);
+      console.error('Error saving', error);
     }
     setIsSaving(false);
   };
@@ -1288,7 +1317,7 @@ const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
               [styles.errored]: uiState.fragError || uiState.vertError,
             }}
           >
-            Compiled Source
+            Shader
           </Tab>
         </TabGroup>
         <TabPanels>
@@ -1347,12 +1376,12 @@ const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
                         )
                       }
                     >
-                      Save (⌘-S)
+                      Compile
                     </button>
                   </div>
                   <CodeEditor
                     engine={engine}
-                    defaultValue={activeShader.source}
+                    defaultValue={activeNode.source}
                     onSave={() => {
                       compile(
                         engine,
@@ -1365,7 +1394,7 @@ const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
                       if (value) {
                         (
                           graph.nodes.find(
-                            ({ id }) => id === activeShader.id
+                            ({ id }) => id === activeNode.id
                           ) as SourceNode
                         ).source = value;
                       }
@@ -1377,7 +1406,7 @@ const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
                     ctx={ctx}
                     node={
                       graph.nodes.find(
-                        ({ id }) => id === activeShader.id
+                        ({ id }) => id === activeNode.id
                       ) as SourceNode
                     }
                     onSave={() =>
@@ -1399,6 +1428,9 @@ const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
             <Tabs onSelect={setSceneTabIndex} selected={sceneTabIndex}>
               <TabGroup className={styles.secondary}>
                 <Tab className={{ [styles.errored]: uiState.fragError }}>
+                  Metadata
+                </Tab>
+                <Tab className={{ [styles.errored]: uiState.fragError }}>
                   Fragment
                 </Tab>
                 <Tab className={{ [styles.errored]: uiState.vertError }}>
@@ -1407,6 +1439,22 @@ const Editor = ({ shader, onCreateShader, onUpdateShader }: EditorProps) => {
               </TabGroup>
               <TabPanels>
                 {/* final fragment shader subtab */}
+                <TabPanel style={{ height: '100%' }}>
+                  <div className={styles.uiGroup}>
+                    <h2 className={styles.uiHeader}>Shader Name</h2>
+                    <input
+                      className="textinput"
+                      type="text"
+                      value={shader?.name}
+                      onChange={(e) => {
+                        setShader({
+                          ...shader,
+                          name: e.target.value,
+                        });
+                      }}
+                    ></input>
+                  </div>
+                </TabPanel>
                 <TabPanel style={{ height: '100%' }}>
                   {uiState.fragError && (
                     <div className={styles.codeError} title={uiState.fragError}>

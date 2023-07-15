@@ -72,8 +72,7 @@ const compileGraphAsync = async (
       let result;
 
       try {
-        const comptued = await computeGraphContext(ctx, engine, graph);
-        console.log('comptued', comptued);
+        await computeGraphContext(ctx, engine, graph);
         result = compileGraph(ctx, engine, graph);
 
         const fragmentResult = generate(

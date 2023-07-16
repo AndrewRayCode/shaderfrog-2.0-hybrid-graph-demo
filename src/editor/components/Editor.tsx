@@ -99,6 +99,12 @@ export type PreviewLight = 'point' | '3point' | 'spot';
 
 const SMALL_SCREEN_WIDTH = 500;
 
+// Duplicated from next.config.js
+const isProd = process.env.NODE_ENV === 'production';
+const assetPrefix = isProd
+  ? 'https://shaderfrog2.s3.us-west-2.amazonaws.com'
+  : '';
+
 /**
  * Where was I?
  * - Made babylon a lot better, got three<>babylon example working. Then
@@ -1532,6 +1538,7 @@ const Editor = ({
             setGlResult={setGlResult}
             width={uiState.sceneWidth}
             height={uiState.sceneHeight}
+            assetPrefix={assetPrefix}
           />
         ) : (
           <BabylonComponent
@@ -1552,6 +1559,7 @@ const Editor = ({
             setGlResult={setGlResult}
             width={uiState.sceneWidth}
             height={uiState.sceneHeight}
+            assetPrefix={assetPrefix}
           />
         )}
       </div>

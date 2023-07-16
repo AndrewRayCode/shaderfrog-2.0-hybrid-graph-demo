@@ -99,11 +99,7 @@ export type PreviewLight = 'point' | '3point' | 'spot';
 
 const SMALL_SCREEN_WIDTH = 500;
 
-// Duplicated from next.config.js
-const isProd = process.env.NODE_ENV === 'production';
-const assetPrefix = isProd
-  ? 'https://shaderfrog2.s3.us-west-2.amazonaws.com'
-  : '';
+const assetPrefix = process.env.NEXT_PUBLIC_ASSET_PREFIX as string;
 
 /**
  * Where was I?

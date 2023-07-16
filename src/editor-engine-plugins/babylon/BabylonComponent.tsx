@@ -189,6 +189,7 @@ type BabylonComponentProps = {
   setBg: AnyFn;
   width: number;
   height: number;
+  assetPrefix: string;
 };
 const BabylonComponent: React.FC<BabylonComponentProps> = ({
   compile,
@@ -208,7 +209,9 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
   setShowHelpers,
   width,
   height,
+  assetPrefix,
 }) => {
+  const path = useCallback((src: string) => assetPrefix + src, [assetPrefix]);
   const checkForCompileErrors = useRef<boolean>(false);
   const lastCompile = useRef<any>({});
   const sceneWrapper = useRef<HTMLDivElement>(null);
@@ -251,29 +254,35 @@ const BabylonComponent: React.FC<BabylonComponentProps> = ({
     >
   >(
     () => ({
-      explosion: new BABYLON.Texture('/explosion.png', scene),
-      'grayscale-noise': new BABYLON.Texture('/grayscale-noise.png', scene),
-      threeTone: new BABYLON.Texture('/3tone.jpg', scene),
-      brick: new BABYLON.Texture('/bricks.jpeg', scene),
-      brickNormal: new BABYLON.Texture('/bricknormal.jpeg', scene),
-      pebbles: new BABYLON.Texture('/Big_pebbles_pxr128.jpeg', scene),
-      pebblesNormal: new BABYLON.Texture(
-        '/Big_pebbles_pxr128_normal.jpeg',
+      explosion: new BABYLON.Texture(path('/explosion.png'), scene),
+      'grayscale-noise': new BABYLON.Texture(
+        path('/grayscale-noise.png'),
         scene
       ),
-      pebblesBump: new BABYLON.Texture('/Big_pebbles_pxr128_bmp.jpeg', scene),
+      threeTone: new BABYLON.Texture(path('/3tone.jpg'), scene),
+      brick: new BABYLON.Texture(path('/bricks.jpeg'), scene),
+      brickNormal: new BABYLON.Texture(path('/bricknormal.jpeg'), scene),
+      pebbles: new BABYLON.Texture(path('/Big_pebbles_pxr128.jpeg'), scene),
+      pebblesNormal: new BABYLON.Texture(
+        path('/Big_pebbles_pxr128_normal.jpeg'),
+        scene
+      ),
+      pebblesBump: new BABYLON.Texture(
+        path('/Big_pebbles_pxr128_bmp.jpeg'),
+        scene
+      ),
       pondCubeMap: null,
       warehouseEnvTexture: new BABYLON.HDRCubeTexture(
-        '/envmaps/room.hdr',
+        path('/envmaps/room.hdr'),
         scene,
         512
       ),
       cityCourtYard: BABYLON.CubeTexture.CreateFromPrefilteredData(
-        '/envmaps/citycourtyard.dds',
+        path('/envmaps/citycourtyard.dds'),
         scene
       ),
     }),
-    [scene]
+    [scene, path]
   );
 
   useEffect(() => {

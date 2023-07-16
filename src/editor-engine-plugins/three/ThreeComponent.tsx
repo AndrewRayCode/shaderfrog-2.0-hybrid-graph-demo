@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import * as three from 'three';
 import { mangleVar } from '@core/graph';
 import { Graph } from '@core/graph-types';
@@ -51,6 +57,7 @@ type ThreeSceneProps = {
   setShowHelpers: AnyFn;
   width: number;
   height: number;
+  assetPrefix: string;
 };
 
 const repeat = (t: three.Texture, x: number, y: number) => {
@@ -76,7 +83,9 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   setPreviewObject,
   bg,
   setBg,
+  assetPrefix,
 }) => {
+  const path = useCallback((src: string) => assetPrefix + src, [assetPrefix]);
   const shadersUpdated = useRef<boolean>(false);
   const sceneWrapper = useRef<HTMLDivElement>(null);
   const size = useSize(sceneWrapper);
@@ -218,37 +227,39 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
 
   const textures = useMemo<Record<string, any>>(
     () => ({
-      explosion: new three.TextureLoader().load('/explosion.png'),
-      'grayscale-noise': new three.TextureLoader().load('/grayscale-noise.png'),
+      explosion: new three.TextureLoader().load(path('/explosion.png')),
+      'grayscale-noise': new three.TextureLoader().load(
+        path('/grayscale-noise.png')
+      ),
       threeTone: (() => {
-        const image = new three.TextureLoader().load('/3tone.jpg');
+        const image = new three.TextureLoader().load(path('/3tone.jpg'));
         image.minFilter = three.NearestFilter;
         image.magFilter = three.NearestFilter;
         return image;
       })(),
-      brick: repeat(new three.TextureLoader().load('/bricks.jpeg'), 3, 3),
+      brick: repeat(new three.TextureLoader().load(path('/bricks.jpeg')), 3, 3),
       brickNormal: repeat(
-        new three.TextureLoader().load('/bricknormal.jpeg'),
+        new three.TextureLoader().load(path('/bricknormal.jpeg')),
         3,
         3
       ),
       pebbles: repeat(
-        new three.TextureLoader().load('/Big_pebbles_pxr128.jpeg'),
+        new three.TextureLoader().load(path('/Big_pebbles_pxr128.jpeg')),
         3,
         3
       ),
       pebblesNormal: repeat(
-        new three.TextureLoader().load('/Big_pebbles_pxr128_normal.jpeg'),
+        new three.TextureLoader().load(path('/Big_pebbles_pxr128_normal.jpeg')),
         3,
         3
       ),
       pebblesBump: repeat(
-        new three.TextureLoader().load('/Big_pebbles_pxr128_bmp.jpeg'),
+        new three.TextureLoader().load(path('/Big_pebbles_pxr128_bmp.jpeg')),
         3,
         3
       ),
       pondCubeMap: new three.CubeTextureLoader()
-        .setPath('/envmaps/pond/')
+        .setPath(path('/envmaps/pond/'))
         .load([
           'posx.jpg',
           'negx.jpg',
@@ -259,7 +270,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
         ]),
       warehouseEnvTexture: null,
     }),
-    []
+    [path]
   );
 
   const [warehouseImage, setWarehouseImage] = useState<{
@@ -270,15 +281,18 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
     if (warehouseImage) {
       return;
     }
-    new RGBELoader().load('/envmaps/empty_warehouse_01_2k.hdr', (texture) => {
-      const pmremGenerator = new three.PMREMGenerator(renderer);
-      pmremGenerator.compileEquirectangularShader();
-      const envMap = pmremGenerator.fromEquirectangular(texture).texture;
-      pmremGenerator.dispose();
-      textures.warehouseEnvTexture = envMap;
-      setWarehouseImage({ texture, envMap });
-    });
-  }, [renderer, setWarehouseImage, warehouseImage, textures]);
+    new RGBELoader().load(
+      path('/envmaps/empty_warehouse_01_2k.hdr'),
+      (texture) => {
+        const pmremGenerator = new three.PMREMGenerator(renderer);
+        pmremGenerator.compileEquirectangularShader();
+        const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+        pmremGenerator.dispose();
+        textures.warehouseEnvTexture = envMap;
+        setWarehouseImage({ texture, envMap });
+      }
+    );
+  }, [renderer, setWarehouseImage, warehouseImage, textures, path]);
 
   const previousPreviewObject = usePrevious(previewObject);
   useEffect(() => {

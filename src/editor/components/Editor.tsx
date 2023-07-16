@@ -100,6 +100,7 @@ export type PreviewLight = 'point' | '3point' | 'spot';
 const SMALL_SCREEN_WIDTH = 500;
 
 const assetPrefix = process.env.NEXT_PUBLIC_ASSET_PREFIX as string;
+console.log({ assetPrefix });
 
 /**
  * Where was I?

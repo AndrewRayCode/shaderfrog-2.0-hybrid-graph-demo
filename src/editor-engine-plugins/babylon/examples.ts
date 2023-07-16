@@ -1,4 +1,4 @@
-import { Graph } from '@core/graph';
+import { Graph } from '@core/graph-types';
 import {
   colorNode,
   DataNode,
@@ -20,7 +20,7 @@ import staticShaderNode, { variation1 } from '../../shaders/staticShaderNode';
 import { makeId } from '../../editor-util/id';
 import { checkerboardF, checkerboardV } from '../../shaders/checkboardNode';
 import normalMapify from '../../shaders/normalmapifyNode';
-import { convertNode, convertToEngine, Engine } from '@core/engine';
+import { convertNode } from '@core/engine';
 import { babylengine } from '@core/plugins/babylon/bablyengine';
 import { CoreNode } from '@core/nodes/core-node';
 import { SourceNode } from '@core/nodes/code-nodes';

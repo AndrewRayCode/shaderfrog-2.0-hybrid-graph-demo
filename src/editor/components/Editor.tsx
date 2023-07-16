@@ -30,13 +30,8 @@ import {
   OnConnectStartParams,
 } from 'reactflow';
 
-import {
-  Graph,
-  GraphNode,
-  computeAllContexts,
-  findNode,
-  computeContextForNodes,
-} from '@core/graph';
+import { findNode } from '@core/graph';
+import { Graph, GraphNode } from '@core/graph-types';
 import { Edge as GraphEdge, EdgeType } from '@core/nodes/edge';
 
 import { Engine, EngineContext, convertToEngine } from '@core/engine';
@@ -98,6 +93,7 @@ import {
   createGraphNode,
   expandUniformDataNodes,
 } from './useGraph';
+import { computeAllContexts, computeContextForNodes } from '@core/context';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
@@ -255,7 +251,10 @@ export type EditorShader = {
 type ShaderUpdateInput = Omit<
   EditorShader,
   'createdAt' | 'updatedAt' | 'userId'
->;
+> & {
+  id: string;
+};
+
 type ShaderCreateInput = Omit<
   EditorShader,
   'id' | 'createdAt' | 'updatedAt' | 'userId'

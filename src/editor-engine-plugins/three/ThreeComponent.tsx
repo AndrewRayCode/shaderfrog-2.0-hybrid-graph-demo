@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as three from 'three';
-import { evaluateNode, Graph, mangleVar } from '@core/graph';
+import { mangleVar } from '@core/graph';
+import { Graph } from '@core/graph-types';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import { EngineContext } from '@core/engine';
 
@@ -17,6 +18,7 @@ import { SamplerCubeNode, TextureNode } from '@core/nodes/data-nodes';
 import { useSize } from '../../editor/hooks/useSize';
 import { PMREMGenerator } from 'three';
 import { RoomEnvironment } from './RoomEnvironment';
+import { evaluateNode } from '@core/evaluate';
 
 const loadingMaterial = new three.MeshBasicMaterial({ color: 'pink' });
 

@@ -1,27 +1,23 @@
 import * as BABYLON from 'babylonjs';
-import cx from 'classnames';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { evaluateNode, Graph, mangleVar } from '@core/graph';
-
+import { mangleVar } from '@core/graph';
+import { Graph } from '@core/graph-types';
 import { EngineContext, EngineNodeType } from '@core/engine';
 import {
   babylengine,
   physicalDefaultProperties,
-  RuntimeContext,
 } from '@core/plugins/babylon/bablyengine';
 
 import styles from '../../editor/styles/editor.module.css';
 
 import { useBabylon } from './useBabylon';
 import { usePrevious } from '../../editor/hooks/usePrevious';
-import {
-  IndexedDataInputs,
-  UICompileGraphResult,
-} from '../../editor/uICompileGraphResult';
+import { UICompileGraphResult } from '../../editor/uICompileGraphResult';
 import { SamplerCubeNode, TextureNode } from '@core/nodes/data-nodes';
 import { useSize } from '../../editor/hooks/useSize';
 import { Nullable } from 'babylonjs';
+import { evaluateNode } from '@core/evaluate';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 

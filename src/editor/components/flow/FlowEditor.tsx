@@ -18,7 +18,7 @@ import ReactFlow, {
   ReactFlowInstance,
 } from 'reactflow';
 
-import { NodeType } from '@core/graph';
+import { NodeType } from '@core/graph-types';
 import { EngineNodeType } from '@core/engine';
 import FlowEdgeComponent from './FlowEdge';
 import { DataNodeComponent, SourceNodeComponent } from './FlowNode';

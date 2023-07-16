@@ -1,4 +1,5 @@
-import { CompileGraphResult, Graph, GraphNode } from '@core/graph';
+import { CompileGraphResult } from '@core/graph';
+import { Graph, GraphNode } from '@core/graph-types';
 import { NodeInput } from '@core/nodes/core-node';
 
 export type IndexedDataInputs = Record<string, NodeInput[]>;

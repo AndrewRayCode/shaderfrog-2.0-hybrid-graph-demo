@@ -11,7 +11,7 @@ import {
 import styles from './flownode.module.css';
 const cx = classnames.bind(styles);
 
-import { ShaderStage } from '@core/graph';
+import { ShaderStage } from '@core/graph-types';
 
 import { useUpdateNodeInternals } from 'reactflow';
 import {

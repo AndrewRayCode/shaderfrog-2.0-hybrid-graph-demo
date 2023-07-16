@@ -1,12 +1,10 @@
 import {
   collectConnectedNodes,
   compileGraph,
-  computeGraphContext,
   filterGraphNodes,
-  Graph,
-  GraphNode,
   isDataInput,
 } from '@core/graph';
+import { Graph, GraphNode } from '@core/graph-types';
 import { Edge as GraphEdge, makeEdge } from '@core/nodes/edge';
 import { Engine, EngineContext, convertNode } from '@core/engine';
 import { UICompileGraphResult } from '../uICompileGraphResult';
@@ -57,6 +55,7 @@ import whiteNoiseNode from '../../shaders/whiteNoiseNode';
 import { babylengine } from '@core/plugins/babylon/bablyengine';
 import sinCosVertWarp from '../../shaders/sinCosVertWarp';
 import { juliaF, juliaV } from '../../shaders/juliaNode';
+import { computeGraphContext } from '@core/context';
 
 const compileGraphAsync = async (
   graph: Graph,

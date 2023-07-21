@@ -99,9 +99,6 @@ export type PreviewLight = 'point' | '3point' | 'spot';
 
 const SMALL_SCREEN_WIDTH = 500;
 
-const assetPrefix = process.env.NEXT_PUBLIC_ASSET_PREFIX as string;
-console.log({ assetPrefix });
-
 /**
  * Where was I?
  * - Made babylon a lot better, got three<>babylon example working. Then
@@ -228,7 +225,8 @@ console.log({ assetPrefix });
  *   - Move engine nodes into engine specific constructors
  */
 
-// This must be kept in sync with the core shader model
+// This must be kept in sync with the site/ shader model. TODO: Should that be
+// moved into Core instead?
 export type EditorShader = {
   id?: string;
   engine: string;
@@ -264,12 +262,14 @@ type ShaderCreateInput = Omit<
 >;
 
 type EditorProps = {
+  assetPrefix: string;
   shader?: EditorShader;
   onCreateShader?: (shader: ShaderCreateInput) => Promise<void>;
   onUpdateShader?: (shader: ShaderUpdateInput) => Promise<void>;
 };
 
 const Editor = ({
+  assetPrefix,
   shader: initialShader,
   onCreateShader,
   onUpdateShader,

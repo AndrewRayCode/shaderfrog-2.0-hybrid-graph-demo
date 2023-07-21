@@ -511,10 +511,13 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
           // which occurs if we set isMeshPhysicalMaterial/isMeshStandardMaterial
           property !== 'defines'
       )
-      .reduce((acc, [key, value]) => ({
-        ...acc,
-        [key]: value,
-      }));
+      .reduce(
+        (acc, [key, value]) => ({
+          ...acc,
+          [key]: value,
+        }),
+        {}
+      );
 
     const newMat = new three.RawShaderMaterial(initialProperties);
 

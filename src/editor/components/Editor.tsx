@@ -336,22 +336,28 @@ const Editor = ({
       : [ThreeExample, threeMakeExampleGraph];
   }, [engineName]);
 
-  const [initialGraph, initialPreviewObject, initialBg, initialExample] =
-    useMemo(() => {
-      const query = new URLSearchParams(window.location.search);
-      const example = query.get('example') || examples.DEFAULT;
-      if (initialShader) {
-        console.log('Loading shader from API', initialShader);
-        return [
-          initialShader.config.graph as Graph,
-          initialShader.config.scene.previewObject,
-          initialShader.config.scene.bg,
-        ];
-      }
-      // @ts-ignore
-      const [graph, a, b] = makeExampleGraph(example);
-      return [expandUniformDataNodes(graph), a, b, example];
-    }, [makeExampleGraph, examples, initialShader]);
+  const [
+    initialGraph,
+    initialPreviewObject,
+    initialLights,
+    initialBg,
+    initialExample,
+  ] = useMemo(() => {
+    const query = new URLSearchParams(window.location.search);
+    const example = query.get('example') || examples.DEFAULT;
+    if (initialShader) {
+      console.log('Loading shader from API', initialShader);
+      return [
+        initialShader.config.graph as Graph,
+        initialShader.config.scene.previewObject,
+        initialShader.config.scene.lights,
+        initialShader.config.scene.bg,
+      ];
+    }
+    // @ts-ignore
+    const [graph, a, b] = makeExampleGraph(example);
+    return [expandUniformDataNodes(graph), a, 'point', b, example];
+  }, [makeExampleGraph, examples, initialShader]);
 
   const [currentExample, setExample] = useState<string | null | undefined>(
     initialExample
@@ -370,7 +376,9 @@ const Editor = ({
   const [contexting, setContexting] = useState<boolean>(false);
   const [compiling, setCompiling] = useState<boolean>(false);
   const [guiError, setGuiError] = useState<string>('');
-  const [lights, setLights] = useState<PreviewLight>('point');
+  const [lights, setLights] = useState<PreviewLight>(
+    initialLights as PreviewLight
+  );
   const [showHelpers, setShowHelpers] = useState<boolean>(false);
   const [animatedLights, setAnimatedLights] = useState<boolean>(true);
 

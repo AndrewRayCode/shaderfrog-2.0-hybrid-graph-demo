@@ -88,7 +88,7 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   const path = useCallback((src: string) => assetPrefix + src, [assetPrefix]);
   const shadersUpdated = useRef<boolean>(false);
   const sceneWrapper = useRef<HTMLDivElement>(null);
-  const size = useSize(sceneWrapper);
+  const sceneWrapperSize = useSize(sceneWrapper);
 
   const { sceneData, scene, camera, threeDomCbRef, renderer } = useThree(
     (time) => {
@@ -622,16 +622,16 @@ const ThreeComponent: React.FC<ThreeSceneProps> = ({
   ]);
 
   useEffect(() => {
-    if (ctx.runtime?.camera && size) {
+    if (ctx.runtime?.camera && sceneWrapperSize) {
       const { camera, renderer } = ctx.runtime;
 
-      const canvasWidth = size.width;
-      const canvasHeight = size.height;
+      const canvasWidth = sceneWrapperSize.width;
+      const canvasHeight = sceneWrapperSize.height;
       camera.aspect = canvasWidth / canvasHeight;
       camera.updateProjectionMatrix();
-      renderer.setSize(canvasWidth, canvasHeight);
+      renderer.setSize(canvasWidth, canvasHeight, 400);
     }
-  }, [size, ctx.runtime]);
+  }, [sceneWrapperSize, ctx.runtime]);
 
   return (
     <>

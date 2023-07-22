@@ -1,9 +1,13 @@
-.container {
+.editorContainer {
   /* apparently required to force inner 100% height elements to stay within 
      the container, rather than be 100% of page height */
   position: relative;
   width: 100%;
   height: 100%;
+}
+.smallScreen.editorContainer {
+  display: grid;
+  grid-template-rows: auto 1fr;
 }
 
 .gutter {
@@ -132,11 +136,12 @@ textarea.error {
   background: rgb(176, 0, 0);
 }
 
-.scene {
+.sceneElements {
   position: relative;
   height: 100%;
   background: #222;
 }
+
 .tabBar {
   height: 28px;
   padding: 2px 0 0;
@@ -285,8 +290,9 @@ textarea.error {
   height: 100%;
   display: grid;
 }
-.sceneSmallScreen {
-  height: calc(100% - 47px);
+.smallScreen .sceneAndControls {
+  display: grid;
+  grid-template-rows: auto 1fr;
 }
 
 .guiMsg {

@@ -13,7 +13,6 @@ import React, {
   useRef,
   useState,
   MouseEvent,
-  MouseEventHandler,
 } from 'react';
 
 import {
@@ -63,10 +62,9 @@ import {
 import { Hoisty, useHoisty } from '../hoistedRefContext';
 import { UICompileGraphResult } from '../uICompileGraphResult';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { Strategy, StrategyType } from '@core/strategy';
 import { ensure } from '../../editor-util/ensure';
 
-import { CodeNode, SourceNode, SourceType } from '@core/nodes/code-nodes';
+import { CodeNode, SourceNode } from '@core/nodes/code-nodes';
 import { makeId } from '../../editor-util/id';
 import { hasParent } from '../../editor-util/hasParent';
 import { useWindowSize } from '../hooks/useWindowSize';
@@ -94,6 +92,7 @@ import {
   expandUniformDataNodes,
 } from './useGraph';
 import { computeAllContexts, computeContextForNodes } from '@core/context';
+import StrategyEditor from './StrategyEditor';
 
 export type PreviewLight = 'point' | '3point' | 'spot';
 
@@ -684,7 +683,7 @@ const Editor = ({
    * Split state mgmt
    */
   const windowSize = useWindowSize();
-  const smallScreen = windowSize.width < SMALL_SCREEN_WIDTH;
+  const isSmallScreen = windowSize.width < SMALL_SCREEN_WIDTH;
 
   const [defaultMainSplitSize, setDefaultMainSplitSize] = useState<
     number[] | undefined
@@ -849,7 +848,7 @@ const Editor = ({
   );
 
   const onNodeDoubleClick = useCallback(
-    (event: any, node: any) => {
+    (event, node: FlowNode) => {
       if (!('value' in node.data)) {
         setActiveNode(graph.nodes.find((n) => n.id === node.id) as SourceNode);
         setEditorTabIndex(1);
@@ -1270,11 +1269,17 @@ const Editor = ({
     setIsSaving(false);
   };
 
+  useEffect(() => {
+    if (isSmallScreen) {
+      syncSceneSize();
+    }
+  }, [isSmallScreen, syncSceneSize]);
+
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const isLocal = window.location.href.indexOf('localhost') > 111;
   const editorElements = (
     <>
-      {smallScreen ? null : (
+      {isSmallScreen ? null : (
         <div className={cx(styles.tabControls, { [styles.col3]: isLocal })}>
           <div className="m-right-15">
             <button
@@ -1503,7 +1508,7 @@ const Editor = ({
   );
 
   const sceneElements = (
-    <div className={styles.scene}>
+    <div className={styles.sceneElements}>
       {contexting ? (
         <div className={styles.compiling}>
           <span>Building Context&hellip;</span>
@@ -1517,12 +1522,7 @@ const Editor = ({
           <b>Compilation Error!</b> {guiError}
         </div>
       ) : null}
-      {smallScreen ? exampleSelectorElement : null}
-      <div
-        className={cx(styles.sceneAndControls, {
-          [styles.sceneSmallScreen]: smallScreen,
-        })}
-      >
+      <div className={styles.sceneAndControls}>
         {engine.name === 'three' ? (
           <ThreeComponent
             initialCtx={ctx}
@@ -1572,8 +1572,13 @@ const Editor = ({
   );
 
   return (
-    <div className={styles.container} onClick={onContainerClick}>
-      {smallScreen ? (
+    <div
+      className={cx(styles.editorContainer, {
+        [styles.smallScreen]: isSmallScreen,
+      })}
+      onClick={onContainerClick}
+    >
+      {isSmallScreen ? (
         <Tabs
           onSelect={setSmallScreenEditorTabIndex}
           selected={smallScreenEditorTabIndex}
@@ -1583,11 +1588,15 @@ const Editor = ({
             <Tab>Editor</Tab>
           </TabGroup>
           <TabPanels>
-            <TabPanel>
-              <div ref={sceneWrapRef}>{sceneElements}</div>
+            <TabPanel style={{ width: '100%', height: '100%' }}>
+              <div ref={sceneWrapRef} style={{ width: '100%', height: '100%' }}>
+                {sceneElements}
+              </div>
             </TabPanel>
             <TabPanel>
-              <div className={styles.belowTabs}>{editorElements}</div>
+              <div className={cx(styles.belowTabs, styles.splitInner)}>
+                {editorElements}
+              </div>
             </TabPanel>
           </TabPanels>
         </Tabs>
@@ -1595,144 +1604,16 @@ const Editor = ({
         <SplitPane onChange={syncSceneSize} defaultSizes={defaultMainSplitSize}>
           <div className={styles.splitInner}>{editorElements}</div>
           {/* 3d display split */}
-          <div ref={sceneWrapRef} className={styles.splitInner}>
+          <div
+            ref={sceneWrapRef}
+            className={styles.splitInner}
+            style={{ width: '100%', height: '100%' }}
+          >
             {sceneElements}
           </div>
         </SplitPane>
       )}
     </div>
-  );
-};
-
-const StrategyEditor = ({
-  node,
-  onSave,
-  onGraphChange,
-  ctx,
-}: {
-  node: SourceNode;
-  onSave: () => void;
-  onGraphChange: () => void;
-  ctx?: EngineContext;
-}) => {
-  if (!ctx || !node.config) {
-    return null;
-  }
-  const { inputs } = node;
-
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    node.sourceType = event.target.value as typeof node.sourceType;
-    onSave();
-  };
-
-  return (
-    <>
-      <div className={styles.uiGroup}>
-        <div>
-          <h2 className={styles.uiHeader}>Node Name</h2>
-          <input
-            className="textinput"
-            type="text"
-            value={node.name}
-            onChange={(e) => {
-              node.name = e.target.value;
-              onGraphChange();
-            }}
-          ></input>
-        </div>
-        <h2 className={cx(styles.uiHeader, 'mTop1')}>Node Strategies</h2>
-        <div className={styles.autocolmax}>
-          {node.config.strategies.map((strategy, index) => (
-            <React.Fragment key={strategy.type}>
-              <div>{strategy.type}</div>
-              <div>
-                <input
-                  className="textinput"
-                  type="text"
-                  readOnly
-                  value={JSON.stringify(strategy.config)}
-                ></input>
-              </div>
-              <div>
-                <button
-                  className="buttonauto formbutton"
-                  onClick={() => {
-                    node.config.strategies = [
-                      ...node.config.strategies.slice(0, index),
-                      ...node.config.strategies.slice(index + 1),
-                    ];
-                    onSave();
-                  }}
-                >
-                  &times; Remove Strategy
-                </button>
-              </div>
-            </React.Fragment>
-          ))}
-        </div>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            const data = Object.fromEntries(
-              new FormData(event.target as HTMLFormElement).entries()
-            );
-            node.config.strategies = [
-              ...node.config.strategies,
-              {
-                type: data.strategy,
-                config: JSON.parse(data.config as string),
-              } as Strategy,
-            ];
-            onSave();
-          }}
-        >
-          <h2 className={cx(styles.uiHeader, 'mTop1')}>Add Strategy</h2>
-          <div className={styles.colcolauto}>
-            <div>
-              <select name="strategy" className="select">
-                {Object.entries(StrategyType).map(([name, value]) => (
-                  <option key={name} value={value}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <input
-                className="textinput"
-                type="text"
-                name="config"
-                defaultValue="{}"
-              ></input>
-            </div>
-            <div>
-              <button className="buttonauto formbutton" type="submit">
-                Add
-              </button>
-            </div>
-          </div>
-        </form>
-      </div>
-      <div className={styles.uiGroup}>
-        <h2 className={styles.uiHeader}>Source Code Type</h2>
-        {Object.values(SourceType).map((value) => (
-          <label key={value}>
-            <input
-              type="radio"
-              value={value}
-              checked={node.sourceType === value}
-              onChange={handleChange}
-            />
-            {value}
-          </label>
-        ))}
-      </div>
-
-      <div className={styles.uiGroup}>
-        <h2 className={styles.uiHeader}>Node Inputs</h2>
-        {inputs.length ? inputs.map((i) => i.id).join(', ') : 'No inputs found'}
-      </div>
-    </>
   );
 };
 

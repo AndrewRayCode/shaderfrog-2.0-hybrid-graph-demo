@@ -1,0 +1,367 @@
+.editorContainer {
+  /* apparently required to force inner 100% height elements to stay within 
+     the container, rather than be 100% of page height */
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.smallScreen.editorContainer {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.gutter {
+  background: green;
+  width: 10px;
+  height: 100%;
+}
+
+.splitInner {
+  position: relative;
+  width: 100%;
+}
+
+.leftCol {
+  overflow: auto;
+  resize: horizontal;
+  border: 1px solid #000;
+}
+
+.edges {
+  width: 100%;
+  background: #010101;
+  color: rgb(227, 252, 0);
+}
+
+.shader {
+  width: 100%;
+  min-height: 360px;
+  background: #040404;
+  color: #fff;
+}
+
+textarea.error {
+  border: 1px inset red;
+}
+
+.button {
+  align-items: center;
+  margin: 1px;
+  cursor: pointer;
+  padding: 6px 14px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
+  border-radius: 6px;
+  border: none;
+
+  color: #fff;
+  background: linear-gradient(180deg, #4b91f7 0%, #367af6 100%);
+  background-origin: border-box;
+  box-shadow: 0px 0.5px 1.5px rgba(54, 122, 246, 0.25),
+    inset 0px 0.8px 0px -0.25px rgba(255, 255, 255, 0.2);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.button:disabled {
+  background: linear-gradient(0, #4b91f7 0%, #367af6 100%);
+  color: #111;
+  text-shadow: 2px ​1px 2px #aaa;
+}
+
+.button:focus {
+  box-shadow: inset 0px 0.8px 0px -0.25px rgba(255, 255, 255, 0.2),
+    0px 0.5px 1.5px rgba(54, 122, 246, 0.25),
+    0px 0px 0px 3.5px rgba(58, 108, 217, 0.5);
+  outline: 0;
+}
+
+.editor {
+  display: grid;
+  grid-template-columns: 43px 1fr;
+  max-height: 400px;
+  overflow: scroll;
+}
+
+.sidebar {
+  white-space: pre;
+  font-family: monospace;
+  color: #666;
+  background: #000;
+  font-size: 14px;
+  user-select: none;
+  line-height: 1.2em;
+  padding: 0 7px;
+}
+
+.code {
+  border: 0;
+  font-size: 14px;
+  min-height: 360px;
+  background: #111;
+  color: #fff;
+  line-height: 1.2em;
+  overflow: hidden;
+  resize: none;
+}
+
+.codeError {
+  background: rgb(46, 0, 0);
+  color: rgb(255, 161, 161);
+  font-family: monospace;
+  white-space: break-spaces;
+  padding: 10px;
+}
+
+/* editor specific tab styles */
+.errored {
+  background: rgb(176, 0, 0);
+}
+
+.selected.errored,
+.secondary .tab_tab.selected.errored {
+  background: rgb(84, 0, 0);
+}
+
+.secondary {
+  background: #444;
+}
+.secondary .tab_tab {
+  background: #444;
+}
+.secondary .tab_tab.selected {
+  background: #111;
+}
+.secondary .tab_tab.errored {
+  background: rgb(176, 0, 0);
+}
+
+.sceneElements {
+  position: relative;
+  height: 100%;
+  background: #222;
+}
+
+.tabBar {
+  height: 28px;
+  padding: 2px 0 0;
+}
+.tabControls {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+}
+.tabControls.col3 {
+  grid-template-columns: auto 1fr 1fr;
+}
+
+.activeEngine {
+  color: #fff;
+  font-size: 14px;
+  line-height: 14px;
+  text-shadow: 0 0 10px #000;
+}
+
+.uiGroup {
+  margin: 5px;
+  border: 1px inset #444;
+  border-radius: 4px;
+  box-shadow: 0 0 10px inset #222;
+  color: #fff;
+  padding: 20px 25px;
+  background: linear-gradient(45deg, #1a1a1a, rgb(41, 41, 41));
+}
+
+.uiHeader {
+  padding: 0;
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.uiInput {
+  margin: 1px;
+  padding: 3px 14px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
+  border-radius: 6px;
+  border: none;
+  padding: 8px 16px;
+
+  color: #fff;
+  background: linear-gradient(180deg, #222 0%, #202020 100%);
+  background-origin: border-box;
+  box-shadow: 0px 1px 1px rgb(114, 114, 114),
+    inset 0px 0.8px 0px -0.25px rgb(0, 0, 0);
+}
+.uiInput[readonly] {
+  background: linear-gradient(180deg, #303030 0%, #2d2d2d 100%);
+  color: #ddd;
+}
+
+.formButton {
+  align-items: center;
+  margin: 1px;
+  cursor: pointer;
+  padding: 3px 14px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
+  border-radius: 6px;
+  border: 1px solid #999;
+
+  color: #fff;
+  background: linear-gradient(180deg, #333 0%, #1f1f1f 100%);
+  background-origin: border-box;
+  box-shadow: 0px 1px -1px rgb(255, 255, 255),
+    inset 0px 0.8px 0px 0.25px rgb(51, 51, 51);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.formButton:disabled {
+  background: linear-gradient(180deg, rgb(77, 77, 77) 0%, #414141 100%);
+  color: #ddd;
+  text-shadow: 2px ​1px 2px #aaa;
+}
+
+.editorControls {
+  position: relative;
+}
+
+.sceneControls {
+  padding: 6px 12px;
+  background: linear-gradient(45deg, #1a1a1a, rgb(41, 41, 41));
+}
+
+.controlGrid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px;
+}
+
+.nodeEditorPanel {
+  background: #2a2a2a;
+  overflow: scroll;
+}
+.belowTabs {
+  top: 29px !important;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.colcolauto {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(auto, 200px)) 1fr;
+  gap: 4px;
+}
+.autocolmax {
+  display: grid;
+  grid-template-columns: auto minmax(auto, 200px) 1fr;
+  gap: 4px;
+}
+
+.reactFlowWrapper {
+  flex-grow: 1;
+  /* approximate height of tabs :( */
+  height: calc(100% - 28px);
+}
+
+.sceneContainer {
+  overflow: hidden;
+  height: 100%;
+  width: 100%;
+}
+
+.babylonContainer {
+  height: 100%;
+  width: 100%;
+}
+
+.babylonContainer canvas {
+  height: 100%;
+  width: 100%;
+}
+
+.sceneAndControls {
+  height: 100%;
+  display: grid;
+}
+.smallScreen .sceneAndControls {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.guiMsg {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  color: #fff;
+}
+.guiError {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fee;
+  color: #f00;
+  padding: 10px;
+}
+
+.compiling {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 10px;
+  text-align: center;
+}
+.compiling:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(
+    rgba(200, 200, 200, 0.7),
+    rgba(150, 150, 150, 0.6)
+  );
+  z-index: 1;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+.compiling span {
+  color: #fff;
+  text-shadow: 0 0 5px #000;
+  position: relative;
+  z-index: 2;
+}
+
+.graphFooter {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(#31382a, #2b3028);
+  color: #fff;
+  border-top: 1px solid #47553e;
+  padding: 3px 12px 4px;
+  text-align: center;
+  font-size: 12px;
+  width: 100%;
+  box-shadow: 0 0 20px #000;
+}
+
+.graphFooter span {
+  color: #66715e;
+  padding: 0 4px;
+}
+.graphFooter a {
+  color: #a6cb00;
+}
+.graphFooter a:hover {
+  text-decoration: underline;
+  color: #d1f72a;
+}

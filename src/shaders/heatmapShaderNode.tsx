@@ -1,7 +1,7 @@
-import { NodePosition } from '@shaderfrog/core/src/core/nodes/core-node';
-import { numberUniformData } from '@shaderfrog/core/src/core/nodes/data-nodes';
-import { sourceNode } from '@shaderfrog/core/src/core/nodes/engine-node';
-import { uniformStrategy } from '@shaderfrog/core/src/core/strategy';
+import { NodePosition } from '@core/nodes/core-node';
+import { numberUniformData } from '@core/nodes/data-nodes';
+import { sourceNode } from '@core/nodes/engine-node';
+import { uniformStrategy } from '@core/strategy';
 
 export const variation0 = `
 // Adapted from http://blogs.msdn.com/b/eternalcoding/archive/2014/04/17/learning-shaders-create-your-own-shaders-with-babylon-js.aspx

@@ -1,11 +1,11 @@
-import { NodePosition } from '@shaderfrog/core/src/core/nodes/core-node';
+import { NodePosition } from '@core/nodes/core-node';
 import {
   numberUniformData,
   UniformDataType,
   vectorUniformData,
-} from '@shaderfrog/core/src/core/nodes/data-nodes';
-import { sourceNode } from '@shaderfrog/core/src/core/nodes/engine-node';
-import { uniformStrategy } from '@shaderfrog/core/src/core/strategy';
+} from '@core/nodes/data-nodes';
+import { sourceNode } from '@core/nodes/engine-node';
+import { uniformStrategy } from '@core/strategy';
 
 const juliaF = (id: string, position: NodePosition) =>
   sourceNode(

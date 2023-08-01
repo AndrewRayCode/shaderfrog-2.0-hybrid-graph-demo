@@ -59,6 +59,13 @@ import {
   Example as BabylonExample,
 } from '../../editor-engine-plugins/babylon';
 
+import { engine as playengine } from '@core/plugins/playcanvas';
+import {
+  Editor as PlayCanvasComponent,
+  makeExampleGraph as playCanvasMakeExampleGraph,
+  Example as PlayCanvasExample,
+} from '../../editor-engine-plugins/playcanvas';
+
 import { Hoisty, useHoisty } from '../hoistedRefContext';
 import { UICompileGraphResult } from '../uICompileGraphResult';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -124,12 +131,15 @@ const SMALL_SCREEN_WIDTH = 500;
  * ✅ TODO ✅
  *
  * Experimentation ideas
- * - Try SDF image shader https://www.youtube.com/watch?v=1b5hIMqz_wM
- * - Put other images in the graph like the toon step shader
+ * - ✅ Try SDF image shader https://www.youtube.com/watch?v=1b5hIMqz_wM
  * - ✅ Have uniforms added per shader in the graph
+ * - Put other images in the graph like the toon step shader
  * - Adding a rim glow to a toon lit mesh is cool - but it would be even cooler
  *   to be able to multiply the rim lighting by the threejs lighting output
  *   specifically.
+ * - Add post processing effect support
+ * - Add playcanvas support
+ * - Add screen space shader support
  *
  * Fundamental Issues
  * - ✅ The three.js material has properties like "envMap" and "reflectivity" which
@@ -277,7 +287,7 @@ const Editor = ({
     initialShader || {
       // TODO: Align these with the examples and/or the actual initial values
       // when creating a shader
-      engine: 'three',
+      engine: 'playcanvas',
       name: `New shader ${Math.random()}`,
       visibility: 0,
       config: {
@@ -309,11 +319,18 @@ const Editor = ({
       engine: shader?.engine || 'three',
     });
   const lastEngine = lastEngineName
-    ? lastEngineName === 'babylon'
+    ? lastEngineName === 'playcanvas'
+      ? playengine
+      : lastEngineName === 'babylon'
       ? babylengine
       : threngine
     : null;
-  const engine = engineName === 'babylon' ? babylengine : threngine;
+  const engine =
+    engineName === 'playcanvas'
+      ? playengine
+      : engineName === 'babylon'
+      ? babylengine
+      : threngine;
 
   // Store the engine context in state. There's a separate function for passing
   // to children to update the engine context, which has more side effects
@@ -330,7 +347,9 @@ const Editor = ({
     | [typeof BabylonExample, typeof babylonMakeExampleGraph]
     | [typeof ThreeExample, typeof threeMakeExampleGraph]
   >(() => {
-    return engineName === 'babylon'
+    return engineName === 'playcanvas'
+      ? [PlayCanvasExample, playCanvasMakeExampleGraph]
+      : engineName === 'babylon'
       ? [BabylonExample, babylonMakeExampleGraph]
       : [ThreeExample, threeMakeExampleGraph];
   }, [engineName]);
@@ -398,6 +417,20 @@ const Editor = ({
     () => debounce(setNeedsCompile, 500),
     []
   );
+
+  useEffect(() => {
+    if (shader) {
+      return;
+    }
+    const urlParams = new URLSearchParams(window.location.search);
+    const value = currentExample || '';
+    urlParams.set('example', value);
+    window.history.replaceState(
+      {},
+      value,
+      `${window.location.pathname}?${urlParams.toString()}`
+    );
+  }, [currentExample, shader]);
 
   const setVertexOverride = useCallback(
     (vertexResult: string) => {
@@ -815,6 +848,8 @@ const Editor = ({
     [setFlowElements, setGraph]
   );
 
+  // This is the Flow callback that calls our custom connection handler when a
+  // new edge is dragged between inputs/outputs
   const onConnect = useCallback(
     (edge: FlowEdge | Connection) => addConnection(edge),
     [addConnection]
@@ -1161,20 +1196,6 @@ const Editor = ({
     [setFlowElements, setGraph]
   );
 
-  useEffect(() => {
-    if (shader) {
-      return;
-    }
-    const urlParams = new URLSearchParams(window.location.search);
-    const value = currentExample || '';
-    urlParams.set('example', value);
-    window.history.replaceState(
-      {},
-      value,
-      `${window.location.pathname}?${urlParams.toString()}`
-    );
-  }, [currentExample, shader]);
-
   const engineSelectorElement = (
     <div className="inlinecontrol">
       <div>
@@ -1201,6 +1222,7 @@ const Editor = ({
         >
           <option value="three">Three.js</option>
           <option value="babylon">Babylon</option>
+          <option value="playcanvas">Playcanvas</option>
         </select>
       </div>
     </div>
@@ -1523,7 +1545,28 @@ const Editor = ({
         </div>
       ) : null}
       <div className={styles.sceneAndControls}>
-        {engine.name === 'three' ? (
+        {engine.name === 'playcanvas' ? (
+          <PlayCanvasComponent
+            bg={bg}
+            setBg={setBg}
+            setCtx={setCtx}
+            graph={graph}
+            setShowHelpers={setShowHelpers}
+            showHelpers={showHelpers}
+            lights={lights}
+            setLights={setLights}
+            animatedLights={animatedLights}
+            setAnimatedLights={setAnimatedLights}
+            previewObject={previewObject}
+            setPreviewObject={setPreviewObject}
+            compile={childCompile}
+            compileResult={compileResult}
+            setGlResult={setGlResult}
+            width={uiState.sceneWidth}
+            height={uiState.sceneHeight}
+            assetPrefix={assetPrefix}
+          />
+        ) : engine.name === 'three' ? (
           <ThreeComponent
             initialCtx={ctx}
             bg={bg}
